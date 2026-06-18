@@ -39,6 +39,17 @@ Herdamos os princípios da Apple HIG — **Clarity, Deference, Depth** — e ada
 | 4+5 | Wireframes + Screen descriptions — **Clínica** | [09 · Clínica](09-wireframes-clinic.md) |
 | 4+5 | Wireframes + Screen descriptions — **Administrador** | [10 · Admin](10-wireframes-admin.md) |
 
+### Camada de hardening mobile-first (95% iPhone/Android)
+| # | Tema | Documento |
+|---|------|-----------|
+| 11 | Mobile-first principles (uma mão, ≤3 toques, <5s, benchmarks Revolut/Uber/Apple Health/Airbnb) | [11](11-mobile-first-principles.md) |
+| 12 | Device matrix (iPhone SE → 16 Pro Max, foldables, tablets) + layout adaptativo | [12](12-device-matrix.md) |
+| 13 | Capacidades: offline, push, deep links, biometria, passkeys | [13](13-platform-capabilities.md) |
+| 14 | Acessibilidade (AA), dark mode, large text, localização | [14](14-accessibility-darkmode-text-localization.md) |
+| 15 | Performance budget (launch <2s, transições <300ms) | [15](15-performance-budget.md) |
+| 16 | Workflow review & redesign (auditoria desktop→mobile de cada feature) | [16](16-workflow-review-redesign.md) |
+| 17 | **UX specifications detalhadas por ecrã** (todos os ecrãs) | [17](17-ux-specifications.md) |
+
 ## Convenções dos wireframes
 - Moldura `┌─┐` representa um ecrã de telemóvel (mobile-first). Web/tablet em [doc 06](06-responsive-behavior.md).
 - `[ Botão ]` = ação primária · `‹` = voltar · `⊙` = avatar · `⚠️` = segurança clínica · `🔒` = privacidade.
