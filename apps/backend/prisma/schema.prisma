@@ -328,6 +328,36 @@ model Invoice {
   issuedAt       DateTime     @default(now())
 }
 
+// Platform commission invoiced to the pediatrician (subject to VAT — to validate).
+model CommissionInvoice {
+  id             String   @id @default(uuid())
+  pediatricianId String
+  consultationId String   @unique
+  amountCents    Int
+  vatCents       Int      @default(0)
+  vatRegime      String   @default("standard")
+  atcud          String?
+  partnerDocId   String?
+  pdfUrl         String?
+  issuedAt       DateTime @default(now())
+
+  @@index([pediatricianId])
+}
+
+// Verified review left by a family after a closed consultation.
+model Review {
+  id             String   @id @default(uuid())
+  consultationId String   @unique
+  familyId       String
+  pediatricianId String
+  rating         Int
+  comment        String?
+  verified       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([pediatricianId])
+}
+
 // ── Audit (append-only) ──────────────────────────────
 model AuditLog {
   id          String   @id @default(uuid())

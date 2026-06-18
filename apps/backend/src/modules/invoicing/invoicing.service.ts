@@ -51,5 +51,29 @@ export class InvoicingService {
         pdfUrl: issued.pdfUrl,
       },
     });
+
+    // Platform commission invoice issued to the pediatrician (VAT standard).
+    const commissionVat = Math.round(event.platformFeeCents * 0.23);
+    const commissionDoc = await this.billing.issueInvoice({
+      consultationId: consultation.id,
+      issuer: 'platform',
+      amountCents: event.platformFeeCents,
+      vatCents: commissionVat,
+      vatRegime: 'standard',
+      description: 'Comissão de intermediação Pédia',
+    });
+
+    await this.prisma.commissionInvoice.create({
+      data: {
+        consultationId: consultation.id,
+        pediatricianId: consultation.pediatricianId,
+        amountCents: event.platformFeeCents,
+        vatCents: commissionVat,
+        vatRegime: 'standard',
+        atcud: commissionDoc.atcud,
+        partnerDocId: commissionDoc.partnerDocId,
+        pdfUrl: commissionDoc.pdfUrl,
+      },
+    });
   }
 }

@@ -55,8 +55,14 @@ docker-compose.yml local dev (postgres + backend)
 
 ### 🔜 Increment 3 — Pediatrician tooling + marketplace
 
-### 🔜 Increment 3 — Pediatrician tooling + marketplace
-Services/pricing CRUD, reviews, marketplace search/filters; financial dashboard; commission invoice to pediatrician.
+### ✅ Increment 3 — Pediatrician tooling + marketplace
+- **Self-management** (`/pediatricians/me*`): profile update, services CRUD (create/update/deactivate), Stripe Connect onboarding link, financial dashboard (net/commission/settled counts).
+- **Marketplace** (`GET /pediatricians`): filters by language, specialty, service type, max price, min rating; verified-only.
+- **Reviews**: parent leaves a verified review after a CLOSED consultation; rating average recomputed; public listing per pediatrician.
+- **Commission invoice**: `InvoicingService` now also issues the platform-commission invoice to the pediatrician (VAT standard) on `payment.captured`; new `CommissionInvoice` + `Review` tables.
+- Unit tests for the reviews flow.
+
+### 🔜 Increment 4 — Video, scheduling, notifications, hardening
 
 ### 🔜 Increment 4 — Video, scheduling, notifications, hardening
 WebRTC sessions, agenda, push, refunds/disputes, DevSecOps gates, pentest prep.
