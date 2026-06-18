@@ -27,7 +27,7 @@ export class EncryptionService {
   encrypt(plaintext: string | null | undefined): string | null {
     if (plaintext == null) return null;
     const iv = randomBytes(12);
-    const cipher = createCipheriv(this.algorithm, this.key, iv);
+    const cipher = createCipheriv(this.algorithm, this.key, iv, { authTagLength: 16 });
     const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
     return `${iv.toString('base64')}.${tag.toString('base64')}.${enc.toString('base64')}`;
@@ -41,6 +41,7 @@ export class EncryptionService {
       this.algorithm,
       this.key,
       Buffer.from(ivB64, 'base64'),
+      { authTagLength: 16 },
     );
     decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
     const dec = Buffer.concat([

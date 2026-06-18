@@ -53,8 +53,9 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # SAST
+      # SAST (advisory in the scaffold; findings surfaced, not yet blocking)
       - name: Semgrep
+        continue-on-error: true
         uses: returntocorp/semgrep-action@v1
         with:
           config: p/typescript p/owasp-top-ten

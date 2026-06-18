@@ -24,7 +24,7 @@ class PediaTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
