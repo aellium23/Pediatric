@@ -63,5 +63,5 @@ jobs:
       - name: npm audit (high+)
         working-directory: apps/backend
         run: |
-          npm ci --ignore-scripts
+          npm install --ignore-scripts --no-audit --no-fund
           npm audit --audit-level=high || true
