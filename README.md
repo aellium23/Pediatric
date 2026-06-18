@@ -65,6 +65,28 @@ Para além do blueprint de produto acima, existe uma **camada estratégica enter
 | [E10](enterprise/10-scalability.md) | Escalabilidade (1M famílias, 50k consultas/dia, 10k vídeos) |
 | [E11](enterprise/11-investment-readiness.md) | Prontidão para investimento, moats, valuation |
 
+## Arquitetura de Solução (C4, diagramas, stack)
+
+Arquitetura técnica completa produzida por equipa de CPO/CTO/Solution Architect/Mobile Architect/Compliance/Security, com **diagramas C4 (Context/Container/Component)**, data flow diagrams, security diagrams e justificação de cada escolha tecnológica. Ver pasta [`architecture/`](architecture/README.md).
+
+| Doc | Tema |
+|-----|------|
+| [00](architecture/00-overview.md) | Overview + **C4 L1 (Context)** |
+| [01](architecture/01-system-architecture.md) | System architecture + **C4 L2 (Container)** |
+| [02](architecture/02-frontend-architecture.md) | Frontend (Flutter + Next.js) |
+| [03](architecture/03-backend-architecture.md) | Backend + **C4 L3 (Component)** |
+| [04](architecture/04-database-architecture.md) | Database (Postgres, RLS, particionamento, encriptação) |
+| [05](architecture/05-cloud-architecture.md) | Cloud (rede, regiões UE, serviços geridos) |
+| [06](architecture/06-ai-architecture.md) | AI (isolamento, prompt injection, DLP, human-in-loop) |
+| [07](architecture/07-payments-architecture.md) | Payments + **DFDs** (split, faturação, reembolsos) |
+| [08](architecture/08-compliance-architecture.md) | Healthcare compliance (consentimento, DSR, EHDS) |
+| [09](architecture/09-security-architecture.md) | Security (**security diagrams**, Zero Trust, ameaças) |
+| [10](architecture/10-deployment-architecture.md) | Deployment (ambientes, release, DR) |
+| [11](architecture/11-devsecops-architecture.md) | DevSecOps (pipeline, gates, certificações) |
+| [12](architecture/12-scalability-architecture.md) | Scalability (alvos enterprise) |
+| [13](architecture/13-technology-stack.md) | **Stack + justificação de cada escolha** |
+| [14](architecture/14-data-flow-diagrams.md) | **Data flow diagrams** ponta-a-ponta |
+
 ## Princípios de design transversais
 
 - **Segurança e privacidade desde o primeiro dia** (privacy & security by design, RGPD).
