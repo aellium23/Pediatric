@@ -87,6 +87,23 @@ Arquitetura técnica completa produzida por equipa de CPO/CTO/Solution Architect
 | [13](architecture/13-technology-stack.md) | **Stack + justificação de cada escolha** |
 | [14](architecture/14-data-flow-diagrams.md) | **Data flow diagrams** ponta-a-ponta |
 
+## UX/UI Design System & Ecrãs (mobile-first, WCAG AA)
+
+Design completo de UX/UI (perspetiva de Senior Product Designer Apple): IA, navegação, jornadas, design system (cor/tipografia/componentes), responsividade e **wireframes de todos os ecrãs** para Pai, Pediatra, Clínica e Administrador. Ver pasta [`design/`](design/README.md).
+
+| Doc | Tema |
+|-----|------|
+| [01](design/01-information-architecture.md) | Information Architecture |
+| [02](design/02-navigation.md) | Navigation structure |
+| [03](design/03-user-journeys.md) | User journeys (UX, emocionais) |
+| [04](design/04-design-system-foundations.md) | Design System: **cor + tipografia** + espaço/movimento |
+| [05](design/05-component-library.md) | Component library (adaptive iOS/Android) |
+| [06](design/06-responsive-behavior.md) | Responsive behavior |
+| [07](design/07-wireframes-parent.md) | Wireframes + screens — **Pai** (P01–P27) |
+| [08](design/08-wireframes-pediatrician.md) | Wireframes + screens — **Pediatra** (D01–D14) |
+| [09](design/09-wireframes-clinic.md) | Wireframes + screens — **Clínica** (C01–C08) |
+| [10](design/10-wireframes-admin.md) | Wireframes + screens — **Administrador** (A01–A10) |
+
 ## Princípios de design transversais
 
 - **Segurança e privacidade desde o primeiro dia** (privacy & security by design, RGPD).
