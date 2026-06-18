@@ -46,6 +46,25 @@ A proposta assenta em quatro pilares:
 
 ---
 
+## Camada Enterprise (segurança, compliance, escala, investimento)
+
+Para além do blueprint de produto acima, existe uma **camada estratégica enterprise** que desenha a plataforma para suportar crescimento europeu, proteção de dados de saúde de menores ao mais alto nível e requisitos de investidores institucionais. Ver pasta [`enterprise/`](enterprise/00-strategic-overview.md).
+
+| Doc | Tema |
+|-----|------|
+| [E00](enterprise/00-strategic-overview.md) | Visão estratégica enterprise (investidores/board) |
+| [E01](enterprise/01-app-stores.md) | App Store & Google Play: compliance e ciclo de vida |
+| [E02](enterprise/02-security-architecture.md) | Arquitetura de segurança & modelo de ameaças (Zero Trust, Defense in Depth) |
+| [E03](enterprise/03-iam-authentication.md) | IAM, OAuth 2.1/OIDC, RBAC/ABAC, MFA, Passkeys, Device Trust |
+| [E04](enterprise/04-data-protection.md) | Proteção de dados, AES-256/TLS 1.3, KMS, dados de menores |
+| [E05](enterprise/05-app-api-file-video-security.md) | Segurança de app móvel, API, ficheiros e vídeo |
+| [E06](enterprise/06-ai-security.md) | Segurança de IA (tenant isolation, prompt injection, DLP) |
+| [E07](enterprise/07-compliance.md) | RGPD + saúde PT + UE (EHDS, NIS2, DORA, ePrivacy, AI Act) |
+| [E08](enterprise/08-secops-bcdr.md) | SecOps, SIEM/SOC, resposta a incidentes, backup & DR (RPO<15m/RTO<1h) |
+| [E09](enterprise/09-devsecops-pentest-certs.md) | DevSecOps, pentest, roadmap de certificações (ASVS→ISO 27001→SOC 2) |
+| [E10](enterprise/10-scalability.md) | Escalabilidade (1M famílias, 50k consultas/dia, 10k vídeos) |
+| [E11](enterprise/11-investment-readiness.md) | Prontidão para investimento, moats, valuation |
+
 ## Princípios de design transversais
 
 - **Segurança e privacidade desde o primeiro dia** (privacy & security by design, RGPD).
