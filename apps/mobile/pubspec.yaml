@@ -1,0 +1,31 @@
+name: pedia
+description: Pédia — telepediatrics app (parent + pediatrician).
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1     # state management
+  go_router: ^14.2.7           # navigation / deep links
+  dio: ^5.7.0                  # API client
+  flutter_secure_storage: ^9.2.2  # token storage (Keychain/Keystore)
+  local_auth: ^2.3.0           # biometric login
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  intl: ^0.19.0                # localization/formatting
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true
+  generate: true   # l10n

@@ -1,0 +1,64 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['apps/backend/**', '.github/workflows/backend-ci.yml']
+  pull_request:
+    paths: ['apps/backend/**']
+
+defaults:
+  run:
+    working-directory: apps/backend
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pedia
+          POSTGRES_PASSWORD: pedia
+          POSTGRES_DB: pedia
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pedia" --health-interval 5s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://pedia:pedia@localhost:5432/pedia?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npx prisma migrate deploy
+      - run: npm test -- --coverage
+      - run: npm run test:e2e
+      - run: npm run build
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Secret detection
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # SAST
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/typescript p/owasp-top-ten
+      # Dependency (SCA) scanning
+      - name: npm audit (high+)
+        working-directory: apps/backend
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high || true

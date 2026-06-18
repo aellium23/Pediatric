@@ -1,0 +1,346 @@
+// Pédia — PostgreSQL schema (MVP). Maps to docs/10-modelo-dados.md.
+// Security: clinical-sensitive fields are AES-256-GCM encrypted at the app layer
+// (EncryptionService) and stored as ciphertext; RLS + ownership checks enforced.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Identity ─────────────────────────────────────────
+enum Role {
+  PARENT
+  PEDIATRICIAN
+  CLINIC_STAFF
+  CLINIC_ADMIN
+  PLATFORM_ADMIN
+  SUPPORT
+  FINANCE
+  COMPLIANCE
+}
+
+enum AuthProvider {
+  PASSWORDLESS
+  APPLE
+  GOOGLE
+  PASSKEY
+}
+
+model User {
+  id            String        @id @default(uuid())
+  role          Role          @default(PARENT)
+  email         String?       @unique
+  emailVerified Boolean       @default(false)
+  phone         String?       @unique
+  phoneVerified Boolean       @default(false)
+  authProvider  AuthProvider  @default(PASSWORDLESS)
+  appleSub      String?       @unique
+  googleSub     String?       @unique
+  mfaEnabled    Boolean       @default(false)
+  locale        String        @default("pt-PT")
+  countryCode   String        @default("PT")
+  status        String        @default("active")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  credentials   WebAuthnCredential[]
+  refreshTokens RefreshToken[]
+  familyMembers FamilyMember[]
+  pediatrician  Pediatrician?
+  consents      Consent[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+}
+
+model WebAuthnCredential {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId  String   @unique // base64url
+  publicKey     Bytes
+  counter       BigInt   @default(0)
+  transports    String[] @default([])
+  deviceLabel   String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ── Consent (versioned, immutable) ───────────────────
+enum ConsentSubject {
+  HEALTH_DATA
+  TELECONSULT
+  TERMS
+  PRIVACY
+  MARKETING
+}
+
+model Consent {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  childId   String?
+  subject   ConsentSubject
+  version   String
+  grantedAt DateTime       @default(now())
+  revokedAt DateTime?
+  evidence  Json?
+
+  @@index([userId, subject])
+}
+
+// ── Family & Children ────────────────────────────────
+model Family {
+  id            String         @id @default(uuid())
+  name          String
+  primaryUserId String
+  countryCode   String         @default("PT")
+  createdAt     DateTime       @default(now())
+
+  members  FamilyMember[]
+  children Child[]
+}
+
+model FamilyMember {
+  id           String   @id @default(uuid())
+  familyId     String
+  family       Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationship String   @default("guardian")
+  permissions  String[] @default(["read", "write"])
+
+  @@unique([familyId, userId])
+}
+
+model Child {
+  id            String    @id @default(uuid())
+  familyId      String
+  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name          String
+  birthDate     DateTime
+  sex           String?
+  usualDoctor   String?
+  // Clinical-sensitive: AES-256-GCM ciphertext (allergies, meds, conditions)
+  healthProfile String?
+  createdAt     DateTime  @default(now())
+
+  consultations Consultation[]
+  files         FileAsset[]
+
+  @@index([familyId])
+}
+
+// ── Pediatricians ────────────────────────────────────
+enum PediatricianStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+model Pediatrician {
+  id               String               @id @default(uuid())
+  userId           String               @unique
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber    String               @unique
+  licenseVerifiedAt DateTime?
+  bio              String?
+  experienceYears  Int?
+  languages        String[]             @default([])
+  specialties      String[]             @default([])
+  status           PediatricianStatus   @default(PENDING)
+  ratingAvg        Float                @default(0)
+  stripeAccountId  String?
+  createdAt        DateTime             @default(now())
+
+  services      PediatricianService[]
+  consultations Consultation[]
+
+  @@index([status])
+}
+
+enum ServiceType {
+  MESSAGE
+  ASYNC
+  VIDEO
+  SECOND_OPINION
+  PRESCRIPTION_RENEWAL
+  FOLLOW_UP
+}
+
+model PediatricianService {
+  id             String       @id @default(uuid())
+  pediatricianId String
+  pediatrician   Pediatrician @relation(fields: [pediatricianId], references: [id], onDelete: Cascade)
+  type           ServiceType
+  priceCents     Int
+  currency       String       @default("EUR")
+  slaHours       Int          @default(24)
+  scopeText      String?
+  active         Boolean      @default(true)
+
+  @@index([pediatricianId])
+}
+
+// ── Consultations & Messaging ────────────────────────
+enum ConsultationStatus {
+  OPEN
+  TRIAGE
+  ANSWERED
+  CLOSED
+  ARCHIVED
+  EXPIRED
+  REFUNDED
+  DISPUTED
+}
+
+model Consultation {
+  id             String             @id @default(uuid())
+  familyId       String
+  childId        String
+  child          Child              @relation(fields: [childId], references: [id])
+  pediatricianId String
+  pediatrician   Pediatrician       @relation(fields: [pediatricianId], references: [id])
+  type           ServiceType
+  status         ConsultationStatus @default(OPEN)
+  scopeSnapshot  String?
+  priceCents     Int
+  currency       String             @default("EUR")
+  slaDueAt       DateTime?
+  triage         Json?
+  openedAt       DateTime           @default(now())
+  answeredAt     DateTime?
+  closedAt       DateTime?
+
+  messages Message[]
+  files    FileAsset[]
+  payment  Payment?
+  invoice  Invoice?
+
+  @@index([pediatricianId, status])
+  @@index([familyId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  senderUserId   String
+  body           String       // AES-256-GCM ciphertext
+  aiGenerated    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([consultationId])
+}
+
+model FileAsset {
+  id             String        @id @default(uuid())
+  ownerUserId    String
+  childId        String?
+  child          Child?        @relation(fields: [childId], references: [id])
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  type           String
+  storageKey     String
+  mime           String
+  sizeBytes      Int
+  checksum       String?
+  scanStatus     String        @default("pending") // pending|clean|infected
+  createdAt      DateTime      @default(now())
+
+  @@index([childId])
+}
+
+// ── Payments & Invoicing ─────────────────────────────
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  REFUNDED
+  FAILED
+  CHARGED_BACK
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  consultationId String        @unique
+  consultation   Consultation  @relation(fields: [consultationId], references: [id])
+  amountCents    Int
+  currency       String        @default("EUR")
+  method         String        @default("card")
+  psp            String        @default("stripe")
+  pspRef         String?
+  status         PaymentStatus @default(CREATED)
+  createdAt      DateTime      @default(now())
+  capturedAt     DateTime?
+
+  split  Split?
+  refunds Refund[]
+}
+
+model Split {
+  id                  String  @id @default(uuid())
+  paymentId           String  @unique
+  payment             Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  platformFeeCents    Int
+  pediatricianAmount  Int
+  feeModel            String  @default("pct")
+}
+
+model Refund {
+  id        String   @id @default(uuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amountCents Int
+  reason    String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id             String       @id @default(uuid())
+  consultationId String       @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  issuer         String       // pediatrician | platform
+  amountCents    Int
+  vatCents       Int          @default(0)
+  vatRegime      String       @default("exempt")
+  atcud          String?
+  partnerDocId   String?
+  pdfUrl         String?
+  issuedAt       DateTime     @default(now())
+}
+
+// ── Audit (append-only) ──────────────────────────────
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  ip          String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}

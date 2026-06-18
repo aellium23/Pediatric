@@ -65,6 +65,16 @@ Para além do blueprint de produto acima, existe uma **camada estratégica enter
 | [E10](enterprise/10-scalability.md) | Escalabilidade (1M famílias, 50k consultas/dia, 10k vídeos) |
 | [E11](enterprise/11-investment-readiness.md) | Prontidão para investimento, moats, valuation |
 
+## Implementação (código)
+
+O build incremental do produto vive em código no monorepo. Ver [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+
+- **Backend** (NestJS/TypeScript/Prisma): [`apps/backend/`](apps/backend/) — auth (OAuth2.1/Passkeys/Apple/Google), family/children, consultations, Stripe Connect, S3 files, segurança (RBAC, JWT, encriptação de campo, auditoria).
+- **Mobile** (Flutter/Riverpod): [`apps/mobile/`](apps/mobile/)
+- **Infra** (Terraform/AWS): [`infra/terraform/`](infra/terraform/) — VPC, RDS, S3+KMS, ECR
+- **CI/CD**: [`.github/workflows/`](.github/workflows/) — lint, testes, SAST/SCA/secret scan, build
+- **Increment 1** = fundação MVP. Roadmap de increments em [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+
 ## Arquitetura de Solução (C4, diagramas, stack)
 
 Arquitetura técnica completa produzida por equipa de CPO/CTO/Solution Architect/Mobile Architect/Compliance/Security, com **diagramas C4 (Context/Container/Component)**, data flow diagrams, security diagrams e justificação de cada escolha tecnológica. Ver pasta [`architecture/`](architecture/README.md).

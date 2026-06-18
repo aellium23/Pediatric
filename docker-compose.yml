@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pedia-postgres
+    environment:
+      POSTGRES_USER: pedia
+      POSTGRES_PASSWORD: pedia_dev_password
+      POSTGRES_DB: pedia
+    ports:
+      - "5432:5432"
+    volumes:
+      - pedia_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pedia"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: pedia-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://pedia:pedia_dev_password@postgres:5432/pedia?schema=public
+      JWT_ACCESS_SECRET: dev_access_secret_change_me
+      JWT_REFRESH_SECRET: dev_refresh_secret_change_me
+      FIELD_ENCRYPTION_KEY: dev_32byte_key_dev_32byte_key_xx
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_NAME: Pedia
+      WEBAUTHN_ORIGIN: http://localhost:3000
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+
+volumes:
+  pedia_pg:
