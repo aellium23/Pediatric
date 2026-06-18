@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from 'throttler';
 import configuration from './common/config/configuration';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { CryptoModule } from './common/crypto/crypto.module';
+import { SecurityModule } from './common/security/security.module';
+import { InvoicingModule } from './modules/invoicing/invoicing.module';
 import { JwtAuthGuard } from './common/security/jwt-auth.guard';
 import { RolesGuard } from './common/security/roles.guard';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
@@ -20,14 +24,18 @@ import { FilesModule } from './modules/files/files.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     PrismaModule,
     CryptoModule,
+    SecurityModule,
     HealthModule,
     AuthModule,
     ChildrenModule,
     PediatriciansModule,
     ConsultationsModule,
     PaymentsModule,
+    InvoicingModule,
     FilesModule,
   ],
   providers: [

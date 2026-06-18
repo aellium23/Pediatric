@@ -3,19 +3,31 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConsultationStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
+import { ConsentService } from '../../common/security/consent.service';
+import { PaymentsService } from '../payments/payments.service';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
+import {
+  ConsultationClosedEvent,
+  ConsultationExpiredEvent,
+  MessageCreatedEvent,
+  PaymentCapturedEvent,
+} from './events';
 
 @Injectable()
 export class ConsultationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: EncryptionService,
+    private readonly consent: ConsentService,
+    private readonly payments: PaymentsService,
+    private readonly events: EventEmitter2,
   ) {}
 
-  /** Parent starts a paid message consultation (payment is created in PaymentsModule, Increment 2). */
+  /** Parent starts a paid message consultation (consent-gated). */
   async start(userId: string, dto: StartConsultationDto) {
     const child = await this.prisma.child.findUnique({ where: { id: dto.childId } });
     if (!child) throw new NotFoundException('Child not found');
@@ -24,11 +36,12 @@ export class ConsultationsService {
     });
     if (!member) throw new ForbiddenException('Not authorized for this child');
 
+    // Special-category data: require active health-data consent.
+    await this.consent.assertHealthConsent(child.id);
+
     const service = await this.prisma.pediatricianService.findFirstOrThrow({
       where: { id: dto.serviceId, active: true },
-      include: { pediatrician: true },
     });
-
     const slaDueAt = new Date(Date.now() + service.slaHours * 3600 * 1000);
 
     const consultation = await this.prisma.consultation.create({
@@ -47,13 +60,7 @@ export class ConsultationsService {
     });
 
     if (dto.question) {
-      await this.prisma.message.create({
-        data: {
-          consultationId: consultation.id,
-          senderUserId: userId,
-          body: this.crypto.encrypt(dto.question)!,
-        },
-      });
+      await this.persistMessage(consultation.id, userId, dto.question);
     }
     return consultation;
   }
@@ -63,6 +70,18 @@ export class ConsultationsService {
     return this.prisma.consultation.findMany({
       where: { familyId: { in: memberships.map((m) => m.familyId) } },
       orderBy: { openedAt: 'desc' },
+    });
+  }
+
+  /** Pediatrician inbox, ordered by SLA urgency. */
+  async listForPediatrician(userId: string) {
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    return this.prisma.consultation.findMany({
+      where: {
+        pediatricianId: ped.id,
+        status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE, ConsultationStatus.ANSWERED] },
+      },
+      orderBy: { slaDueAt: 'asc' },
     });
   }
 
@@ -82,15 +101,74 @@ export class ConsultationsService {
   }
 
   async sendMessage(userId: string, consultationId: string, dto: SendMessageDto) {
-    await this.assertParticipant(userId, consultationId);
-    const message = await this.prisma.message.create({
-      data: {
-        consultationId,
-        senderUserId: userId,
-        body: this.crypto.encrypt(dto.body)!,
+    const consultation = await this.assertParticipant(userId, consultationId);
+    const message = await this.persistMessage(consultationId, userId, dto.body);
+
+    // Pediatrician's first reply moves the consultation to ANSWERED (SLA met).
+    const isPediatrician = consultation.pediatrician.userId === userId;
+    if (
+      isPediatrician &&
+      [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE].includes(consultation.status)
+    ) {
+      await this.prisma.consultation.update({
+        where: { id: consultationId },
+        data: { status: ConsultationStatus.ANSWERED, answeredAt: new Date() },
+      });
+    }
+    return { id: message.id, createdAt: message.createdAt };
+  }
+
+  /** Pediatrician closes: capture payment, split, emit invoicing/notification events. */
+  async close(userId: string, consultationId: string) {
+    const consultation = await this.assertParticipant(userId, consultationId);
+    if (consultation.pediatrician.userId !== userId) {
+      throw new ForbiddenException('Only the pediatrician can close');
+    }
+    if (consultation.status === ConsultationStatus.CLOSED) return consultation;
+
+    const split = await this.payments.captureAndSplit(consultationId);
+
+    const updated = await this.prisma.consultation.update({
+      where: { id: consultationId },
+      data: { status: ConsultationStatus.CLOSED, closedAt: new Date() },
+    });
+
+    this.events.emit('consultation.closed', new ConsultationClosedEvent(consultationId));
+    this.events.emit(
+      'payment.captured',
+      new PaymentCapturedEvent(consultationId, split.platformFeeCents, split.pediatricianAmount),
+    );
+    return updated;
+  }
+
+  /** Called by the SLA scheduler: expire overdue consultations and auto-refund. */
+  async expireOverdue(): Promise<number> {
+    const overdue = await this.prisma.consultation.findMany({
+      where: {
+        status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE] },
+        slaDueAt: { lt: new Date() },
       },
     });
-    return { id: message.id, createdAt: message.createdAt };
+    for (const c of overdue) {
+      await this.payments.refundForConsultation(c.id, 'sla_breached');
+      await this.prisma.consultation.update({
+        where: { id: c.id },
+        data: { status: ConsultationStatus.EXPIRED },
+      });
+      this.events.emit('consultation.expired', new ConsultationExpiredEvent(c.id));
+    }
+    return overdue.length;
+  }
+
+  private async persistMessage(consultationId: string, userId: string, body: string) {
+    const message = await this.prisma.message.create({
+      data: { consultationId, senderUserId: userId, body: this.crypto.encrypt(body)! },
+    });
+    this.events.emit(
+      'message.created',
+      new MessageCreatedEvent(consultationId, message.id, userId),
+    );
+    return message;
   }
 
   /** Authorization: user is in the family OR is the assigned pediatrician. */
@@ -104,8 +182,7 @@ export class ConsultationsService {
     const inFamily = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: consultation.familyId },
     });
-    const isPediatrician = consultation.pediatrician.userId === userId;
-    if (!inFamily && !isPediatrician) {
+    if (!inFamily && consultation.pediatrician.userId !== userId) {
       throw new ForbiddenException('Not a participant in this consultation');
     }
     return consultation;

@@ -43,11 +43,20 @@ docker-compose.yml local dev (postgres + backend)
 - Unit + e2e test scaffolding with real examples (10, 11)
 - Flutter app skeleton with Riverpod state management, routing, API client, auth scaffolding (5, 6)
 
-### 🔜 Increment 2 — Consultation flow end-to-end
-Messaging (WebSocket realtime), triage, SLA timers, payment hold→capture→split, invoicing adapter, consent enforcement.
+### ✅ Increment 2 — Consultation flow end-to-end
+- **Realtime messaging**: `ConsultationsGateway` (Socket.IO, JWT handshake, per-consultation rooms, participant-only join); broadcasts persisted messages via domain events.
+- **Lifecycle**: pediatrician reply → `ANSWERED`; pediatrician `close` → capture + split + events; parent/pediatrician message endpoints.
+- **SLA timers**: `SlaScheduler` (cron, every minute) expires overdue consultations and triggers **auto-refund**.
+- **Payments orchestration**: `captureAndSplit` (capture + transfer pediatrician share, retain platform fee, persist `Split`) and `refundForConsultation`.
+- **Invoicing adapter** (hexagonal): `BillingPort` + `CertifiedPartnerAdapter`; `InvoicingService` listens to `payment.captured` and issues the medical-act invoice (idempotent).
+- **Consent enforcement**: `ConsentService.assertHealthConsent` gates clinical access (no consent → no processing).
+- **Domain events** via `@nestjs/event-emitter`; scheduling via `@nestjs/schedule`.
+- Unit tests for close/expiry lifecycle.
 
 ### 🔜 Increment 3 — Pediatrician tooling + marketplace
-Inbox, services/pricing, reviews, marketplace search; financial dashboard.
+
+### 🔜 Increment 3 — Pediatrician tooling + marketplace
+Services/pricing CRUD, reviews, marketplace search/filters; financial dashboard; commission invoice to pediatrician.
 
 ### 🔜 Increment 4 — Video, scheduling, notifications, hardening
 WebRTC sessions, agenda, push, refunds/disputes, DevSecOps gates, pentest prep.

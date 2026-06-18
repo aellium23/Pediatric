@@ -1,10 +1,14 @@
 import { Body, Controller, Get, Module, Param, Post } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ConsultationsService } from './consultations.service';
+import { ConsultationsGateway } from './consultations.gateway';
+import { SlaScheduler } from './sla.scheduler';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { PaymentsModule } from '../payments/payments.module';
 
 @ApiTags('consultations')
 @ApiBearerAuth()
@@ -24,6 +28,12 @@ class ConsultationsController {
     return this.service.listForParent(user.userId);
   }
 
+  @Get('inbox')
+  @Roles(Role.PEDIATRICIAN)
+  inbox(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listForPediatrician(user.userId);
+  }
+
   @Get(':id/messages')
   @Roles(Role.PARENT, Role.PEDIATRICIAN)
   messages(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
@@ -39,11 +49,18 @@ class ConsultationsController {
   ) {
     return this.service.sendMessage(user.userId, id, dto);
   }
+
+  @Post(':id/close')
+  @Roles(Role.PEDIATRICIAN)
+  close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.close(user.userId, id);
+  }
 }
 
 @Module({
+  imports: [PaymentsModule, JwtModule.register({})],
   controllers: [ConsultationsController],
-  providers: [ConsultationsService],
+  providers: [ConsultationsService, ConsultationsGateway, SlaScheduler],
   exports: [ConsultationsService],
 })
 export class ConsultationsModule {}

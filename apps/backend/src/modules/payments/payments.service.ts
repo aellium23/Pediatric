@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -50,6 +51,72 @@ export class PaymentsService {
     });
 
     return { clientSecret: intent.clientSecret };
+  }
+
+  /** On consultation close: capture funds and transfer the pediatrician's share. */
+  async captureAndSplit(
+    consultationId: string,
+  ): Promise<{ platformFeeCents: number; pediatricianAmount: number }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { consultationId },
+      include: { consultation: { include: { pediatrician: true } } },
+    });
+    if (!payment?.pspRef) throw new NotFoundException('Payment not found');
+    if (payment.status === PaymentStatus.CAPTURED && payment.split) {
+      // Idempotent: already settled.
+      return {
+        platformFeeCents: payment.split.platformFeeCents,
+        pediatricianAmount: payment.split.pediatricianAmount,
+      };
+    }
+    const account = payment.consultation.pediatrician.stripeAccountId;
+    if (!account) throw new BadRequestException('Pediatrician has no payout account');
+
+    const result = await this.stripe.captureAndSplit({
+      paymentIntentId: payment.pspRef,
+      amountCents: payment.amountCents,
+      connectedAccountId: account,
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.CAPTURED, capturedAt: new Date() },
+      }),
+      this.prisma.split.upsert({
+        where: { paymentId: payment.id },
+        create: {
+          paymentId: payment.id,
+          platformFeeCents: result.platformFeeCents,
+          pediatricianAmount: result.pediatricianAmount,
+        },
+        update: {},
+      }),
+    ]);
+
+    return result;
+  }
+
+  /** SLA failure / cancellation: refund and mark the payment. */
+  async refundForConsultation(consultationId: string, reason: string): Promise<void> {
+    const payment = await this.prisma.payment.findUnique({ where: { consultationId } });
+    if (!payment?.pspRef) return;
+    if (
+      payment.status === PaymentStatus.REFUNDED ||
+      payment.status === PaymentStatus.FAILED
+    ) {
+      return;
+    }
+    await this.stripe.refund(payment.pspRef);
+    await this.prisma.$transaction([
+      this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.REFUNDED },
+      }),
+      this.prisma.refund.create({
+        data: { paymentId: payment.id, amountCents: payment.amountCents, reason, status: 'done' },
+      }),
+    ]);
   }
 
   /** Reconcile asynchronous Stripe events (idempotent by pspRef). */
