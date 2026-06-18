@@ -12,7 +12,9 @@ async function bootstrap(): Promise<void> {
 
   // ── Security middleware (Secure by Default) ──
   app.use(helmet());
-  app.enableCors({ origin: true, credentials: true });
+  // Explicit allow-list (Secure by Default); empty disables cross-origin.
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
+  app.enableCors({ origin: corsOrigins.length > 0 ? corsOrigins : false, credentials: true });
   app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
 
   app.useGlobalPipes(

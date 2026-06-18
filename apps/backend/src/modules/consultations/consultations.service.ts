@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ConsultationStatus } from '@prisma/client';
+import { ConsultationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
@@ -55,7 +55,7 @@ export class ConsultationsService {
         currency: service.currency,
         scopeSnapshot: service.scopeText,
         slaDueAt,
-        triage: dto.triage ?? undefined,
+        triage: dto.triage as Prisma.InputJsonValue | undefined,
       },
     });
 
@@ -106,10 +106,11 @@ export class ConsultationsService {
 
     // Pediatrician's first reply moves the consultation to ANSWERED (SLA met).
     const isPediatrician = consultation.pediatrician.userId === userId;
-    if (
-      isPediatrician &&
-      [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE].includes(consultation.status)
-    ) {
+    const reopenable: ConsultationStatus[] = [
+      ConsultationStatus.OPEN,
+      ConsultationStatus.TRIAGE,
+    ];
+    if (isPediatrician && reopenable.includes(consultation.status)) {
       await this.prisma.consultation.update({
         where: { id: consultationId },
         data: { status: ConsultationStatus.ANSWERED, answeredAt: new Date() },

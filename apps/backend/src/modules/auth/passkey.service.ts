@@ -59,14 +59,14 @@ export class PasskeyService {
       throw new UnauthorizedException('Passkey registration failed');
     }
 
-    const { credential } = verification.registrationInfo;
+    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
     await this.prisma.webAuthnCredential.create({
       data: {
         userId,
-        credentialId: credential.id,
-        publicKey: Buffer.from(credential.publicKey),
-        counter: BigInt(credential.counter),
-        transports: credential.transports ?? [],
+        credentialId: credentialID,
+        publicKey: Buffer.from(credentialPublicKey),
+        counter: BigInt(counter),
+        transports: [],
         deviceLabel,
       },
     });
@@ -92,9 +92,9 @@ export class PasskeyService {
       expectedChallenge,
       expectedOrigin: this.origin,
       expectedRPID: this.rpId,
-      credential: {
-        id: cred.credentialId,
-        publicKey: new Uint8Array(cred.publicKey),
+      authenticator: {
+        credentialID: cred.credentialId,
+        credentialPublicKey: new Uint8Array(cred.publicKey),
         counter: Number(cred.counter),
         transports: cred.transports as any,
       },

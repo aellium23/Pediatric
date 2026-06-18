@@ -59,7 +59,7 @@ export class PaymentsService {
   ): Promise<{ platformFeeCents: number; pediatricianAmount: number }> {
     const payment = await this.prisma.payment.findUnique({
       where: { consultationId },
-      include: { consultation: { include: { pediatrician: true } } },
+      include: { split: true, consultation: { include: { pediatrician: true } } },
     });
     if (!payment?.pspRef) throw new NotFoundException('Payment not found');
     if (payment.status === PaymentStatus.CAPTURED && payment.split) {

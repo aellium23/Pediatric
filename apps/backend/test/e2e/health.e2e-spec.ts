@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { HealthModule } from '../../src/modules/health/health.module';
+import { HealthController } from '../../src/modules/health/health.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 
 describe('Health (e2e)', () => {
@@ -9,12 +9,12 @@ describe('Health (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [HealthModule],
-    })
+      controllers: [HealthController],
       // Stub Prisma so the e2e does not need a live DB for liveness.
-      .overrideProvider(PrismaService)
-      .useValue({ $queryRaw: async () => [{ '?column?': 1 }] })
-      .compile();
+      providers: [
+        { provide: PrismaService, useValue: { $queryRaw: async () => [{ '?column?': 1 }] } },
+      ],
+    }).compile();
 
     app = moduleRef.createNestApplication();
     await app.init();

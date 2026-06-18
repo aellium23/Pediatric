@@ -6,7 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 @ApiTags('health')
 @Controller()
-class HealthController {
+export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Public()

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { ConsentSubject } from '@prisma/client';
+import { ConsentSubject, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -32,7 +32,7 @@ export class ConsentService {
     evidence?: Record<string, unknown>,
   ): Promise<void> {
     await this.prisma.consent.create({
-      data: { userId, childId, subject, version, evidence },
+      data: { userId, childId, subject, version, evidence: evidence as Prisma.InputJsonValue },
     });
   }
 }
