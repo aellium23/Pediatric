@@ -28,4 +28,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  generate: true   # l10n
+  # l10n (generate: true) is enabled in Increment 3 with l10n.yaml + .arb files.

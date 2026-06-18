@@ -32,12 +32,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: apps/backend/package-lock.json
-      - run: npm ci
+      # No committed lockfile yet (Increment 1/2 scaffold) -> use npm install.
+      - run: npm install
       - run: npx prisma generate
       - run: npm run lint
-      - run: npx prisma migrate deploy
+      # Schema is materialized via db push until versioned migrations land.
+      - run: npx prisma db push --skip-generate
       - run: npm test -- --coverage
       - run: npm run test:e2e
       - run: npm run build
