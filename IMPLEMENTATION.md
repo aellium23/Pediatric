@@ -64,8 +64,15 @@ docker-compose.yml local dev (postgres + backend)
 
 ### 🔜 Increment 4 — Video, scheduling, notifications, hardening
 
-### 🔜 Increment 4 — Video, scheduling, notifications, hardening
-WebRTC sessions, agenda, push, refunds/disputes, DevSecOps gates, pentest prep.
+### ✅ Increment 4 — Video, scheduling, notifications, refunds, hardening
+- **Scheduling**: pediatrician availability blocks; free-slot computation per day; parent books a **video consultation** (consent-gated) → consultation + `VideoSession` + payment intent. New `Availability`, `VideoSession` tables; `Consultation.scheduledAt`.
+- **Video (WebRTC)**: hexagonal `VideoPort` + LiveKit-style adapter issuing short-lived signed room tokens to verified participants (`GET /video/:id/token`).
+- **Notifications**: hexagonal `NotificationPort` (FCM/APNs adapter); event-driven notifications on `message.created`, `payment.captured`, `consultation.expired`; list/mark-read; device-token registration. New `Notification`, `DeviceToken` tables.
+- **Refunds/cancellations**: parent `cancel` (unanswered → refund) and admin/finance `refund`; SLA auto-expiry now excludes scheduled video.
+- **Hardening**: CodeQL workflow (default branch + weekly).
+- Unit tests for slot computation.
+
+### 🔜 Next — Realtime hardening, web portal, ECS/WAF Terraform, observability
 
 ## Run locally
 ```bash

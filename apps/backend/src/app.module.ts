@@ -19,6 +19,9 @@ import { PediatriciansModule } from './modules/pediatricians/pediatricians.modul
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { FilesModule } from './modules/files/files.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { VideoModule } from './modules/video/video.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { FilesModule } from './modules/files/files.module';
     PaymentsModule,
     InvoicingModule,
     FilesModule,
+    SchedulingModule,
+    VideoModule,
+    NotificationsModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.

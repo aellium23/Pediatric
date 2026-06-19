@@ -224,15 +224,17 @@ model Consultation {
   priceCents     Int
   currency       String             @default("EUR")
   slaDueAt       DateTime?
+  scheduledAt    DateTime?
   triage         Json?
   openedAt       DateTime           @default(now())
   answeredAt     DateTime?
   closedAt       DateTime?
 
-  messages Message[]
-  files    FileAsset[]
-  payment  Payment?
-  invoice  Invoice?
+  messages     Message[]
+  files        FileAsset[]
+  payment      Payment?
+  invoice      Invoice?
+  videoSession VideoSession?
 
   @@index([pediatricianId, status])
   @@index([familyId])
@@ -356,6 +358,57 @@ model Review {
   createdAt      DateTime @default(now())
 
   @@index([pediatricianId])
+}
+
+// ── Scheduling & Video ───────────────────────────────
+model Availability {
+  id             String   @id @default(uuid())
+  pediatricianId String
+  weekday        Int      // 0=Sunday .. 6=Saturday
+  startMinute    Int      // minutes from midnight
+  endMinute      Int
+  slotMinutes    Int      @default(20)
+
+  @@index([pediatricianId, weekday])
+}
+
+model VideoSession {
+  id             String       @id @default(uuid())
+  consultationId String       @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  provider       String       @default("livekit")
+  roomId         String
+  scheduledAt    DateTime
+  consentId      String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([scheduledAt])
+}
+
+// ── Notifications ────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  channel   String   @default("push")
+  type      String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  platform  String   // ios | android | web
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ── Audit (append-only) ──────────────────────────────

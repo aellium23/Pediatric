@@ -55,6 +55,18 @@ class ConsultationsController {
   close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.service.close(user.userId, id);
   }
+
+  @Post(':id/cancel')
+  @Roles(Role.PARENT)
+  cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.cancel(user.userId, id);
+  }
+
+  @Post(':id/refund')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  refund(@Param('id') id: string, @Body('reason') reason?: string) {
+    return this.service.refundByAdmin(id, reason);
+  }
 }
 
 @Module({

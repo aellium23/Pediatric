@@ -1,10 +1,11 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ConsultationStatus, Prisma } from '@prisma/client';
+import { ConsultationStatus, Prisma, ServiceType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
@@ -142,12 +143,44 @@ export class ConsultationsService {
     return updated;
   }
 
-  /** Called by the SLA scheduler: expire overdue consultations and auto-refund. */
+  /** Parent cancels an unanswered consultation (refunded). */
+  async cancel(userId: string, consultationId: string) {
+    const consultation = await this.assertParticipant(userId, consultationId);
+    const inFamily = await this.prisma.familyMember.findFirst({
+      where: { userId, familyId: consultation.familyId },
+    });
+    if (!inFamily) throw new ForbiddenException('Only the family can cancel');
+    if (![ConsultationStatus.OPEN, ConsultationStatus.TRIAGE].includes(consultation.status)) {
+      throw new BadRequestException('Consultation can no longer be cancelled');
+    }
+    await this.payments.refundForConsultation(consultationId, 'cancelled_by_parent');
+    return this.prisma.consultation.update({
+      where: { id: consultationId },
+      data: { status: ConsultationStatus.REFUNDED },
+    });
+  }
+
+  /** Admin/Finance refund (disputes, exceptions). */
+  async refundByAdmin(consultationId: string, reason?: string) {
+    const consultation = await this.prisma.consultation.findUnique({
+      where: { id: consultationId },
+    });
+    if (!consultation) throw new NotFoundException('Consultation not found');
+    await this.payments.refundForConsultation(consultationId, reason ?? 'admin_refund');
+    return this.prisma.consultation.update({
+      where: { id: consultationId },
+      data: { status: ConsultationStatus.REFUNDED },
+    });
+  }
+
+  /** Called by the SLA scheduler: expire overdue consultations and auto-refund.
+   *  Scheduled video consultations are excluded (no-show handled separately). */
   async expireOverdue(): Promise<number> {
     const overdue = await this.prisma.consultation.findMany({
       where: {
         status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE] },
         slaDueAt: { lt: new Date() },
+        type: { notIn: [ServiceType.VIDEO] },
       },
     });
     for (const c of overdue) {
