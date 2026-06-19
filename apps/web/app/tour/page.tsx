@@ -322,6 +322,31 @@ export default function Tour() {
         </div>
       </Step>
 
+      {/* 15 — Pediatrician finances */}
+      <Step n="15" title="Finanças do pediatra" desc="“Quanto ganhei”: receita bruta, comissão da plataforma, líquido, pendente de payout e faturas (SAF-T).">
+        <div className="scr">
+          <Bar />
+          <div className="scr-top"><h2>Finanças</h2><span className="sub">Junho 2026</span></div>
+          <div className="scr-body">
+            <div className="tcard">
+              <div className="tprice"><span>Receita bruta</span><b>1.240€</b></div>
+              <div className="tprice"><span>Comissão Pédia (20%)</span><b style={{ color: '#d7263d' }}>-248€</b></div>
+              <div className="tprice"><span><b>Líquido</b></span><b style={{ color: '#2e8b57' }}>992€</b></div>
+            </div>
+            <div className="tcard surface" style={{ fontSize: 12 }}>
+              Pendente de payout: <b>310€</b><br />Próximo pagamento: 21 Jun
+            </div>
+            <div className="tlabel">Transações</div>
+            <div className="tcard" style={{ fontSize: 12 }}>
+              <div className="tprice"><span>Mensagem · Leo</span><b>+14,40€</b></div>
+              <div className="tprice"><span>Vídeo · Ana</span><b>+36,00€</b></div>
+            </div>
+            <div className="tbtn alt">Exportar faturas (SAF-T)</div>
+          </div>
+          <div className="scr-tab"><span>📥 Consultas</span><span>📅 Agenda</span><span>€<b>Finanças</b></span><span>◍ Perfil</span></div>
+        </div>
+      </Step>
+
       <footer style={{ textAlign: 'center', marginTop: 48, color: 'var(--muted)' }}>
         <p>Este é um tour ilustrativo do design. A app real (iOS/Android) é em Flutter.</p>
         <Link className="cta" href="/marketplace">Ver marketplace →</Link>
