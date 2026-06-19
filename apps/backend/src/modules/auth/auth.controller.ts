@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  NotFoundException,
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
@@ -13,6 +15,7 @@ import { Public, CurrentUser } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import {
   AppleSignInDto,
+  DevLoginDto,
   GoogleSignInDto,
   RefreshDto,
   PasskeyVerifyRegistrationDto,
@@ -27,7 +30,18 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly tokens: TokenService,
     private readonly passkeys: PasskeyService,
+    private readonly config: ConfigService,
   ) {}
+
+  /** DEV/TEST ONLY — disabled in production. Lets you sign in without Apple/Google. */
+  @Public()
+  @Post('dev-login')
+  devLogin(@Body() dto: DevLoginDto): Promise<TokenResponseDto> {
+    if (this.config.get<string>('env') === 'production') {
+      throw new NotFoundException();
+    }
+    return this.auth.devLogin(dto.email, dto.role);
+  }
 
   @Public()
   @Post('apple')

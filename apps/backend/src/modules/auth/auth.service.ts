@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuthProvider, Prisma, User } from '@prisma/client';
+import { AuthProvider, Prisma, Role, User } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OidcService, OidcIdentity } from './oidc.service';
 import { TokenService } from './token.service';
@@ -27,6 +27,16 @@ export class AuthService {
 
   async issueForUser(userId: string): Promise<TokenResponseDto> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return this.tokens.issue(user.id, user.role);
+  }
+
+  /** DEV/TEST ONLY: issue tokens for an email without an external IdP.
+   *  Guarded at the controller so it never runs in production. */
+  async devLogin(email: string, role: Role = Role.PARENT): Promise<TokenResponseDto> {
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    user ??= await this.prisma.user.create({
+      data: { email, emailVerified: true, role },
+    });
     return this.tokens.issue(user.id, user.role);
   }
 

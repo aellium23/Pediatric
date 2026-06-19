@@ -40,6 +40,10 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> signInWithGoogle(String idToken) =>
       _exchange('/auth/google', {'idToken': idToken});
 
+  /// DEV/TEST ONLY: sign in as the seeded demo parent (backend must be non-prod).
+  Future<void> signInDemo() =>
+      _exchange('/auth/dev-login', {'email': 'marta@demo.pedia', 'role': 'PARENT'});
+
   Future<void> _exchange(String path, Map<String, dynamic> body) async {
     state = state.copyWith(loading: true, error: null);
     try {

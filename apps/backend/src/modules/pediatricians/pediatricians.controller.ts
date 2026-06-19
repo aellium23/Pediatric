@@ -12,7 +12,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { PediatriciansService } from './pediatricians.service';
 import { ReviewsService } from './reviews.service';
-import { CurrentUser, Roles } from '../../common/security/decorators';
+import { CurrentUser, Public, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import {
   CreateReviewDto,
@@ -31,7 +31,8 @@ export class PediatriciansController {
     private readonly reviews: ReviewsService,
   ) {}
 
-  // ── Marketplace (any authenticated user) ──
+  // ── Marketplace (public directory — SEO-friendly) ──
+  @Public()
   @Get()
   list(@Query() q: MarketplaceQueryDto) {
     return this.service.listMarketplace(q);
@@ -94,12 +95,14 @@ export class PediatriciansController {
     return this.reviews.create(user.userId, dto);
   }
 
+  @Public()
   @Get(':id/reviews')
   listReviews(@Param('id') id: string) {
     return this.reviews.listForPediatrician(id);
   }
 
   // ── Public profile (keep last: avoid clashing with /me, /reviews) ──
+  @Public()
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.service.getPublic(id);

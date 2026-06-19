@@ -54,6 +54,11 @@ class SignInScreen extends ConsumerWidget {
                 onPressed: state.loading ? null : () {},
                 child: const Text('Usar passkey 🔑'),
               ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: state.loading ? null : () => controller.signInDemo(),
+                child: const Text('Entrar em modo demo (teste)'),
+              ),
               const SizedBox(height: 8),
               const Text(
                 'Ao continuar aceitas os Termos e a Privacidade.',

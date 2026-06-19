@@ -1,5 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { Role } from '@prisma/client';
+
+export class DevLoginDto {
+  @ApiProperty({ example: 'marta@demo.pedia' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ required: false, enum: Role, default: Role.PARENT })
+  @IsOptional()
+  @IsEnum(Role)
+  role?: Role;
+}
 
 export class AppleSignInDto {
   @ApiProperty({ description: 'Apple identity token (JWT)' })

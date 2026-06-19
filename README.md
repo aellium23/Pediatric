@@ -74,6 +74,7 @@ O build incremental do produto vive em código no monorepo. Ver [`IMPLEMENTATION
 - **Infra** (Terraform/AWS): [`infra/terraform/`](infra/terraform/) — VPC, RDS, S3+KMS, ECR
 - **CI/CD**: [`.github/workflows/`](.github/workflows/) — lint, testes, SAST/SCA/secret scan, build
 - **Increment 1** = fundação MVP. Roadmap de increments em [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+- **Testar a app localmente**: guia passo-a-passo em [`TESTING.md`](TESTING.md) (inclui dev-login sem Apple/Google).
 
 ## Arquitetura de Solução (C4, diagramas, stack)
 

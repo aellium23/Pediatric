@@ -39,8 +39,15 @@ async function main(): Promise<void> {
     skipDuplicates: true,
   });
 
+  // A demo parent (use POST /auth/dev-login { email } to sign in as them).
+  await prisma.user.upsert({
+    where: { email: 'marta@demo.pedia' },
+    update: {},
+    create: { email: 'marta@demo.pedia', emailVerified: true, role: Role.PARENT },
+  });
+
   // eslint-disable-next-line no-console
-  console.log('Seeded demo pediatrician:', ped.id);
+  console.log('Seeded demo pediatrician:', ped.id, 'and demo parent marta@demo.pedia');
 }
 
 main()
