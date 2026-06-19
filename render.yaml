@@ -20,10 +20,11 @@ services:
       # Test sign-in without Apple/Google (this is a demo environment).
       - key: ENABLE_DEV_LOGIN
         value: "true"
+      # Supabase Postgres connection string. In the Supabase dashboard:
+      # Settings → Database → Connection string → use the "Session pooler" URI
+      # (IPv4, port 5432 — works with Render and `prisma db push`). Keep ?sslmode=require.
       - key: DATABASE_URL
-        fromDatabase:
-          name: pedia-db
-          property: connectionString
+        sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -38,9 +39,4 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
-
-databases:
-  - name: pedia-db
-    plan: free
-    databaseName: pedia
-    user: pedia
+# Database is external (Supabase Postgres) — provided via DATABASE_URL above.

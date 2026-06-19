@@ -56,25 +56,33 @@ precisas de uma API pública; ver nota no fim.)
 ## 🌐 Stack completo online no iPhone — Backend no Render + Web na Vercel
 
 Para teres **dados reais** (não demo) e o fluxo de login/consultas, o backend
-precisa de estar online. O **Render** corre o NestJS + Postgres a partir de um
-Blueprint (`render.yaml` já incluído no repo).
+precisa de estar online. Usamos:
+- **Supabase** → a base de dados (Postgres).
+- **Render** → corre o servidor NestJS (a partir do `render.yaml`), ligado ao Supabase.
 
-**A) Backend no Render (no Safari):**
-1. Vai a **render.com** e entra com o **GitHub**.
-2. **New → Blueprint** → seleciona o repo `aellium23/Pediatric` e o branch
+**A) Base de dados no Supabase:**
+1. Em **supabase.com**, cria (ou usa) um projeto.
+2. **Project Settings → Database → Connection string** → separador **Session pooler**
+   → copia o URI (porta 5432, IPv4 — funciona com o Render e com as migrações).
+   Substitui `[YOUR-PASSWORD]` pela password do projeto. Mantém `?sslmode=require`.
+
+**B) Backend no Render (no Safari):**
+3. Vai a **render.com** e entra com o **GitHub**.
+4. **New → Blueprint** → seleciona o repo `aellium23/Pediatric` e o branch
    `claude/telepediatria-platform-design-pq1y1v`. O Render lê o `render.yaml`.
-3. Confirma e **Apply** → cria o serviço `pedia-backend` + a base de dados
-   `pedia-db` (planos **free**). Espera o primeiro deploy (~3–5 min).
-4. Ao arrancar, a base de dados é criada e **semeada** com um pediatra verificado
-   e um pai demo. Anota o URL: `https://pedia-backend.onrender.com`.
-   - Testa: abre `https://pedia-backend.onrender.com/docs` (Swagger) no Safari.
+5. O Render vai pedir os valores das variáveis marcadas: cola a connection string
+   do Supabase em **`DATABASE_URL`** (as restantes podes deixar/gerar). **Apply**.
+6. Espera ~3–5 min. No arranque, o backend **cria as tabelas** no teu Supabase e
+   **semeia** um pediatra verificado + um pai demo. Anota o URL:
+   `https://pedia-backend-xxxx.onrender.com`.
+   - Testa: abre `…onrender.com/docs` (Swagger) no Safari.
 
-**B) Ligar a Web (Vercel) ao backend:**
-5. No projeto da Vercel → **Settings → Environment Variables** → adiciona
-   `NEXT_PUBLIC_API_BASE = https://pedia-backend.onrender.com/api` → **Redeploy**.
-6. Abre o teu URL Vercel `/marketplace` no iPhone → agora mostra **dados reais**
+**C) Ligar a Web (Vercel) ao backend:**
+7. No projeto da Vercel → **Settings → Environment Variables** → adiciona
+   `NEXT_PUBLIC_API_BASE = https://pedia-backend-xxxx.onrender.com/api` → **Redeploy**.
+8. Abre o teu URL Vercel `/marketplace` no iPhone → agora mostra **dados reais**
    do backend (sem o banner de demonstração).
-7. Abre **`/demo`** para o fluxo interativo: **Entrar em modo demo** → adicionar
+9. Abre **`/demo`** para o fluxo interativo: **Entrar em modo demo** → adicionar
    uma criança → **escolher pediatra → iniciar consulta por mensagem**. Tudo no
    Safari do iPhone.
 
