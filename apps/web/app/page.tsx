@@ -12,6 +12,10 @@ export default function Home() {
         <Link className="cta" href="/marketplace">
           Encontrar pediatra
         </Link>
+        <p className="muted" style={{ marginTop: 16 }}>
+          Ou experimenta a <Link href="/demo">demo interativa</Link> (login →
+          criança → consulta).
+        </p>
       </section>
     </main>
   );

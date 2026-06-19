@@ -74,6 +74,13 @@ Blueprint (`render.yaml` já incluído no repo).
    `NEXT_PUBLIC_API_BASE = https://pedia-backend.onrender.com/api` → **Redeploy**.
 6. Abre o teu URL Vercel `/marketplace` no iPhone → agora mostra **dados reais**
    do backend (sem o banner de demonstração).
+7. Abre **`/demo`** para o fluxo interativo: **Entrar em modo demo** → adicionar
+   uma criança → **escolher pediatra → iniciar consulta por mensagem**. Tudo no
+   Safari do iPhone.
+
+> CORS: no ambiente de demo (`ENABLE_DEV_LOGIN=true`, já no `render.yaml`) o
+> backend aceita pedidos de qualquer origem com *bearer token*, por isso **não
+> precisas de configurar `CORS_ORIGINS`** para a demo funcionar.
 
 **Login de teste:** o endpoint `POST /api/auth/dev-login` está ativo neste
 ambiente (`ENABLE_DEV_LOGIN=true`). Pelo Swagger podes obter um token como
