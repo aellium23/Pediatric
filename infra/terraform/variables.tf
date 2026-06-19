@@ -19,3 +19,9 @@ variable "db_instance_class" {
   type    = string
   default = "db.t3.medium"
 }
+
+variable "certificate_arn" {
+  type        = string
+  default     = ""
+  description = "ACM certificate ARN for the ALB HTTPS listener (empty = HTTP only)"
+}

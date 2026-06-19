@@ -76,7 +76,10 @@ docker-compose.yml local dev (postgres + backend)
 - `apps/web` (Next.js 14 App Router, TypeScript): landing + marketplace page consuming the API (`getPediatricians`), brand theme, `force-dynamic` rendering.
 - Web CI workflow (install + type-checked build).
 
-### 🔜 Next — ECS/ALB/WAF Terraform module, observability, realtime hardening
+### ✅ Consolidation — Compute & deploy infra (Terraform)
+- `infra/terraform/modules/ecs`: **ECS Fargate** cluster + service, **ALB** (HTTP + optional HTTPS via ACM), **WAFv2** (AWS common rules + IP rate limit), **Secrets Manager** secret, IAM exec/task roles (least privilege), CloudWatch logs, SGs (ALB→ECS→RDS). Wired into root; `deploy-backend.sh` targets the cluster/service.
+
+### 🔜 Next — Observability stack, realtime hardening, staging deploy
 
 ## Run locally
 ```bash

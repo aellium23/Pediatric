@@ -72,5 +72,17 @@ resource "aws_ecr_repository" "backend" {
   }
 }
 
-# NOTE: ECS Fargate service, ALB, WAF and Secrets Manager are added in
-# infra/terraform/modules/ecs (Increment 2) to keep this skeleton reviewable.
+# ── Compute: ECS Fargate + ALB + WAF + Secrets ──
+module "ecs" {
+  source                = "./modules/ecs"
+  environment           = var.environment
+  region                = var.region
+  vpc_id                = module.vpc.vpc_id
+  public_subnet_ids     = module.vpc.public_subnet_ids
+  private_subnet_ids    = module.vpc.private_subnet_ids
+  ecr_repository_url    = aws_ecr_repository.backend.repository_url
+  rds_security_group_id = module.rds.security_group_id
+  kms_key_arn           = aws_kms_key.files.arn
+  bucket_arn            = module.s3_files.bucket_arn
+  certificate_arn       = var.certificate_arn
+}

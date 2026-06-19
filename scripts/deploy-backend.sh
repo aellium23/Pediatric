@@ -26,7 +26,7 @@ docker push "${REPO}:${ENVIRONMENT}"
 echo "▶ Forcing ECS service redeploy (pedia-${ENVIRONMENT})…"
 aws ecs update-service \
   --cluster "pedia-${ENVIRONMENT}" \
-  --service "pedia-backend" \
+  --service "pedia-${ENVIRONMENT}" \
   --force-new-deployment \
   --region "${AWS_REGION}" >/dev/null
 
