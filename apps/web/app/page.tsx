@@ -14,7 +14,7 @@ export default function Home() {
         </Link>
         <p className="muted" style={{ marginTop: 16 }}>
           Ou experimenta a <Link href="/demo">demo interativa</Link> (login →
-          criança → consulta).
+          criança → consulta) · vê o <Link href="/tour">tour visual</Link> 📱
         </p>
       </section>
     </main>
