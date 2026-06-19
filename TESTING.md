@@ -27,6 +27,32 @@ iPhone**, usando o GitHub Codespaces (corre tudo na cloud).
 > precisas mesmo de um Mac ou de uma pipeline TestFlight — diz-me se quiseres que
 > a monte.
 
+## 🚀 Publicar o portal web na Vercel (URL público, a partir do iPhone)
+
+A Vercel hospeda o **frontend** (`apps/web`). Sem API configurada, ele corre com
+**dados de demonstração** — ou seja, fica logo utilizável. (Para dados reais,
+precisas de uma API pública; ver nota no fim.)
+
+**Passos (no Safari do iPhone):**
+1. Vai a **vercel.com** e inicia sessão com o **GitHub**.
+2. **Add New → Project** → autoriza a Vercel a aceder ao repo `aellium23/Pediatric`
+   e **importa-o**.
+3. ⚠️ **Root Directory**: define **`apps/web`** (é um monorepo).
+4. ⚠️ **Production Branch**: o código está no branch
+   `claude/telepediatria-platform-design-pq1y1v` (o `main` ainda não o tem). Em
+   **Settings → Git**, define esse branch como produção — **ou** faz merge do PR #1
+   para `main` primeiro.
+5. (Opcional) **Environment Variables**: deixa vazio para modo demo; para dados
+   reais, define `NEXT_PUBLIC_API_BASE` = URL público da API (ex.: `https://…/api`).
+6. **Deploy** → obténs um URL tipo `pedia-web.vercel.app` → abre no Safari.
+   - Landing na raiz; lista de pediatras em `/marketplace`.
+
+> **Backend público (para dados reais)**: a Vercel não serve o NestJS+Postgres.
+> Para a experiência completa, o backend tem de correr noutro sítio (ex.: Render
+> ou Railway, ambos com Postgres gerido e deploy a partir do telemóvel). Diz-me se
+> queres que prepare esse deploy do backend — depois é só pôr o URL em
+> `NEXT_PUBLIC_API_BASE` na Vercel.
+
 ---
 
 # Testing the App locally (com computador)

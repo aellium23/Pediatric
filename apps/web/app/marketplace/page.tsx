@@ -1,4 +1,4 @@
-import { getPediatricians, type PediatricianCard } from '@/lib/api';
+import { getPediatricians, DEMO_MODE, type PediatricianCard } from '@/lib/api';
 
 // Rendered per request (never prerendered at build time).
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,13 @@ export default async function Marketplace() {
     <main>
       <h1>Pediatras</h1>
       <p className="muted">Profissionais verificados pela Ordem dos Médicos.</p>
+
+      {DEMO_MODE ? (
+        <p className="muted">
+          ⓘ A mostrar <strong>dados de demonstração</strong>. Define{' '}
+          <code>NEXT_PUBLIC_API_BASE</code> para ligar a uma API real.
+        </p>
+      ) : null}
 
       {pediatricians.length === 0 ? (
         <p className="muted">

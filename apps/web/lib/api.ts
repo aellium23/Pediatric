@@ -1,31 +1,22 @@
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000/api';
+import { DEMO_PEDIATRICIANS } from './demo';
+import type { PediatricianCard } from './types';
 
-export interface PediatricianService {
-  id: string;
-  type: string;
-  priceCents: number;
-  currency: string;
-  slaHours: number;
-}
+export type { PediatricianCard, PediatricianService } from './types';
 
-export interface PediatricianCard {
-  id: string;
-  bio: string | null;
-  experienceYears: number | null;
-  languages: string[];
-  specialties: string[];
-  ratingAvg: number;
-  services: PediatricianService[];
-}
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
 
-/** Fetches the public marketplace listing. Returns [] on any error. */
+/** When no API is configured (e.g. a plain Vercel deploy), run on demo data. */
+export const DEMO_MODE = API_BASE.length === 0;
+
+/** Fetches the public marketplace listing; falls back to demo data on any issue. */
 export async function getPediatricians(): Promise<PediatricianCard[]> {
+  if (DEMO_MODE) return DEMO_PEDIATRICIANS;
   try {
     const res = await fetch(`${API_BASE}/pediatricians`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    return (await res.json()) as PediatricianCard[];
+    if (!res.ok) return DEMO_PEDIATRICIANS;
+    const data = (await res.json()) as PediatricianCard[];
+    return Array.isArray(data) && data.length > 0 ? data : DEMO_PEDIATRICIANS;
   } catch {
-    return [];
+    return DEMO_PEDIATRICIANS;
   }
 }
