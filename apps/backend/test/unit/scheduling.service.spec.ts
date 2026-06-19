@@ -15,7 +15,7 @@ describe('SchedulingService.slots', () => {
     const service = build([
       { startMinute: 600, endMinute: 660, slotMinutes: 20 },
     ]);
-    const slots = await service.slots('2999-01-01');
+    const slots = await service.slots('p1', '2999-01-01');
     expect(slots).toEqual([
       '2999-01-01T10:00:00.000Z',
       '2999-01-01T10:20:00.000Z',
@@ -28,7 +28,7 @@ describe('SchedulingService.slots', () => {
       [{ startMinute: 600, endMinute: 660, slotMinutes: 20 }],
       [{ scheduledAt: new Date('2999-01-01T10:20:00.000Z') }],
     );
-    const slots = await service.slots('2999-01-01');
+    const slots = await service.slots('p1', '2999-01-01');
     expect(slots).toEqual([
       '2999-01-01T10:00:00.000Z',
       '2999-01-01T10:40:00.000Z',
@@ -37,6 +37,6 @@ describe('SchedulingService.slots', () => {
 
   it('rejects an invalid date', async () => {
     const service = build([]);
-    await expect(service.slots('not-a-date')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.slots('p1', 'not-a-date')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

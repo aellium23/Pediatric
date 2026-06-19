@@ -150,7 +150,11 @@ export class ConsultationsService {
       where: { userId, familyId: consultation.familyId },
     });
     if (!inFamily) throw new ForbiddenException('Only the family can cancel');
-    if (![ConsultationStatus.OPEN, ConsultationStatus.TRIAGE].includes(consultation.status)) {
+    const cancellable: ConsultationStatus[] = [
+      ConsultationStatus.OPEN,
+      ConsultationStatus.TRIAGE,
+    ];
+    if (!cancellable.includes(consultation.status)) {
       throw new BadRequestException('Consultation can no longer be cancelled');
     }
     await this.payments.refundForConsultation(consultationId, 'cancelled_by_parent');

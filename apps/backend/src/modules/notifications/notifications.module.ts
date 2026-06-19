@@ -86,12 +86,15 @@ export class NotificationsService {
   async onMessage(event: MessageCreatedEvent): Promise<void> {
     const consultation = await this.prisma.consultation.findUnique({
       where: { id: event.consultationId },
-      include: { pediatrician: true, family: { include: { members: true } } },
+      include: { pediatrician: true },
     });
     if (!consultation) return;
+    const members = await this.prisma.familyMember.findMany({
+      where: { familyId: consultation.familyId },
+    });
     const recipients = new Set<string>([
       consultation.pediatrician.userId,
-      ...consultation.family.members.map((m) => m.userId),
+      ...members.map((m) => m.userId),
     ]);
     recipients.delete(event.senderUserId);
     for (const userId of recipients) {
@@ -101,13 +104,10 @@ export class NotificationsService {
 
   @OnEvent('payment.captured')
   async onCaptured(event: PaymentCapturedEvent): Promise<void> {
-    const consultation = await this.prisma.consultation.findUnique({
-      where: { id: event.consultationId },
-      include: { family: true },
-    });
-    if (!consultation) return;
+    const primaryUserId = await this.primaryUser(event.consultationId);
+    if (!primaryUserId) return;
     await this.notify(
-      consultation.family.primaryUserId,
+      primaryUserId,
       'invoice',
       'Consulta concluída',
       'A consulta foi encerrada e a fatura emitida.',
@@ -116,17 +116,25 @@ export class NotificationsService {
 
   @OnEvent('consultation.expired')
   async onExpired(event: ConsultationExpiredEvent): Promise<void> {
-    const consultation = await this.prisma.consultation.findUnique({
-      where: { id: event.consultationId },
-      include: { family: true },
-    });
-    if (!consultation) return;
+    const primaryUserId = await this.primaryUser(event.consultationId);
+    if (!primaryUserId) return;
     await this.notify(
-      consultation.family.primaryUserId,
+      primaryUserId,
       'refund',
       'Reembolso efetuado',
       'O pediatra não respondeu dentro do prazo. O valor foi reembolsado.',
     );
+  }
+
+  private async primaryUser(consultationId: string): Promise<string | null> {
+    const consultation = await this.prisma.consultation.findUnique({
+      where: { id: consultationId },
+    });
+    if (!consultation) return null;
+    const family = await this.prisma.family.findUnique({
+      where: { id: consultation.familyId },
+    });
+    return family?.primaryUserId ?? null;
   }
 }
 
