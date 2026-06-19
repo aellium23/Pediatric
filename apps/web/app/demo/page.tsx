@@ -2,12 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { Api, hasApi, setToken, clearToken, type ChildDto } from '@/lib/client';
+import { DEMO_PEDIATRICIANS } from '@/lib/demo';
 import type { PediatricianCard } from '@/lib/types';
+
+// When no backend is configured, the page runs fully on local mock state.
+const MOCK = !hasApi;
 
 function euro(cents: number): string {
   return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(
     cents / 100,
   );
+}
+
+function newId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `c${Date.now()}`;
 }
 
 export default function DemoApp() {
@@ -22,13 +32,17 @@ export default function DemoApp() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('pedia_token')) {
+    if (!MOCK && typeof window !== 'undefined' && localStorage.getItem('pedia_token')) {
       setAuthed(true);
       void load();
     }
   }, []);
 
   async function load() {
+    if (MOCK) {
+      setPeds(DEMO_PEDIATRICIANS);
+      return;
+    }
     try {
       const [c, p] = await Promise.all([Api.children(), Api.pediatricians()]);
       setChildren(c);
@@ -42,6 +56,13 @@ export default function DemoApp() {
   async function login() {
     setBusy(true);
     setMsg('');
+    if (MOCK) {
+      setAuthed(true);
+      setPeds(DEMO_PEDIATRICIANS);
+      setMsg('Modo demonstração — sem backend (dados locais).');
+      setBusy(false);
+      return;
+    }
     try {
       const r = await Api.devLogin();
       setToken(r.accessToken);
@@ -56,10 +77,11 @@ export default function DemoApp() {
   }
 
   function logout() {
-    clearToken();
+    if (!MOCK) clearToken();
     setAuthed(false);
     setChildren([]);
     setPeds([]);
+    setSelectedChild('');
     setMsg('Sessão terminada.');
   }
 
@@ -73,6 +95,17 @@ export default function DemoApp() {
       return;
     }
     setBusy(true);
+    if (MOCK) {
+      const child: ChildDto = { id: newId(), name, birthDate };
+      setChildren((prev) => [...prev, child]);
+      setSelectedChild(child.id);
+      setName('');
+      setBirthDate('');
+      setConsent(false);
+      setMsg('Criança adicionada ✓ (demonstração)');
+      setBusy(false);
+      return;
+    }
     try {
       await Api.addChild({ name, birthDate, healthDataConsent: true });
       setName('');
@@ -97,7 +130,16 @@ export default function DemoApp() {
       setMsg('Adiciona e seleciona uma criança primeiro.');
       return;
     }
+    const childName = children.find((c) => c.id === selectedChild)?.name ?? 'a criança';
     setBusy(true);
+    if (MOCK) {
+      setMsg(
+        `✓ Consulta por mensagem iniciada sobre ${childName} (${euro(svc.priceCents)}). ` +
+          'Na app real seguia para pagamento e chat com o pediatra.',
+      );
+      setBusy(false);
+      return;
+    }
     try {
       const r = await Api.startConsultation({
         childId: selectedChild,
@@ -112,22 +154,15 @@ export default function DemoApp() {
     }
   }
 
-  if (!hasApi) {
-    return (
-      <main>
-        <h1>Demo</h1>
-        <p className="notice">
-          Esta demo precisa de uma API. Define <code>NEXT_PUBLIC_API_BASE</code> nas
-          variáveis de ambiente da Vercel (ex.:{' '}
-          <code>https://&lt;backend&gt;.onrender.com/api</code>) e volta a publicar.
-        </p>
-      </main>
-    );
-  }
-
   return (
     <main>
       <h1>Demo interativa</h1>
+      {MOCK ? (
+        <p className="notice">
+          ⓘ <strong>Modo demonstração</strong> (sem backend, dados locais no browser).
+          Para dados reais, liga uma API em <code>NEXT_PUBLIC_API_BASE</code>.
+        </p>
+      ) : null}
       {msg ? <p className="notice">{msg}</p> : null}
 
       {!authed ? (
@@ -161,7 +196,9 @@ export default function DemoApp() {
                       style={{ width: 'auto', marginRight: 8 }}
                     />
                     <strong>{c.name}</strong>
-                    <div className="muted">{new Date(c.birthDate).toLocaleDateString('pt-PT')}</div>
+                    <div className="muted">
+                      {new Date(c.birthDate).toLocaleDateString('pt-PT')}
+                    </div>
                   </label>
                 ))}
               </div>
