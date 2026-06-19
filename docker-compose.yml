@@ -33,6 +33,7 @@ services:
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_RP_NAME: Pedia
       WEBAUTHN_ORIGIN: http://localhost:3000
+      ENABLE_DEV_LOGIN: "true"
       PORT: "3000"
     ports:
       - "3000:3000"

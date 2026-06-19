@@ -37,7 +37,7 @@ export class AuthController {
   @Public()
   @Post('dev-login')
   devLogin(@Body() dto: DevLoginDto): Promise<TokenResponseDto> {
-    if (this.config.get<string>('env') === 'production') {
+    if (!this.config.get<boolean>('enableDevLogin')) {
       throw new NotFoundException();
     }
     return this.auth.devLogin(dto.email, dto.role);

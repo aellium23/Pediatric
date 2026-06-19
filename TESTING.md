@@ -53,6 +53,38 @@ precisas de uma API pública; ver nota no fim.)
 > queres que prepare esse deploy do backend — depois é só pôr o URL em
 > `NEXT_PUBLIC_API_BASE` na Vercel.
 
+## 🌐 Stack completo online no iPhone — Backend no Render + Web na Vercel
+
+Para teres **dados reais** (não demo) e o fluxo de login/consultas, o backend
+precisa de estar online. O **Render** corre o NestJS + Postgres a partir de um
+Blueprint (`render.yaml` já incluído no repo).
+
+**A) Backend no Render (no Safari):**
+1. Vai a **render.com** e entra com o **GitHub**.
+2. **New → Blueprint** → seleciona o repo `aellium23/Pediatric` e o branch
+   `claude/telepediatria-platform-design-pq1y1v`. O Render lê o `render.yaml`.
+3. Confirma e **Apply** → cria o serviço `pedia-backend` + a base de dados
+   `pedia-db` (planos **free**). Espera o primeiro deploy (~3–5 min).
+4. Ao arrancar, a base de dados é criada e **semeada** com um pediatra verificado
+   e um pai demo. Anota o URL: `https://pedia-backend.onrender.com`.
+   - Testa: abre `https://pedia-backend.onrender.com/docs` (Swagger) no Safari.
+
+**B) Ligar a Web (Vercel) ao backend:**
+5. No projeto da Vercel → **Settings → Environment Variables** → adiciona
+   `NEXT_PUBLIC_API_BASE = https://pedia-backend.onrender.com/api` → **Redeploy**.
+6. Abre o teu URL Vercel `/marketplace` no iPhone → agora mostra **dados reais**
+   do backend (sem o banner de demonstração).
+
+**Login de teste:** o endpoint `POST /api/auth/dev-login` está ativo neste
+ambiente (`ENABLE_DEV_LOGIN=true`). Pelo Swagger podes obter um token como
+`marta@demo.pedia` e experimentar os endpoints autenticados (crianças, consultas).
+
+> **Notas (free tier):** o serviço Render adormece com inatividade — o 1.º pedido
+> após pausa pode demorar ~30s (cold start). A base free do Render é temporária
+> (válida ~90 dias). **Pagamentos** só funcionam se definires `STRIPE_SECRET_KEY`
+> (modo teste). Uploads de ficheiros precisam de credenciais AWS (não essenciais
+> para o teste base).
+
 ---
 
 # Testing the App locally (com computador)

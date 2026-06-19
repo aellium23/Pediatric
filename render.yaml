@@ -1,0 +1,46 @@
+# Render Blueprint — deploys the Pédia backend (NestJS) + a managed PostgreSQL.
+# Use: Render Dashboard → New → Blueprint → connect this repo + branch.
+# After it's live, set NEXT_PUBLIC_API_BASE on Vercel to https://<service>.onrender.com/api
+services:
+  - type: web
+    name: pedia-backend
+    runtime: node
+    rootDir: apps/backend
+    plan: free
+    branch: claude/telepediatria-platform-design-pq1y1v
+    buildCommand: npm install && npx prisma generate && npm run build
+    # db push + seed run on boot (idempotent); then start the API.
+    startCommand: npx prisma db push --skip-generate && npm run seed && node dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      # Test sign-in without Apple/Google (this is a demo environment).
+      - key: ENABLE_DEV_LOGIN
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pedia-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+      # Allow the Vercel web app's origin (set after you know the URL). Optional.
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional — set to exercise payments (Stripe test mode).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: pedia-db
+    plan: free
+    databaseName: pedia
+    user: pedia

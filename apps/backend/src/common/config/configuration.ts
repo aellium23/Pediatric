@@ -13,6 +13,7 @@ export interface AppConfig {
   google: { clientId: string };
   stripe: { secretKey: string; webhookSecret: string; platformFeeBps: number };
   aws: { region: string; bucket: string; kmsKeyId: string };
+  enableDevLogin: boolean;
 }
 
 export default (): AppConfig => ({
@@ -45,4 +46,6 @@ export default (): AppConfig => ({
     bucket: process.env.S3_BUCKET ?? 'pedia-clinical-files',
     kmsKeyId: process.env.S3_KMS_KEY_ID ?? 'alias/pedia-files',
   },
+  // Explicit opt-in for the password-less test login (never default-on in prod).
+  enableDevLogin: process.env.ENABLE_DEV_LOGIN === 'true',
 });
