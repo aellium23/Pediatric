@@ -1,4 +1,35 @@
-# Testing the App locally
+# Testing the App
+
+## 📱 Testar a partir do iPhone (sem computador) — GitHub Codespaces
+
+A app **nativa iOS** precisa de um Mac/TestFlight para instalar. Mas podes correr
+e ver a plataforma (portal **web** + **API/Swagger**) **a partir do Safari no
+iPhone**, usando o GitHub Codespaces (corre tudo na cloud).
+
+**Passos (tudo no Safari do iPhone):**
+1. Abre **github.com/aellium23/Pediatric** e inicia sessão.
+2. Toca em **Branches** e escolhe `claude/telepediatria-platform-design-pq1y1v`.
+   *(o código está neste branch)*
+3. Toca no botão verde **Code** → separador **Codespaces** → **Create codespace**.
+   - Dica: se o botão não aparecer, no Safari toca em **aA** → **Request Desktop
+     Website**.
+4. Espera ~2 min (instala dependências e dados demo automaticamente).
+5. No terminal do Codespace (em baixo), escreve:
+   ```bash
+   bash .devcontainer/start.sh
+   ```
+6. Abre o separador **Ports** (ou o aviso que aparece). Em **Web portal (3001)**,
+   muda a *Visibility* para **Public** e toca no ícone do globo 🌐 → abre no Safari.
+   - Marketplace: adiciona `/marketplace` ao URL.
+   - API/Swagger: faz o mesmo com a porta **3000** e abre `/docs`.
+
+> Os Codespaces têm um tier gratuito generoso. Para a app **nativa** no iPhone,
+> precisas mesmo de um Mac ou de uma pipeline TestFlight — diz-me se quiseres que
+> a monte.
+
+---
+
+# Testing the App locally (com computador)
 
 This guide gets the full stack running on your machine so you can click through
 the product. Everything runs locally; no Apple/Google/Stripe accounts needed for

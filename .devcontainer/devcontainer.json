@@ -1,0 +1,16 @@
+{
+  "name": "Pédia (dev)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [3000, 3001],
+  "portsAttributes": {
+    "3000": { "label": "API + Swagger (/docs)" },
+    "3001": { "label": "Web portal" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql://pedia:pedia_dev_password@localhost:5432/pedia?schema=public"
+  }
+}
