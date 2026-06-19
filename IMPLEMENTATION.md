@@ -72,7 +72,11 @@ docker-compose.yml local dev (postgres + backend)
 - **Hardening**: CodeQL workflow (default branch + weekly).
 - Unit tests for slot computation.
 
-### 🔜 Next — Realtime hardening, web portal, ECS/WAF Terraform, observability
+### ✅ Consolidation — Web portal skeleton (Next.js)
+- `apps/web` (Next.js 14 App Router, TypeScript): landing + marketplace page consuming the API (`getPediatricians`), brand theme, `force-dynamic` rendering.
+- Web CI workflow (install + type-checked build).
+
+### 🔜 Next — ECS/ALB/WAF Terraform module, observability, realtime hardening
 
 ## Run locally
 ```bash

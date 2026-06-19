@@ -1,0 +1,23 @@
+name: Web CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths: ["apps/web/**", ".github/workflows/web-ci.yml"]
+  pull_request:
+    paths: ["apps/web/**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      # next build runs the TypeScript type-checker as part of the build.
+      - run: npm run build
