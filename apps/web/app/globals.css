@@ -20,12 +20,32 @@ body {
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   background: #fff;
+  /* Never allow horizontal scrolling on mobile. */
+  overflow-x: hidden;
 }
 
 main {
   max-width: 960px;
   margin: 0 auto;
   padding: 32px 20px 64px;
+}
+
+@media (max-width: 540px) {
+  main {
+    padding: 20px 14px 72px;
+  }
+  .hero h1 {
+    font-size: 27px;
+  }
+}
+
+/* Nothing overflows its container on small screens. */
+img,
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
 }
 
 .hero h1 {
@@ -51,9 +71,90 @@ main {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* min(100%, 240px) lets cards collapse to a single full-width column on
+     phones instead of forcing a 260px track (which caused horizontal scroll). */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
   gap: 16px;
   margin-top: 24px;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 6px 0;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+/* ─── App shell (bottom tab bar) ─── */
+.appbar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  gap: 4px;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+  margin: 24px -14px 0;
+}
+.appbar button {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 2px;
+  cursor: pointer;
+  margin: 0;
+}
+.appbar button.active {
+  color: var(--brand);
+}
+.appbar button .ico {
+  font-size: 19px;
+}
+.apphead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #e4eefb;
+  color: #2e6fb0;
+}
+.pill.ok {
+  background: #e3f5ea;
+  color: #2e8b57;
+}
+.pill.warn {
+  background: #fdf0d9;
+  color: #b9831a;
+}
+.pill.muted {
+  background: #eef1f1;
+  color: var(--muted);
 }
 
 .card {
@@ -99,6 +200,17 @@ input {
   background: #fff;
   color: var(--brand);
   border: 1px solid var(--brand);
+}
+
+.btn.danger {
+  background: #fff;
+  color: #d7263d;
+  border: 1px solid #f0b8be;
+}
+
+.btn.small {
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .btn:disabled {

@@ -61,7 +61,11 @@ export class PaymentsService {
       where: { consultationId },
       include: { split: true, consultation: { include: { pediatrician: true } } },
     });
-    if (!payment?.pspRef) throw new NotFoundException('Payment not found');
+    // Demo / no-payment mode (no Stripe key, so no PaymentIntent was created):
+    // settle as zero so the pediatrician can still close the consultation.
+    if (!payment?.pspRef) {
+      return { platformFeeCents: 0, pediatricianAmount: 0 };
+    }
     if (payment.status === PaymentStatus.CAPTURED && payment.split) {
       // Idempotent: already settled.
       return {

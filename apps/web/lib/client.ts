@@ -67,6 +67,54 @@ export interface FinanceDto {
   currency: string;
 }
 
+export interface ServiceDto {
+  id: string;
+  type: string;
+  priceCents: number;
+  currency: string;
+  slaHours: number;
+  scopeText?: string | null;
+  active?: boolean;
+}
+
+export interface PedMeDto {
+  id: string;
+  bio: string | null;
+  experienceYears: number | null;
+  languages: string[];
+  specialties: string[];
+  ratingAvg: number;
+  status: string;
+  licenseNumber?: string;
+  stripeAccountId?: string | null;
+  services: ServiceDto[];
+}
+
+export interface AvailabilityDto {
+  id: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  slotMinutes: number;
+}
+
+export interface NotificationDto {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface ReviewDto {
+  id: string;
+  rating: number;
+  comment: string | null;
+  verified: boolean;
+  createdAt: string;
+}
+
 export const Api = {
   // Auth — sign in as any seeded demo profile (role comes from the DB user).
   devLogin: (email = 'marta@demo.pedia') =>
@@ -83,17 +131,52 @@ export const Api = {
   startConsultation: (data: { childId: string; serviceId: string; question: string }) =>
     request('/consultations', { method: 'POST', body: JSON.stringify(data) }),
   myConsultations: () => request('/consultations') as Promise<ConsultationDto[]>,
+  cancelConsultation: (id: string) =>
+    request(`/consultations/${id}/cancel`, { method: 'POST' }),
+  pediatrician: (id: string) => request(`/pediatricians/${id}`),
+  reviews: (pedId: string) => request(`/pediatricians/${pedId}/reviews`) as Promise<ReviewDto[]>,
+  addReview: (data: { consultationId: string; rating: number; comment?: string }) =>
+    request('/pediatricians/reviews', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Scheduling (video)
+  slots: (pedId: string, date: string) =>
+    request(`/scheduling/pediatricians/${pedId}/slots?date=${encodeURIComponent(date)}`) as Promise<
+      string[]
+    >,
+  book: (data: { childId: string; serviceId: string; scheduledAt: string; teleconsultConsent: boolean }) =>
+    request('/scheduling/book', { method: 'POST', body: JSON.stringify(data) }) as Promise<{
+      consultationId: string;
+      roomId: string;
+    }>,
 
   // Shared (parent + pediatrician)
   messages: (id: string) => request(`/consultations/${id}/messages`) as Promise<MessageDto[]>,
   sendMessage: (id: string, body: string) =>
     request(`/consultations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  videoToken: (consultationId: string) =>
+    request(`/video/${consultationId}/token`) as Promise<{ token: string; roomId: string }>,
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,
   closeConsultation: (id: string) =>
     request(`/consultations/${id}/close`, { method: 'POST' }),
   finance: () => request('/pediatricians/me/finance') as Promise<FinanceDto>,
+  me: () => request('/pediatricians/me') as Promise<PedMeDto>,
+  updateMe: (data: Partial<{ bio: string; experienceYears: number; languages: string[]; specialties: string[] }>) =>
+    request('/pediatricians/me', { method: 'PATCH', body: JSON.stringify(data) }),
+  addService: (data: { type: string; priceCents: number; slaHours: number; scopeText?: string }) =>
+    request('/pediatricians/me/services', { method: 'POST', body: JSON.stringify(data) }),
+  deleteService: (id: string) =>
+    request(`/pediatricians/me/services/${id}`, { method: 'DELETE' }),
+  availability: () => request('/scheduling/availability/me') as Promise<AvailabilityDto[]>,
+  addAvailability: (data: { weekday: number; startMinute: number; endMinute: number; slotMinutes?: number }) =>
+    request('/scheduling/availability', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAvailability: (id: string) =>
+    request(`/scheduling/availability/${id}`, { method: 'DELETE' }),
+
+  // Notifications (all roles)
+  notifications: () => request('/notifications') as Promise<NotificationDto[]>,
+  markRead: (id: string) => request(`/notifications/${id}/read`, { method: 'POST' }),
 
   // Admin / Finance
   allConsultations: () => request('/consultations/all') as Promise<ConsultationDto[]>,

@@ -2,6 +2,7 @@ import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -48,7 +49,7 @@ export class UpdateProfileDto {
 }
 
 export class CreateServiceDto {
-  @ApiProperty({ enum: ServiceType }) type!: ServiceType;
+  @ApiProperty({ enum: ServiceType }) @IsEnum(ServiceType) type!: ServiceType;
   @ApiProperty() @IsInt() @Min(100) priceCents!: number;
   @ApiProperty() @IsInt() @Min(1) slaHours!: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) scopeText?: string;
