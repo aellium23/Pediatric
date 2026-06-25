@@ -27,6 +27,7 @@ import {
   type ArticleCard,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
+import { useT, LanguageSwitcher } from '@/lib/i18n';
 
 interface Profile {
   email: string;
@@ -100,6 +101,7 @@ function svcFullLabel(t: string): string {
 }
 
 export default function MultiProfileApp() {
+  const { t } = useT();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState('');
   const [msg, setMsg] = useState('');
@@ -185,16 +187,19 @@ export default function MultiProfileApp() {
       <div className="apphead">
         <div>
           <div style={{ fontSize: 12 }} className="muted">
-            Sessão como
+            {t('app.sessionAs')}
           </div>
           <strong>
             {profile.emoji} {profile.name}
           </strong>{' '}
           <span className="pill muted">{profile.role}</span>
         </div>
-        <button className="btn secondary small" onClick={leave}>
-          Trocar perfil
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <LanguageSwitcher />
+          <button className="btn secondary small" onClick={leave}>
+            {t('app.switchProfile')}
+          </button>
+        </div>
       </div>
 
       {msg ? <p className="notice">{msg}</p> : null}
@@ -228,17 +233,17 @@ export default function MultiProfileApp() {
       </div>
 
       <nav className="appbar">
-        {tabs.map((t) => (
+        {tabs.map((tb) => (
           <button
-            key={t.key}
-            className={tab === t.key ? 'active' : ''}
+            key={tb.key}
+            className={tab === tb.key ? 'active' : ''}
             onClick={() => {
-              setTab(t.key);
+              setTab(tb.key);
               setMsg('');
             }}
           >
-            <span className="ico">{t.ico}</span>
-            {t.label}
+            <span className="ico">{tb.ico}</span>
+            {t(`tab.${tb.key}`, tb.label)}
           </button>
         ))}
       </nav>

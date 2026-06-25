@@ -1,20 +1,24 @@
+'use client';
+
 import Link from 'next/link';
+import { useT, LanguageSwitcher } from '@/lib/i18n';
 
 export default function Home() {
+  const { t } = useT();
   return (
     <main>
       <section className="hero">
-        <span className="badge">PÉDIA · TELEPEDIATRIA</span>
-        <h1>O pediatra de confiança, à distância de uma mensagem.</h1>
-        <p className="muted">
-          Pediatras verificados · Seguro e privado · Sem ir à urgência por tudo.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="badge">{t('landing.badge')}</span>
+          <LanguageSwitcher />
+        </div>
+        <h1>{t('landing.title')}</h1>
+        <p className="muted">{t('landing.subtitle')}</p>
         <Link className="cta" href="/app">
-          Entrar na app (escolher perfil)
+          {t('landing.cta')}
         </Link>
         <p className="muted" style={{ marginTop: 16 }}>
-          Entra como qualquer perfil demo (Pai, Pediatra, Admin…) com dados reais ·{' '}
-          <Link href="/marketplace">marketplace</Link> · <Link href="/tour">tour visual</Link> 📱
+          <Link href="/marketplace">marketplace</Link> · <Link href="/tour">tour</Link> 📱
         </p>
       </section>
     </main>
