@@ -131,6 +131,7 @@ export default function MultiProfileApp() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -160,6 +161,9 @@ export default function MultiProfileApp() {
       localStorage.setItem('pedia_profile', p.email);
       setProfile(p);
       setTab(tabsFor(p.role)[0].key);
+      if (p.role === 'PARENT' && !localStorage.getItem('pedia_onboarded')) {
+        setOnboarding(true);
+      }
     } catch (e) {
       setMsg(`Não foi possível entrar: ${String(e)}`);
     } finally {
@@ -202,6 +206,19 @@ export default function MultiProfileApp() {
             </button>
           ))}
         </div>
+      </main>
+    );
+  }
+
+  if (onboarding) {
+    return (
+      <main>
+        <Onboarding
+          onDone={() => {
+            if (typeof window !== 'undefined') localStorage.setItem('pedia_onboarded', '1');
+            setOnboarding(false);
+          }}
+        />
       </main>
     );
   }
@@ -2865,6 +2882,55 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
           Publicar artigo
         </button>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Onboarding / consents (first parent login) ─────────────────────────
+function Onboarding({ onDone }: { onDone: () => void }) {
+  const [terms, setTerms] = useState(false);
+  const [privacy, setPrivacy] = useState(false);
+  const [health, setHealth] = useState(false);
+  const all = terms && privacy && health;
+  return (
+    <div className="section">
+      <span className="badge">Bem-vindo à Pédia</span>
+      <h1 style={{ fontSize: 28, margin: '10px 0 6px', letterSpacing: '-0.02em' }}>
+        Cuidar do seu filho, com confiança.
+      </h1>
+      <p className="muted">
+        Pediatras verificados, num espaço seguro e privado. Antes de começar, confirme os
+        consentimentos.
+      </p>
+
+      <div className="card section">
+        <label className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+          <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
+          <span>
+            Aceito os <strong>Termos de Utilização</strong>.
+          </span>
+        </label>
+        <label className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+          <input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
+          <span>
+            Li e aceito a <strong>Política de Privacidade</strong> (RGPD).
+          </span>
+        </label>
+        <label className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+          <input type="checkbox" checked={health} onChange={(e) => setHealth(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
+          <span>
+            Autorizo o tratamento dos <strong>dados de saúde</strong> do meu filho 🔒, para a
+            prestação dos cuidados.
+          </span>
+        </label>
+      </div>
+
+      <button className="btn" onClick={onDone} disabled={!all} style={{ width: '100%' }}>
+        Começar
+      </button>
+      <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+        Pode rever ou revogar consentimentos em Conta → Privacidade.
+      </p>
     </div>
   );
 }

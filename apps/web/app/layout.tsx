@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 import { LanguageProvider } from '@/lib/i18n';
 import { ThemeProvider } from '@/lib/theme';
+import { RegisterSW } from '@/lib/sw-register';
 
 export const metadata: Metadata = {
   title: 'Pédia — Telepediatria',
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <LanguageProvider>{children}</LanguageProvider>
         </ThemeProvider>
+        <RegisterSW />
       </body>
     </html>
   );

@@ -53,14 +53,14 @@ Ordenadas por valor; as marcadas ✅ já entraram com este trabalho.
 | Acesso rápido **"Emergência? → SNS 24 / 112"** sempre presente | ✅ | botão SOS fixo + bottom sheet com `tel:` |
 | **Chat em bolhas** (estilo messaging) no thread de consulta | ✅ | bolhas me/them (alinhamento por JWT `sub`) |
 | **Pesquisa** no marketplace (campo de busca) | ✅ | busca por especialidade/idioma/bio |
-| **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje consentimento inline |
-| **Biometria / Passkeys** no login (backend já suporta) | ⏳ | falta UI WebAuthn |
+| **Onboarding/consentimentos** com ecrã próprio | ✅ | 1.º login de Pai (Termos+Privacidade+Saúde) |
+| **Offline shell** (service worker) | ✅ | `public/sw.js` + registo (só app same-origin) |
 | **Preferências de notificações** (UI) | ✅ | toggle nas Definições; push real precisa de credenciais |
-| **PWA instalável** (manifest + theme-color + ícone) | ✅ | `app/manifest.ts` + `viewport.themeColor`; falta service worker p/ offline total |
+| **PWA instalável** (manifest + theme-color + ícone) | ✅ | `app/manifest.ts` + `viewport.themeColor` |
 | **Acessibilidade** (focus-visible, prefers-reduced-motion) | ✅ | base; auditoria AA completa fica pendente |
-| **Estados vazios** + **skeleton loaders** | ✅ | `Skeleton`/`EmptyState`; aplicados às listas principais |
-| **Offline total** (service worker) + deep links | ⏳ | PWA avançado |
-| **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje inline |
+| **Estados vazios** + **skeleton loaders** | ✅ | `Skeleton`/`EmptyState` nas listas principais |
+| **Biometria / Passkeys** no login (backend já suporta) | ⏳ | precisa `WEBAUTHN_RP_ID`/origin do domínio (ver doc 21) |
+| **Deep links** + offline total (cache de dados) | ⏳ | PWA avançado |
 
 > O backlog de **produto** (integrações reais, app nativa, faturação certificada,
 > DPIA) está em `docs/STATUS-fases.md` e `docs/21-integracoes.md`.
