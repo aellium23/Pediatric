@@ -26,7 +26,16 @@ async function bootstrap(): Promise<void> {
     origin: demoEnv ? true : corsOrigins.length > 0 ? corsOrigins : false,
     credentials: !demoEnv && corsOrigins.length > 0,
   });
-  app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
+  app.setGlobalPrefix('api', { exclude: ['health', 'health/ready', 'metrics'] });
+
+  // Production safety: dev-login must never be on in a real production deploy.
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEV_LOGIN === 'true') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[SECURITY] ENABLE_DEV_LOGIN is true in production — this is a DEMO setting. ' +
+        'Disable it before serving real users.',
+    );
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
