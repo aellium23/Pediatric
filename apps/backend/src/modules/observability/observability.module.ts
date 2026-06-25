@@ -96,13 +96,13 @@ class ObservabilityInterceptor implements NestInterceptor {
 @ApiTags('observability')
 @Controller()
 class MetricsController {
-  constructor(private readonly metrics: MetricsService) {}
+  constructor(private readonly service: MetricsService) {}
 
   /** Prometheus scrape endpoint. */
   @Public()
   @Get('metrics')
   metrics(): string {
-    return this.metrics.render();
+    return this.service.render();
   }
 }
 
