@@ -27,6 +27,7 @@ import { ClinicsModule } from './modules/clinics/clinics.module';
 import { HealthRecordsModule } from './modules/health-records/health-records.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ObservabilityModule } from './modules/observability/observability.modul
     HealthRecordsModule,
     SubscriptionsModule,
     ObservabilityModule,
+    PrivacyModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.

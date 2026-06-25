@@ -22,6 +22,8 @@ import {
   type HealthOverview,
   type PlanDto,
   type MySubscription,
+  type ConsentRow,
+  type InvoicesDto,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -189,15 +191,18 @@ export default function MultiProfileApp() {
         {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
         {tab === 'consult' ? <ConsultTab onMsg={setMsg} /> : null}
         {tab === 'myconsults' ? <MyConsultsTab onMsg={setMsg} /> : null}
-        {tab === 'plan' ? (
+        {tab === 'myaccount' ? (
           <div className="section">
-            <h2>O meu plano</h2>
+            <h2>A minha conta</h2>
+            <h3>Plano</h3>
             <SubscriptionSection onMsg={setMsg} />
+            <InvoicesSection onMsg={setMsg} />
+            <PrivacySection onMsg={setMsg} onLeave={leave} />
           </div>
         ) : null}
         {tab === 'inbox' ? <InboxTab onMsg={setMsg} /> : null}
         {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
-        {tab === 'profile' ? <PedProfileTab onMsg={setMsg} /> : null}
+        {tab === 'profile' ? <PedProfileTab onMsg={setMsg} onLeave={leave} /> : null}
         {tab === 'finance' ? <FinanceTab onMsg={setMsg} /> : null}
         {tab === 'admin' ? <AdminTab onMsg={setMsg} /> : null}
         {tab === 'overview' ? <OverviewTab onMsg={setMsg} /> : null}
@@ -235,7 +240,7 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
       { key: 'children', label: 'Crianças', ico: '👶' },
       { key: 'consult', label: 'Consultar', ico: '🔎' },
       { key: 'myconsults', label: 'Consultas', ico: '💬' },
-      { key: 'plan', label: 'Plano', ico: '💳' },
+      { key: 'myaccount', label: 'Conta', ico: '👤' },
       notif,
     ];
   if (role === 'PEDIATRICIAN')
@@ -1540,7 +1545,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Pediatrician: Profile + services ─────────────────────────
-function PedProfileTab({ onMsg }: { onMsg: (m: string) => void }) {
+function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave: () => void }) {
   const [me, setMe] = useState<PedMeDto | null>(null);
   const [bio, setBio] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1670,6 +1675,8 @@ function PedProfileTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       <h3 style={{ marginTop: 20 }}>Subscrição</h3>
       <SubscriptionSection onMsg={onMsg} />
+      <InvoicesSection onMsg={onMsg} />
+      <PrivacySection onMsg={onMsg} onLeave={onLeave} />
     </div>
   );
 }
@@ -1765,6 +1772,171 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
       <p className="muted" style={{ fontSize: 13 }}>
         Sem Stripe configurado, a subscrição ativa-se em modo demonstração (sem cobrança real).
       </p>
+    </div>
+  );
+}
+
+// ───────────────────────── Invoices (parent + pediatrician) ─────────────────────────
+function InvoicesSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const [d, setD] = useState<InvoicesDto | null>(null);
+  useEffect(() => {
+    Api.invoices()
+      .then(setD)
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!d) return null;
+  const all = [
+    ...d.medical.map((i) => ({ ...i, kind: 'Ato médico' })),
+    ...d.commission.map((i) => ({ ...i, kind: 'Comissão' })),
+  ];
+  return (
+    <div className="section">
+      <h3>Faturas</h3>
+      {all.length === 0 ? (
+        <p className="muted">Sem faturas. (São emitidas quando uma consulta é paga e fechada.)</p>
+      ) : (
+        all.map((i) => (
+          <div key={i.id} className="card" style={{ marginBottom: 8 }}>
+            <strong>{euro(i.amountCents)}</strong> <span className="muted">· {i.kind}</span>
+            <div className="muted" style={{ fontSize: 12 }}>
+              IVA {euro(i.vatCents)} ({i.vatRegime}) · {i.atcud ?? 'ATCUD pendente'} ·{' '}
+              {new Date(i.issuedAt).toLocaleDateString('pt-PT')}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Privacy / GDPR (all roles) ─────────────────────────
+const CONSENT_PT: Record<string, string> = {
+  HEALTH_DATA: 'Dados de saúde',
+  TELECONSULT: 'Teleconsulta',
+  TERMS: 'Termos',
+  PRIVACY: 'Privacidade',
+  MARKETING: 'Marketing',
+};
+function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave: () => void }) {
+  const [consents, setConsents] = useState<ConsentRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  async function load() {
+    try {
+      setConsents(await Api.consents());
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function revoke(id: string) {
+    setBusy(true);
+    try {
+      await Api.revokeConsent(id);
+      onMsg('Consentimento revogado.');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportData() {
+    setBusy(true);
+    try {
+      const data = await Api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pedia-dados.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      onMsg('Exportação concluída ✓ (ficheiro descarregado).');
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function del() {
+    setBusy(true);
+    try {
+      await Api.deleteAccount();
+      onMsg('Conta anonimizada. Sessão terminada.');
+      onLeave();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="section">
+      <h3>Privacidade (RGPD)</h3>
+      <div className="card">
+        <strong>Consentimentos</strong>
+        {consents.length === 0 ? (
+          <p className="muted">Sem consentimentos registados.</p>
+        ) : (
+          consents.map((c) => (
+            <div key={c.id} className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
+              <span>
+                {CONSENT_PT[c.subject] ?? c.subject}{' '}
+                <span className={c.revokedAt ? 'pill muted' : 'pill ok'}>
+                  {c.revokedAt ? 'revogado' : 'ativo'}
+                </span>
+              </span>
+              {!c.revokedAt ? (
+                <button className="btn small secondary" onClick={() => revoke(c.id)} disabled={busy}>
+                  Revogar
+                </button>
+              ) : null}
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="card section">
+        <strong>Os teus dados</strong>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Direito de acesso e portabilidade — descarrega uma cópia em JSON.
+        </p>
+        <button className="btn small" onClick={exportData} disabled={busy}>
+          Exportar os meus dados
+        </button>
+      </div>
+
+      <div className="card section" style={{ borderColor: '#f0b8be' }}>
+        <strong style={{ color: '#d7263d' }}>Apagar conta</strong>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Direito ao esquecimento — anonimiza a conta (registos legais/contabilísticos são
+          retidos pelo prazo obrigatório).
+        </p>
+        {!confirmDel ? (
+          <button className="btn small danger" onClick={() => setConfirmDel(true)}>
+            Apagar a minha conta
+          </button>
+        ) : (
+          <div className="row">
+            <button className="btn small danger" onClick={del} disabled={busy}>
+              Confirmar apagar
+            </button>
+            <button className="btn small secondary" onClick={() => setConfirmDel(false)}>
+              Cancelar
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

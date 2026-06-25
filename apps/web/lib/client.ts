@@ -222,6 +222,13 @@ export const Api = {
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
 
+  // Privacy / GDPR
+  consents: () => request('/privacy/consents') as Promise<ConsentRow[]>,
+  revokeConsent: (id: string) => request(`/privacy/consents/${id}/revoke`, { method: 'POST' }),
+  exportData: () => request('/privacy/export') as Promise<Record<string, unknown>>,
+  deleteAccount: () => request('/privacy/delete-account', { method: 'POST' }),
+  invoices: () => request('/privacy/invoices') as Promise<InvoicesDto>,
+
   // Subscriptions
   subPlans: () => request('/subscriptions/plans') as Promise<PlanDto[]>,
   mySubscription: () => request('/subscriptions/me') as Promise<MySubscription | null>,
@@ -263,6 +270,26 @@ export const Api = {
       body: JSON.stringify({ pediatricianId }),
     }),
 };
+
+export interface ConsentRow {
+  id: string;
+  subject: string;
+  version: string;
+  grantedAt: string;
+  revokedAt: string | null;
+}
+export interface InvoiceRow {
+  id: string;
+  amountCents: number;
+  vatCents: number;
+  vatRegime: string;
+  atcud: string | null;
+  issuedAt: string;
+}
+export interface InvoicesDto {
+  medical: InvoiceRow[];
+  commission: InvoiceRow[];
+}
 
 export interface PlanDto {
   plan: string;
