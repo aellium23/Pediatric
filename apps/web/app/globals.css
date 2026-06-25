@@ -426,6 +426,57 @@ button.card:active {
   transform: scale(0.92);
 }
 
+/* Skeleton loaders + empty states. */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--fill) 25%,
+    rgba(128, 128, 128, 0.14) 37%,
+    var(--fill) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+.skel-line {
+  height: 12px;
+  margin: 9px 0;
+}
+.w40 {
+  width: 40%;
+}
+.w55 {
+  width: 55%;
+}
+.w70 {
+  width: 70%;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+.empty {
+  text-align: center;
+  padding: 44px 16px;
+  color: var(--muted);
+}
+.empty-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px dashed var(--border);
+  margin: 0 auto 12px;
+}
+.empty strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
 /* Search field. */
 .search {
   background: var(--fill);

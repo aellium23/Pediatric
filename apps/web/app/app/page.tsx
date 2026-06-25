@@ -90,6 +90,30 @@ function isForbidden(e: unknown): boolean {
 function svcLabel(t: string): string {
   return t === 'VIDEO' ? 'Vídeo' : t === 'MESSAGE' ? 'Mensagem' : t;
 }
+function Skeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="grid" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="card">
+          <div className="skel skel-line w40" />
+          <div className="skel skel-line w70" />
+          <div className="skel skel-line w55" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="empty">
+      <div className="empty-ring" />
+      <strong>{title}</strong>
+      {hint ? <p className="muted">{hint}</p> : null}
+    </div>
+  );
+}
+
 function svcFullLabel(t: string): string {
   const m: Record<string, string> = {
     MESSAGE: 'Mensagem',
@@ -946,6 +970,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [fMaxEuro, setFMaxEuro] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
@@ -963,6 +988,8 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
       if (c.length > 0 && !child) setChild(c[0].id);
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
+    } finally {
+      setLoading(false);
     }
   }
   useEffect(() => {
@@ -1100,8 +1127,13 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
         </label>
       </div>
 
-      {shown.length === 0 ? (
-        <p className="muted">Nenhum pediatra corresponde aos filtros.</p>
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : shown.length === 0 ? (
+        <EmptyState
+          title="Sem pediatras"
+          hint="Nenhum corresponde aos filtros. Tenta limpar a pesquisa."
+        />
       ) : (
         <div className="grid">
           {shown.map((p) => {
@@ -1460,12 +1492,15 @@ function MyConsultsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [reviewing, setReviewing] = useState<ConsultationDto | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
       setRows(await Api.myConsultations());
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
+    } finally {
+      setLoading(false);
     }
   }
   useEffect(() => {
@@ -1503,8 +1538,10 @@ function MyConsultsTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>As minhas consultas</h2>
-      {rows.length === 0 ? (
-        <p className="muted">Ainda sem consultas. Inicia uma no separador "Consultar".</p>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : rows.length === 0 ? (
+        <EmptyState title="Ainda sem consultas" hint="Inicia uma no separador Consultar." />
       ) : (
         <div className="grid">
           {rows.map((c) => (
@@ -1589,12 +1626,15 @@ function ReviewForm({
 function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
       setRows(await Api.inbox());
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
+    } finally {
+      setLoading(false);
     }
   }
   useEffect(() => {
@@ -1620,8 +1660,10 @@ function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>Caixa de entrada</h2>
-      {rows.length === 0 ? (
-        <p className="muted">Sem consultas pendentes. (Entra como Marta e cria uma.)</p>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : rows.length === 0 ? (
+        <EmptyState title="Sem consultas pendentes" hint="Entra como Marta e cria uma." />
       ) : (
         <div className="grid">
           {rows.map((c) => (
@@ -2710,10 +2752,12 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
 function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [items, setItems] = useState<ArticleCard[]>([]);
   const [open, setOpen] = useState<ArticleCard | null>(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     Api.articles()
       .then(setItems)
-      .catch((e) => onMsg(`Erro: ${String(e)}`));
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2736,8 +2780,10 @@ function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>Saber+ · conteúdos validados</h2>
-      {items.length === 0 ? (
-        <p className="muted">Ainda sem artigos.</p>
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : items.length === 0 ? (
+        <EmptyState title="Ainda sem artigos" hint="Os pediatras publicam aqui conteúdos validados." />
       ) : (
         <div className="grid">
           {items.map((a) => (

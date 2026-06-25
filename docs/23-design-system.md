@@ -58,7 +58,7 @@ Ordenadas por valor; as marcadas ✅ já entraram com este trabalho.
 | **Preferências de notificações** (UI) | ✅ | toggle nas Definições; push real precisa de credenciais |
 | **PWA instalável** (manifest + theme-color + ícone) | ✅ | `app/manifest.ts` + `viewport.themeColor`; falta service worker p/ offline total |
 | **Acessibilidade** (focus-visible, prefers-reduced-motion) | ✅ | base; auditoria AA completa fica pendente |
-| **Estados vazios** ilustrados e skeleton loaders | ⏳ | polish |
+| **Estados vazios** + **skeleton loaders** | ✅ | `Skeleton`/`EmptyState`; aplicados às listas principais |
 | **Offline total** (service worker) + deep links | ⏳ | PWA avançado |
 | **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje inline |
 
