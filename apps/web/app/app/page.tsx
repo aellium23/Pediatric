@@ -90,12 +90,12 @@ function svcLabel(t: string): string {
 }
 function svcFullLabel(t: string): string {
   const m: Record<string, string> = {
-    MESSAGE: '💬 Mensagem',
-    VIDEO: '🎥 Vídeo',
-    SECOND_OPINION: '🔎 2ª opinião',
-    FOLLOW_UP: '🔁 Seguimento',
-    ASYNC: '📨 Assíncrona',
-    PRESCRIPTION_RENEWAL: '💊 Renovar receita',
+    MESSAGE: 'Mensagem',
+    VIDEO: 'Vídeo',
+    SECOND_OPINION: '2ª opinião',
+    FOLLOW_UP: 'Seguimento',
+    ASYNC: 'Assíncrona',
+    PRESCRIPTION_RENEWAL: 'Renovar receita',
   };
   return m[t] ?? t;
 }
@@ -161,18 +161,17 @@ export default function MultiProfileApp() {
           </p>
         ) : null}
         {msg ? <p className="notice">{msg}</p> : null}
-        <div className="grid">
+        <div className="list">
           {PROFILES.map((p) => (
-            <button
-              key={p.email}
-              className="card"
-              onClick={() => enter(p)}
-              disabled={busy}
-              style={{ textAlign: 'left', cursor: 'pointer' }}
-            >
-              <div style={{ fontSize: 28 }}>{p.emoji}</div>
-              <strong>{p.name}</strong>
-              <div className="muted">{p.desc}</div>
+            <button key={p.email} className="lrow" onClick={() => enter(p)} disabled={busy}>
+              <span className="avatar">
+                <TabIcon name={roleIcon(p.role)} />
+              </span>
+              <span className="lrow-main">
+                <strong>{p.name}</strong>
+                <span className="muted">{p.desc}</span>
+              </span>
+              <span className="chev">›</span>
             </button>
           ))}
         </div>
@@ -185,14 +184,16 @@ export default function MultiProfileApp() {
   return (
     <main>
       <div className="apphead">
-        <div>
-          <div style={{ fontSize: 12 }} className="muted">
-            {t('app.sessionAs')}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span className="avatar sm">
+            <TabIcon name={roleIcon(profile.role)} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block', lineHeight: 1.1 }}>{profile.name}</strong>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {profile.role}
+            </span>
           </div>
-          <strong>
-            {profile.emoji} {profile.name}
-          </strong>{' '}
-          <span className="pill muted">{profile.role}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <LanguageSwitcher />
@@ -272,6 +273,23 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
     </>
   );
   const icons: Record<string, React.ReactNode> = {
+    person,
+    people,
+    cross: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8v8M8 12h8" />
+      </>
+    ),
+    shield: <path d="M12 3l7 2.8v5.2c0 4.4-3 7.4-7 8.9-4-1.5-7-4.5-7-8.9V5.8z" />,
+    headset: (
+      <>
+        <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+        <rect x="2.6" y="13" width="4.2" height="6.2" rx="1.6" />
+        <rect x="17.2" y="13" width="4.2" height="6.2" rx="1.6" />
+        <path d="M21.4 19.2a3 3 0 0 1-3 3H15" />
+      </>
+    ),
     children: people,
     consult: (
       <>
@@ -355,6 +373,20 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
       {icons[name] ?? icons.consult}
     </svg>
   );
+}
+
+function roleIcon(role: string): string {
+  const m: Record<string, string> = {
+    PARENT: 'person',
+    PEDIATRICIAN: 'cross',
+    PLATFORM_ADMIN: 'shield',
+    FINANCE: 'finance',
+    CLINIC_ADMIN: 'clinic',
+    CLINIC_STAFF: 'clinic',
+    SUPPORT: 'headset',
+    COMPLIANCE: 'audit',
+  };
+  return m[role] ?? 'person';
 }
 
 function tabsFor(role: string): { key: string; label: string; ico: string }[] {
@@ -491,7 +523,7 @@ function Thread({
         </div>
         {consultation.type === 'VIDEO' && consultation.status !== 'CLOSED' ? (
           <button className="btn small" onClick={joinVideo} style={{ marginTop: 8 }}>
-            🎥 Entrar na videochamada
+            Entrar na videochamada
           </button>
         ) : null}
         {video ? <p className="muted" style={{ fontSize: 12 }}>{video}</p> : null}
@@ -691,7 +723,7 @@ function ChildHealth({
       ) : (
         <>
           {/* Growth */}
-          <h3 style={{ marginTop: 16 }}>📈 Crescimento</h3>
+          <h3 style={{ marginTop: 16 }}>Crescimento</h3>
           {d.growth.length === 0 ? (
             <p className="muted">Sem medições.</p>
           ) : (
@@ -737,7 +769,7 @@ function ChildHealth({
           </div>
 
           {/* Vaccines */}
-          <h3 style={{ marginTop: 16 }}>💉 Vacinas</h3>
+          <h3 style={{ marginTop: 16 }}>Vacinas</h3>
           {d.vaccines.length === 0 ? (
             <p className="muted">Sem vacinas registadas.</p>
           ) : (
@@ -772,7 +804,7 @@ function ChildHealth({
           </div>
 
           {/* Medications */}
-          <h3 style={{ marginTop: 16 }}>💊 Medicação</h3>
+          <h3 style={{ marginTop: 16 }}>Medicação</h3>
           {d.medications.length === 0 ? (
             <p className="muted">Sem medicação.</p>
           ) : (
@@ -826,7 +858,7 @@ function ChildHealth({
           </div>
 
           {/* Episodes */}
-          <h3 style={{ marginTop: 16 }}>🗂️ Episódios clínicos</h3>
+          <h3 style={{ marginTop: 16 }}>Episódios clínicos</h3>
           {d.episodes.length === 0 ? (
             <p className="muted">Sem episódios.</p>
           ) : (
@@ -1066,7 +1098,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
                 <div className="row" style={{ marginTop: 6 }}>
                   {msgSvc ? (
                     <button className="btn small" onClick={() => startMessage(p)} disabled={busy}>
-                      💬 {euro(msgSvc.priceCents)}
+                      Mensagem · {euro(msgSvc.priceCents)}
                     </button>
                   ) : null}
                   {vidSvc ? (
@@ -1075,7 +1107,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
                       onClick={() => setBooking(p)}
                       disabled={busy || !child}
                     >
-                      🎥 {euro(vidSvc.priceCents)}
+                      Vídeo · {euro(vidSvc.priceCents)}
                     </button>
                   ) : null}
                 </div>
@@ -1144,7 +1176,7 @@ function PedDetail({
               onClick={onVideo}
               disabled={!canBook}
             >
-              🎥 Vídeo · {euro(s.priceCents)}
+              Vídeo · {euro(s.priceCents)}
             </button>
           ) : (
             <button key={s.id} className="btn small" onClick={() => onStartService(s.id)}>
@@ -2551,7 +2583,7 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
 
   return (
     <div className="section">
-      <h2>🏥 {data.clinic.name}</h2>
+      <h2>{data.clinic.name}</h2>
       <p className="muted">
         {data.role} · {data.members.length} membros · {data.pediatricians.length} pediatras
       </p>
