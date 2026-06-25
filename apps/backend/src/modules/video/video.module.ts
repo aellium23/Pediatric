@@ -27,23 +27,43 @@ export abstract class VideoPort {
 export const VIDEO_PORT = Symbol('VIDEO_PORT');
 
 /**
- * LiveKit-style adapter (EU self-host). Generates a signed, short-lived access
- * grant. Real SDK token signing replaces this stub when the LiveKit project is
- * provisioned; the API contract stays the same.
+ * LiveKit adapter (EU self-host). When LIVEKIT_API_KEY + LIVEKIT_API_SECRET are
+ * provisioned it issues a real, standards-compliant LiveKit access token (HS256
+ * JWT with a video grant) — accepted by any LiveKit server/SDK. Without
+ * credentials it falls back to a signed demo grant so the flow still works.
  */
 @Injectable()
 class LiveKitAdapter extends VideoPort {
+  private b64url(obj: unknown): string {
+    return Buffer.from(JSON.stringify(obj)).toString('base64url');
+  }
+
   issueAccessToken(roomId: string, identity: string, canPublish: boolean): VideoAccess {
-    const payload = Buffer.from(
-      JSON.stringify({ room: roomId, sub: identity, canPublish, nonce: randomUUID() }),
-    ).toString('base64url');
-    const secret = process.env.LIVEKIT_API_SECRET ?? 'dev-livekit-secret';
-    const sig = createHmac('sha256', secret).update(payload).digest('base64url');
-    return {
-      token: `${payload}.${sig}`,
-      url: process.env.LIVEKIT_URL ?? 'wss://video.pedia.local',
-      roomId,
-    };
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    const url = process.env.LIVEKIT_URL ?? 'wss://video.pedia.local';
+
+    if (apiKey && apiSecret) {
+      // Real LiveKit JWT (HS256). ttl 1h.
+      const now = Math.floor(Date.now() / 1000);
+      const header = this.b64url({ alg: 'HS256', typ: 'JWT' });
+      const body = this.b64url({
+        iss: apiKey,
+        sub: identity,
+        nbf: now,
+        iat: now,
+        exp: now + 3600,
+        jti: randomUUID(),
+        video: { room: roomId, roomJoin: true, canPublish, canSubscribe: true },
+      });
+      const sig = createHmac('sha256', apiSecret).update(`${header}.${body}`).digest('base64url');
+      return { token: `${header}.${body}.${sig}`, url, roomId };
+    }
+
+    // Demo fallback (no LiveKit credentials).
+    const payload = this.b64url({ room: roomId, sub: identity, canPublish, nonce: randomUUID() });
+    const sig = createHmac('sha256', 'dev-livekit-secret').update(payload).digest('base64url');
+    return { token: `${payload}.${sig}`, url, roomId };
   }
 }
 

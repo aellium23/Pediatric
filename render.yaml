@@ -43,6 +43,14 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Optional — real LiveKit video (see docs/21-integracoes.md). Without
+      # these, video tokens are issued in demo mode.
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
 
 # Render-managed PostgreSQL (free) — auto-wired into DATABASE_URL above.
 # (You can later switch to Supabase by replacing DATABASE_URL with its URI.)
