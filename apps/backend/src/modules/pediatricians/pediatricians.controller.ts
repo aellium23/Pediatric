@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { PediatriciansService } from './pediatricians.service';
 import { ReviewsService } from './reviews.service';
+import { FavoritesService } from './favorites.service';
 import { CurrentUser, Public, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import {
@@ -29,6 +30,7 @@ export class PediatriciansController {
   constructor(
     private readonly service: PediatriciansService,
     private readonly reviews: ReviewsService,
+    private readonly favorites: FavoritesService,
   ) {}
 
   // ── Marketplace (public directory — SEO-friendly) ──
@@ -36,6 +38,25 @@ export class PediatriciansController {
   @Get()
   list(@Query() q: MarketplaceQueryDto) {
     return this.service.listMarketplace(q);
+  }
+
+  // ── Favourites (parent) — declared before :id to avoid route clash ──
+  @Get('favorites')
+  @Roles(Role.PARENT)
+  listFavorites(@CurrentUser() user: AuthenticatedUser) {
+    return this.favorites.list(user.userId);
+  }
+
+  @Post(':id/favorite')
+  @Roles(Role.PARENT)
+  addFavorite(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.favorites.add(user.userId, id);
+  }
+
+  @Delete(':id/favorite')
+  @Roles(Role.PARENT)
+  removeFavorite(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.favorites.remove(user.userId, id);
   }
 
   // ── Pediatrician self-management ──

@@ -534,3 +534,14 @@ model Subscription {
 
   @@index([userId])
 }
+
+// ── Favorites (Phase G) ──────────────────────────────
+model Favorite {
+  id             String   @id @default(uuid())
+  userId         String
+  pediatricianId String
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, pediatricianId])
+  @@index([userId])
+}

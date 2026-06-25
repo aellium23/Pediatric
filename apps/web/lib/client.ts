@@ -127,7 +127,23 @@ export const Api = {
   children: () => request('/children') as Promise<ChildDto[]>,
   addChild: (data: { name: string; birthDate: string; healthDataConsent: boolean }) =>
     request('/children', { method: 'POST', body: JSON.stringify(data) }),
-  pediatricians: () => request('/pediatricians') as Promise<unknown[]>,
+  pediatricians: (filters?: {
+    specialty?: string;
+    language?: string;
+    maxPriceCents?: number;
+    minRating?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (filters?.specialty) q.set('specialty', filters.specialty);
+    if (filters?.language) q.set('language', filters.language);
+    if (filters?.maxPriceCents != null) q.set('maxPriceCents', String(filters.maxPriceCents));
+    if (filters?.minRating != null) q.set('minRating', String(filters.minRating));
+    const qs = q.toString();
+    return request(`/pediatricians${qs ? `?${qs}` : ''}`) as Promise<unknown[]>;
+  },
+  favorites: () => request('/pediatricians/favorites') as Promise<unknown[]>,
+  addFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'POST' }),
+  removeFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'DELETE' }),
   startConsultation: (data: { childId: string; serviceId: string; question: string }) =>
     request('/consultations', { method: 'POST', body: JSON.stringify(data) }),
   myConsultations: () => request('/consultations') as Promise<ConsultationDto[]>,

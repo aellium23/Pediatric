@@ -751,18 +751,29 @@ function ChildHealth({
 function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [peds, setPeds] = useState<PediatricianCard[]>([]);
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [child, setChild] = useState('');
   const [booking, setBooking] = useState<PediatricianCard | null>(null);
+  const [detail, setDetail] = useState<PediatricianCard | null>(null);
   const [busy, setBusy] = useState(false);
+  // filters
+  const [fSpec, setFSpec] = useState('');
+  const [fMaxEuro, setFMaxEuro] = useState('');
+  const [onlyFav, setOnlyFav] = useState(false);
 
   async function load() {
     try {
-      const [c, p] = await Promise.all([
+      const [c, p, favs] = await Promise.all([
         Api.children(),
-        Api.pediatricians() as Promise<PediatricianCard[]>,
+        Api.pediatricians({
+          specialty: fSpec || undefined,
+          maxPriceCents: fMaxEuro ? Math.round(Number(fMaxEuro) * 100) : undefined,
+        }) as Promise<PediatricianCard[]>,
+        Api.favorites().catch(() => []) as Promise<PediatricianCard[]>,
       ]);
       setChildren(c);
       setPeds(p);
+      setFavIds(new Set(favs.map((f) => f.id)));
       if (c.length > 0 && !child) setChild(c[0].id);
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
@@ -772,6 +783,22 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function toggleFav(p: PediatricianCard) {
+    const isFav = favIds.has(p.id);
+    setFavIds((prev) => {
+      const n = new Set(prev);
+      if (isFav) n.delete(p.id);
+      else n.add(p.id);
+      return n;
+    });
+    try {
+      if (isFav) await Api.removeFavorite(p.id);
+      else await Api.addFavorite(p.id);
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
 
   async function startMessage(p: PediatricianCard) {
     const svc = p.services.find((s) => s.type === 'MESSAGE');
@@ -807,6 +834,23 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
     );
   }
 
+  if (detail) {
+    return (
+      <PedDetail
+        ped={detail}
+        isFav={favIds.has(detail.id)}
+        canBook={!!child}
+        onBack={() => setDetail(null)}
+        onToggleFav={() => toggleFav(detail)}
+        onMessage={() => startMessage(detail)}
+        onVideo={() => setBooking(detail)}
+        onMsg={onMsg}
+      />
+    );
+  }
+
+  const shown = onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds;
+
   return (
     <div className="section">
       <h2>Escolher pediatra</h2>
@@ -824,36 +868,161 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
           </select>
         </label>
       )}
-      <div className="grid">
-        {peds.map((p) => {
-          const msgSvc = p.services.find((s) => s.type === 'MESSAGE');
-          const vidSvc = p.services.find((s) => s.type === 'VIDEO');
-          return (
-            <article key={p.id} className="card">
-              <span className="pill ok">✓ Verificado</span>
-              <h3 style={{ margin: '6px 0' }}>{p.specialties[0] ?? 'Pediatria geral'}</h3>
-              <p className="muted" style={{ margin: 0 }}>
-                {p.languages.join(' · ')} · ⭐ {p.ratingAvg.toFixed(1)}
-              </p>
-              {msgSvc ? (
-                <button className="btn small" onClick={() => startMessage(p)} disabled={busy}>
-                  💬 Mensagem · {euro(msgSvc.priceCents)}
-                </button>
-              ) : null}
-              {vidSvc ? (
+
+      <div className="card section">
+        <div className="row">
+          <input placeholder="Especialidade" value={fSpec} onChange={(e) => setFSpec(e.target.value)} />
+          <input
+            placeholder="Preço máx €"
+            value={fMaxEuro}
+            onChange={(e) => setFMaxEuro(e.target.value)}
+            style={{ width: 110 }}
+          />
+          <button className="btn small" onClick={() => load()}>
+            Filtrar
+          </button>
+        </div>
+        <label className="muted" style={{ display: 'block', marginTop: 6 }}>
+          <input
+            type="checkbox"
+            checked={onlyFav}
+            onChange={(e) => setOnlyFav(e.target.checked)}
+            style={{ width: 'auto', marginRight: 8 }}
+          />
+          ❤️ Só favoritos
+        </label>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="muted">Nenhum pediatra corresponde aos filtros.</p>
+      ) : (
+        <div className="grid">
+          {shown.map((p) => {
+            const msgSvc = p.services.find((s) => s.type === 'MESSAGE');
+            const vidSvc = p.services.find((s) => s.type === 'VIDEO');
+            return (
+              <article key={p.id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="pill ok">✓ Verificado</span>
+                  <span
+                    style={{ cursor: 'pointer', fontSize: 18 }}
+                    onClick={() => toggleFav(p)}
+                    title="Favorito"
+                  >
+                    {favIds.has(p.id) ? '❤️' : '🤍'}
+                  </span>
+                </div>
+                <h3 style={{ margin: '6px 0' }}>{p.specialties[0] ?? 'Pediatria geral'}</h3>
+                <p className="muted" style={{ margin: 0 }}>
+                  {p.languages.join(' · ')} · ⭐ {p.ratingAvg.toFixed(1)}
+                </p>
                 <button
                   className="btn small secondary"
-                  onClick={() => setBooking(p)}
-                  disabled={busy || !child}
-                  style={{ marginLeft: 6 }}
+                  onClick={() => setDetail(p)}
+                  style={{ marginTop: 6 }}
                 >
-                  🎥 Vídeo · {euro(vidSvc.priceCents)}
+                  Ver perfil e avaliações
                 </button>
-              ) : null}
-            </article>
-          );
-        })}
+                <div className="row" style={{ marginTop: 6 }}>
+                  {msgSvc ? (
+                    <button className="btn small" onClick={() => startMessage(p)} disabled={busy}>
+                      💬 {euro(msgSvc.priceCents)}
+                    </button>
+                  ) : null}
+                  {vidSvc ? (
+                    <button
+                      className="btn small secondary"
+                      onClick={() => setBooking(p)}
+                      disabled={busy || !child}
+                    >
+                      🎥 {euro(vidSvc.priceCents)}
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PedDetail({
+  ped,
+  isFav,
+  canBook,
+  onBack,
+  onToggleFav,
+  onMessage,
+  onVideo,
+  onMsg,
+}: {
+  ped: PediatricianCard;
+  isFav: boolean;
+  canBook: boolean;
+  onBack: () => void;
+  onToggleFav: () => void;
+  onMessage: () => void;
+  onVideo: () => void;
+  onMsg: (m: string) => void;
+}) {
+  const [reviews, setReviews] = useState<
+    { id: string; rating: number; comment: string | null; createdAt: string }[]
+  >([]);
+  const msgSvc = ped.services.find((s) => s.type === 'MESSAGE');
+  const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
+
+  useEffect(() => {
+    Api.reviews(ped.id)
+      .then((r) => setReviews(r as typeof reviews))
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ped.id]);
+
+  return (
+    <div className="section">
+      <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
+        ← Voltar
+      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>{ped.specialties[0] ?? 'Pediatria geral'}</h2>
+        <span style={{ cursor: 'pointer', fontSize: 22 }} onClick={onToggleFav}>
+          {isFav ? '❤️' : '🤍'}
+        </span>
       </div>
+      <p className="muted">
+        ⭐ {ped.ratingAvg.toFixed(1)} · {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
+      </p>
+      {ped.bio ? <p>{ped.bio}</p> : null}
+
+      <div className="row">
+        {msgSvc ? (
+          <button className="btn small" onClick={onMessage}>
+            💬 Mensagem · {euro(msgSvc.priceCents)}
+          </button>
+        ) : null}
+        {vidSvc ? (
+          <button className="btn small secondary" onClick={onVideo} disabled={!canBook}>
+            🎥 Vídeo · {euro(vidSvc.priceCents)}
+          </button>
+        ) : null}
+      </div>
+
+      <h3 style={{ marginTop: 18 }}>Avaliações</h3>
+      {reviews.length === 0 ? (
+        <p className="muted">Ainda sem avaliações.</p>
+      ) : (
+        reviews.map((r) => (
+          <div key={r.id} className="card" style={{ marginBottom: 8 }}>
+            <div>{'⭐'.repeat(r.rating)}</div>
+            {r.comment ? <div>{r.comment}</div> : null}
+            <div className="muted" style={{ fontSize: 12 }}>
+              {new Date(r.createdAt).toLocaleDateString('pt-PT')}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
