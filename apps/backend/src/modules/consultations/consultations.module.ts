@@ -34,6 +34,12 @@ class ConsultationsController {
     return this.service.listForPediatrician(user.userId);
   }
 
+  @Get('all')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  all() {
+    return this.service.listAll();
+  }
+
   @Get(':id/messages')
   @Roles(Role.PARENT, Role.PEDIATRICIAN)
   messages(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

@@ -74,6 +74,14 @@ export class ConsultationsService {
     });
   }
 
+  /** Admin/Finance: the most recent consultations across the platform. */
+  async listAll() {
+    return this.prisma.consultation.findMany({
+      orderBy: { openedAt: 'desc' },
+      take: 50,
+    });
+  }
+
   /** Pediatrician inbox, ordered by SLA urgency. */
   async listForPediatrician(userId: string) {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });

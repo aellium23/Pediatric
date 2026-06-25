@@ -58,7 +58,10 @@ export default function DemoApp() {
       return;
     }
     try {
-      const [c, p] = await Promise.all([Api.children(), Api.pediatricians()]);
+      const [c, p] = await Promise.all([
+        Api.children(),
+        Api.pediatricians() as Promise<PediatricianCard[]>,
+      ]);
       setChildren(c);
       setPeds(p.length > 0 ? p : DEMO_PEDIATRICIANS);
       if (c.length > 0) setSelectedChild(c[0].id);

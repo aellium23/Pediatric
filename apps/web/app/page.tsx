@@ -9,12 +9,12 @@ export default function Home() {
         <p className="muted">
           Pediatras verificados · Seguro e privado · Sem ir à urgência por tudo.
         </p>
-        <Link className="cta" href="/marketplace">
-          Encontrar pediatra
+        <Link className="cta" href="/app">
+          Entrar na app (escolher perfil)
         </Link>
         <p className="muted" style={{ marginTop: 16 }}>
-          Ou experimenta a <Link href="/demo">demo interativa</Link> (login →
-          criança → consulta) · vê o <Link href="/tour">tour visual</Link> 📱
+          Entra como qualquer perfil demo (Pai, Pediatra, Admin…) com dados reais ·{' '}
+          <Link href="/marketplace">marketplace</Link> · <Link href="/tour">tour visual</Link> 📱
         </p>
       </section>
     </main>
