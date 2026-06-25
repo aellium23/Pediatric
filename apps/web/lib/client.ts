@@ -185,4 +185,52 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ reason: reason ?? 'demo refund' }),
     }),
+
+  // Platform backoffice (admin / compliance / support)
+  adminMetrics: () => request('/admin/metrics') as Promise<AdminMetrics>,
+  adminPediatricians: (status?: string) =>
+    request(`/admin/pediatricians${status ? `?status=${status}` : ''}`) as Promise<AdminPedRow[]>,
+  verifyPediatrician: (id: string) =>
+    request(`/admin/pediatricians/${id}/verify`, { method: 'POST' }),
+  suspendPediatrician: (id: string) =>
+    request(`/admin/pediatricians/${id}/suspend`, { method: 'POST' }),
+  adminUsers: () => request('/admin/users') as Promise<AdminUserRow[]>,
+  changeUserRole: (id: string, role: string) =>
+    request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
 };
+
+export interface AdminMetrics {
+  usersByRole: Record<string, number>;
+  pediatriciansByStatus: Record<string, number>;
+  consultationsByStatus: Record<string, number>;
+  grossCents: number;
+  commissionCents: number;
+  refunds: number;
+  families: number;
+  children: number;
+  currency: string;
+}
+export interface AdminPedRow {
+  id: string;
+  status: string;
+  licenseNumber: string;
+  ratingAvg: number;
+  specialties: string[];
+  user?: { email: string | null };
+}
+export interface AdminUserRow {
+  id: string;
+  email: string | null;
+  role: string;
+  status: string;
+  createdAt: string;
+}
+export interface AuditRow {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  createdAt: string;
+  actor?: { email: string | null; role: string } | null;
+}

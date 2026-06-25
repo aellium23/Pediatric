@@ -14,6 +14,10 @@ import {
   type ServiceDto,
   type AvailabilityDto,
   type NotificationDto,
+  type AdminMetrics,
+  type AdminPedRow,
+  type AdminUserRow,
+  type AuditRow,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -186,6 +190,10 @@ export default function MultiProfileApp() {
         {tab === 'profile' ? <PedProfileTab onMsg={setMsg} /> : null}
         {tab === 'finance' ? <FinanceTab onMsg={setMsg} /> : null}
         {tab === 'admin' ? <AdminTab onMsg={setMsg} /> : null}
+        {tab === 'overview' ? <OverviewTab onMsg={setMsg} /> : null}
+        {tab === 'verify' ? <VerifyTab onMsg={setMsg} /> : null}
+        {tab === 'users' ? <UsersTab onMsg={setMsg} /> : null}
+        {tab === 'audit' ? <AuditTab onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'notif' ? <NotifTab onMsg={setMsg} /> : null}
       </div>
@@ -226,11 +234,21 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
       { key: 'finance', label: 'Ganhos', ico: '💶' },
       notif,
     ];
-  if (role === 'PLATFORM_ADMIN' || role === 'FINANCE')
+  const overview = { key: 'overview', label: 'Visão', ico: '📊' };
+  const audit = { key: 'audit', label: 'Auditoria', ico: '📋' };
+  const users = { key: 'users', label: 'Utilizadores', ico: '👥' };
+  if (role === 'PLATFORM_ADMIN')
     return [
+      overview,
+      { key: 'verify', label: 'Pediatras', ico: '✅' },
       { key: 'admin', label: 'Consultas', ico: '🗂️' },
+      users,
       notif,
     ];
+  if (role === 'FINANCE')
+    return [{ key: 'admin', label: 'Consultas', ico: '🗂️' }, overview, notif];
+  if (role === 'COMPLIANCE') return [overview, audit, notif];
+  if (role === 'SUPPORT') return [users, overview, notif];
   return [
     { key: 'account', label: 'Conta', ico: '👤' },
     notif,
@@ -1226,6 +1244,245 @@ function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
                 Marcar como lido
               </button>
             ) : null}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Admin: Overview (metrics) ─────────────────────────
+function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [m, setM] = useState<AdminMetrics | null>(null);
+  useEffect(() => {
+    Api.adminMetrics()
+      .then(setM)
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!m) return <p className="muted section">A carregar…</p>;
+  const totalUsers = Object.values(m.usersByRole).reduce((a, b) => a + b, 0);
+  return (
+    <div className="section">
+      <h2>Visão da plataforma</h2>
+      <div className="grid">
+        <div className="card">
+          <div className="muted">Utilizadores</div>
+          <strong style={{ fontSize: 22 }}>{totalUsers}</strong>
+        </div>
+        <div className="card">
+          <div className="muted">Famílias · Crianças</div>
+          <strong style={{ fontSize: 22 }}>
+            {m.families} · {m.children}
+          </strong>
+        </div>
+        <div className="card">
+          <div className="muted">Receita bruta</div>
+          <strong style={{ fontSize: 22 }}>{euro(m.grossCents)}</strong>
+        </div>
+        <div className="card">
+          <div className="muted">Comissão · Reembolsos</div>
+          <strong style={{ fontSize: 22 }}>
+            {euro(m.commissionCents)} · {m.refunds}
+          </strong>
+        </div>
+      </div>
+      <div className="card section">
+        <h3>Utilizadores por perfil</h3>
+        {Object.entries(m.usersByRole).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{k}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
+      <div className="card section">
+        <h3>Consultas por estado</h3>
+        {Object.entries(m.consultationsByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{statusLabel(k)}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+        {Object.keys(m.consultationsByStatus).length === 0 ? (
+          <p className="muted">Sem consultas ainda.</p>
+        ) : null}
+      </div>
+      <div className="card section">
+        <h3>Pediatras por estado</h3>
+        {Object.entries(m.pediatriciansByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{k}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Admin: Verify pediatricians ─────────────────────────
+function VerifyTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminPedRow[]>([]);
+  const [busy, setBusy] = useState('');
+
+  async function load() {
+    try {
+      setRows(await Api.adminPediatricians());
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function act(id: string, kind: 'verify' | 'suspend') {
+    setBusy(id);
+    try {
+      if (kind === 'verify') await Api.verifyPediatrician(id);
+      else await Api.suspendPediatrician(id);
+      onMsg(kind === 'verify' ? 'Pediatra verificado ✓' : 'Pediatra suspenso.');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="section">
+      <h2>Verificação de pediatras</h2>
+      {rows.length === 0 ? (
+        <p className="muted">Sem pediatras.</p>
+      ) : (
+        <div className="grid">
+          {rows.map((p) => (
+            <div key={p.id} className="card">
+              <span className={p.status === 'ACTIVE' ? 'pill ok' : 'pill warn'}>{p.status}</span>
+              <div>
+                <strong>{p.user?.email ?? p.specialties[0] ?? 'Pediatra'}</strong>
+              </div>
+              <div className="muted">
+                Licença {p.licenseNumber} · ⭐ {p.ratingAvg.toFixed(1)}
+              </div>
+              <div className="row" style={{ marginTop: 8 }}>
+                {p.status !== 'ACTIVE' ? (
+                  <button className="btn small" onClick={() => act(p.id, 'verify')} disabled={busy === p.id}>
+                    Verificar
+                  </button>
+                ) : null}
+                {p.status !== 'SUSPENDED' ? (
+                  <button
+                    className="btn small danger"
+                    onClick={() => act(p.id, 'suspend')}
+                    disabled={busy === p.id}
+                  >
+                    Suspender
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Admin: Users ─────────────────────────
+const ALL_ROLES = [
+  'PARENT',
+  'PEDIATRICIAN',
+  'CLINIC_ADMIN',
+  'CLINIC_STAFF',
+  'PLATFORM_ADMIN',
+  'SUPPORT',
+  'FINANCE',
+  'COMPLIANCE',
+];
+function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [busy, setBusy] = useState('');
+
+  async function load() {
+    try {
+      setRows(await Api.adminUsers());
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function setRole(id: string, role: string) {
+    setBusy(id);
+    try {
+      await Api.changeUserRole(id, role);
+      onMsg('Perfil atualizado ✓');
+      await load();
+    } catch (e) {
+      onMsg(isForbidden(e) ? 'Sem permissão para alterar perfis (só Admin).' : `Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="section">
+      <h2>Utilizadores</h2>
+      <div className="grid">
+        {rows.map((u) => (
+          <div key={u.id} className="card">
+            <strong>{u.email ?? u.id.slice(0, 8)}</strong>
+            <div className="muted">{new Date(u.createdAt).toLocaleDateString('pt-PT')}</div>
+            <select
+              value={u.role}
+              onChange={(e) => setRole(u.id, e.target.value)}
+              disabled={busy === u.id}
+              style={{ marginTop: 8 }}
+            >
+              {ALL_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Compliance: Audit log ─────────────────────────
+function AuditTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AuditRow[]>([]);
+  useEffect(() => {
+    Api.adminAudit()
+      .then(setRows)
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="section">
+      <h2>Registo de auditoria</h2>
+      <p className="muted" style={{ fontSize: 13 }}>
+        Trilho imutável de ações (RGPD / responsabilização).
+      </p>
+      {rows.length === 0 ? (
+        <p className="muted">Sem registos ainda.</p>
+      ) : (
+        rows.map((a) => (
+          <div key={a.id} className="card" style={{ marginBottom: 8 }}>
+            <strong>{a.action}</strong> · <span className="muted">{a.entityType}</span>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {a.actor?.email ?? 'sistema'} · {when(a.createdAt)}
+            </div>
           </div>
         ))
       )}
