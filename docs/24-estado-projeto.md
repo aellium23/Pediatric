@@ -20,7 +20,11 @@ consultations (mensagem + vídeo + SLA + triagem + episódios), pediatricians
 invoicing, subscriptions, clinics, content, notifications, files, privacy (RGPD),
 admin (backoffice), observability.
 
-**Por fazer (produto):** notas clínicas/resumo pós-consulta · percentis WHO (LMS) ·
+**Feito recentemente:** ✅ **notas/resumo pós-consulta** (cifrado) · ✅ **gráfico de
+crescimento** (altura/peso ao longo do tempo).
+
+**Por fazer (produto):** **percentis WHO** (requer o dataset oficial LMS — não
+estimar de memória; carregar tabelas e aplicar o método LMS sobre o gráfico atual) ·
 AI administrativa · partilha médico-médico · gestão documental de verificação de
 cédula (upload de documentos do pediatra).
 

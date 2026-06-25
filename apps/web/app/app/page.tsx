@@ -104,6 +104,57 @@ function Skeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
+function GrowthChart({
+  points,
+  label,
+  unit,
+}: {
+  points: { x: number; y: number }[];
+  label: string;
+  unit: string;
+}) {
+  if (points.length < 2) return null;
+  const w = 300;
+  const h = 110;
+  const pad = 10;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const sx = (x: number) => pad + (maxX === minX ? 0 : (x - minX) / (maxX - minX)) * (w - 2 * pad);
+  const sy = (y: number) =>
+    h - pad - (maxY === minY ? 0.5 : (y - minY) / (maxY - minY)) * (h - 2 * pad);
+  const d = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}`).join(' ');
+  return (
+    <div className="card" style={{ marginBottom: 8 }}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>
+        {label}
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        <path d={d} fill="none" stroke="var(--brand)" strokeWidth="2" />
+        {points.map((p, i) => (
+          <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r="2.6" fill="var(--brand)" />
+        ))}
+      </svg>
+      <div
+        className="muted"
+        style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between' }}
+      >
+        <span>
+          {minY}
+          {unit}
+        </span>
+        <span>
+          {maxY}
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="empty">
@@ -844,6 +895,20 @@ function ChildHealth({
         <>
           {/* Growth */}
           <h3 style={{ marginTop: 16 }}>Crescimento</h3>
+          <GrowthChart
+            label="Altura (cm)"
+            unit=" cm"
+            points={d.growth
+              .filter((g) => g.heightCm != null)
+              .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.heightCm as number }))}
+          />
+          <GrowthChart
+            label="Peso (kg)"
+            unit=" kg"
+            points={d.growth
+              .filter((g) => g.weightKg != null)
+              .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.weightKg as number }))}
+          />
           {d.growth.length === 0 ? (
             <p className="muted">Sem medições.</p>
           ) : (
