@@ -157,45 +157,40 @@ textarea {
   min-width: 0;
   background: none;
   border: none;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
+  color: #9aa5a3;
+  font-size: 10.5px;
+  font-weight: 500;
   letter-spacing: -0.01em;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 5px 0 2px;
+  gap: 4px;
+  padding: 7px 0 3px;
   cursor: pointer;
   margin: 0;
-  border-radius: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 .appbar button .ico {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 30px;
-  border-radius: 999px;
-  font-size: 20px;
-  line-height: 1;
-  transition:
-    background 0.18s ease,
-    transform 0.18s ease;
+  height: 24px;
+  transition: transform 0.15s ease;
 }
+.appbar button .lbl {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* Uber-style: monochrome — active near-black, bold label; inactive grey. */
 .appbar button.active {
-  color: var(--brand);
+  color: var(--text);
 }
-.appbar button.active .ico {
-  background: rgba(14, 124, 116, 0.12);
-  transform: scale(1.04);
+.appbar button.active .lbl {
+  font-weight: 700;
 }
 .appbar button:active .ico {
-  transform: scale(0.92);
+  transform: scale(0.9);
 }
 .apphead {
   display: flex;
