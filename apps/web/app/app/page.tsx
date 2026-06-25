@@ -18,6 +18,7 @@ import {
   type AdminPedRow,
   type AdminUserRow,
   type AuditRow,
+  type ClinicDashboard,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -194,6 +195,7 @@ export default function MultiProfileApp() {
         {tab === 'verify' ? <VerifyTab onMsg={setMsg} /> : null}
         {tab === 'users' ? <UsersTab onMsg={setMsg} /> : null}
         {tab === 'audit' ? <AuditTab onMsg={setMsg} /> : null}
+        {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'notif' ? <NotifTab onMsg={setMsg} /> : null}
       </div>
@@ -249,6 +251,8 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
     return [{ key: 'admin', label: 'Consultas', ico: '🗂️' }, overview, notif];
   if (role === 'COMPLIANCE') return [overview, audit, notif];
   if (role === 'SUPPORT') return [users, overview, notif];
+  if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF')
+    return [{ key: 'clinic', label: 'Clínica', ico: '🏥' }, notif];
   return [
     { key: 'account', label: 'Conta', ico: '👤' },
     notif,
@@ -1486,6 +1490,166 @@ function AuditTab({ onMsg }: { onMsg: (m: string) => void }) {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+// ───────────────────────── Clinic (B2B) ─────────────────────────
+function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }) {
+  const [data, setData] = useState<ClinicDashboard | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [peds, setPeds] = useState<PediatricianCard[]>([]);
+  const [email, setEmail] = useState('');
+  const [srole, setSrole] = useState('CLINIC_STAFF');
+  const [pedId, setPedId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const isAdmin = role === 'CLINIC_ADMIN';
+
+  async function load() {
+    try {
+      const d = await Api.myClinic();
+      setData(d);
+      if (isAdmin) setPeds((await Api.pediatricians()) as PediatricianCard[]);
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setLoaded(true);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function addStaff() {
+    if (!data || !email) return;
+    setBusy(true);
+    try {
+      await Api.addClinicStaff(data.clinic.id, email, srole);
+      setEmail('');
+      onMsg('Membro adicionado ✓');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function addPed() {
+    if (!data || !pedId) return;
+    setBusy(true);
+    try {
+      await Api.addClinicPediatrician(data.clinic.id, pedId);
+      setPedId('');
+      onMsg('Pediatra associado ✓');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!loaded) return <p className="muted section">A carregar…</p>;
+  if (!data)
+    return (
+      <div className="section">
+        <p className="notice">
+          Este utilizador ainda não está ligado a nenhuma clínica. (A seed cria a "Clínica Demo" com
+          o admin e o staff.)
+        </p>
+      </div>
+    );
+
+  const linkedIds = new Set(data.pediatricians.map((p) => p.id));
+  const available = peds.filter((p) => !linkedIds.has(p.id));
+
+  return (
+    <div className="section">
+      <h2>🏥 {data.clinic.name}</h2>
+      <p className="muted">
+        {data.role} · {data.members.length} membros · {data.pediatricians.length} pediatras
+      </p>
+
+      <h3 style={{ marginTop: 18 }}>Pediatras</h3>
+      {data.pediatricians.length === 0 ? (
+        <p className="muted">Sem pediatras associados.</p>
+      ) : (
+        <div className="grid">
+          {data.pediatricians.map((p) => (
+            <div key={p.id} className="card">
+              <span className={p.status === 'ACTIVE' ? 'pill ok' : 'pill warn'}>{p.status}</span>
+              <div>
+                <strong>{p.email ?? p.id.slice(0, 8)}</strong>
+              </div>
+              <div className="muted">
+                ⭐ {p.ratingAvg.toFixed(1)} · clínica fica com {p.revenueSharePct}%
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h3 style={{ marginTop: 18 }}>Equipa</h3>
+      <div className="grid">
+        {data.members.map((m) => (
+          <div key={m.id} className="card">
+            <strong>{m.email ?? m.userId.slice(0, 8)}</strong>
+            <div className="muted">{m.role}</div>
+          </div>
+        ))}
+      </div>
+
+      <h3 style={{ marginTop: 18 }}>Consultas da clínica</h3>
+      {data.consultations.length === 0 ? (
+        <p className="muted">Sem consultas. (Cria uma como Marta para uma pediatra da clínica.)</p>
+      ) : (
+        <div className="grid">
+          {data.consultations.map((c) => (
+            <div key={c.id} className="card">
+              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+              <div>
+                <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+              </div>
+              <div className="muted">{when(c.openedAt)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isAdmin ? (
+        <>
+          <div className="card section">
+            <h3>Adicionar membro</h3>
+            <input
+              placeholder="email@exemplo.pt"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <select value={srole} onChange={(e) => setSrole(e.target.value)}>
+              <option value="CLINIC_STAFF">Staff</option>
+              <option value="CLINIC_ADMIN">Admin</option>
+            </select>
+            <button className="btn" onClick={addStaff} disabled={busy}>
+              Adicionar
+            </button>
+          </div>
+          <div className="card section">
+            <h3>Associar pediatra</h3>
+            <select value={pedId} onChange={(e) => setPedId(e.target.value)}>
+              <option value="">— escolher —</option>
+              {available.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.specialties[0] ?? 'Pediatra'} · ⭐ {p.ratingAvg.toFixed(1)}
+                </option>
+              ))}
+            </select>
+            <button className="btn" onClick={addPed} disabled={busy || !pedId}>
+              Associar
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

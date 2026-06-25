@@ -198,7 +198,31 @@ export const Api = {
   changeUserRole: (id: string, role: string) =>
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
+
+  // Clinics (B2B)
+  myClinic: () => request('/clinics/me') as Promise<ClinicDashboard | null>,
+  addClinicStaff: (clinicId: string, email: string, role: string) =>
+    request(`/clinics/${clinicId}/staff`, { method: 'POST', body: JSON.stringify({ email, role }) }),
+  addClinicPediatrician: (clinicId: string, pediatricianId: string) =>
+    request(`/clinics/${clinicId}/pediatricians`, {
+      method: 'POST',
+      body: JSON.stringify({ pediatricianId }),
+    }),
 };
+
+export interface ClinicDashboard {
+  clinic: { id: string; name: string; taxId: string | null; countryCode: string };
+  role: string;
+  members: { id: string; userId: string; role: string; email: string | null }[];
+  pediatricians: {
+    id: string;
+    email: string | null;
+    status: string;
+    ratingAvg: number;
+    revenueSharePct: number;
+  }[];
+  consultations: ConsultationDto[];
+}
 
 export interface AdminMetrics {
   usersByRole: Record<string, number>;

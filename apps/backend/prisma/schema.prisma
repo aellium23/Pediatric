@@ -427,3 +427,39 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorUserId])
 }
+
+// ── Clinics (B2B multi-tenant) ───────────────────────
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  taxId       String?
+  countryCode String   @default("PT")
+  createdAt   DateTime @default(now())
+
+  members       ClinicMember[]
+  pediatricians ClinicPediatrician[]
+}
+
+model ClinicMember {
+  id        String   @id @default(uuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  @@unique([clinicId, userId])
+  @@index([userId])
+}
+
+model ClinicPediatrician {
+  id              String   @id @default(uuid())
+  clinicId        String
+  clinic          Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  pediatricianId  String
+  revenueSharePct Int      @default(20)
+  createdAt       DateTime @default(now())
+
+  @@unique([clinicId, pediatricianId])
+  @@index([pediatricianId])
+}

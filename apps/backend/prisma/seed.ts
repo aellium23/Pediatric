@@ -59,6 +59,30 @@ async function main(): Promise<void> {
     });
   }
 
+  // A demo clinic linking the clinic users + the demo pediatrician (idempotent).
+  const clinicAdmin = await prisma.user.findUnique({ where: { email: 'clinica.admin@demo.pedia' } });
+  const clinicStaff = await prisma.user.findUnique({ where: { email: 'clinica.staff@demo.pedia' } });
+  if (clinicAdmin && clinicStaff) {
+    let clinic = await prisma.clinic.findFirst({ where: { name: 'Clínica Demo' } });
+    clinic ??= await prisma.clinic.create({ data: { name: 'Clínica Demo', taxId: '500000000' } });
+    const clinicMembers: { user: { id: string }; role: Role }[] = [
+      { user: clinicAdmin, role: Role.CLINIC_ADMIN },
+      { user: clinicStaff, role: Role.CLINIC_STAFF },
+    ];
+    for (const cm of clinicMembers) {
+      await prisma.clinicMember.upsert({
+        where: { clinicId_userId: { clinicId: clinic.id, userId: cm.user.id } },
+        create: { clinicId: clinic.id, userId: cm.user.id, role: cm.role },
+        update: { role: cm.role },
+      });
+    }
+    await prisma.clinicPediatrician.upsert({
+      where: { clinicId_pediatricianId: { clinicId: clinic.id, pediatricianId: ped.id } },
+      create: { clinicId: clinic.id, pediatricianId: ped.id, revenueSharePct: 20 },
+      update: {},
+    });
+  }
+
   // eslint-disable-next-line no-console
   console.log(
     'Seeded demo pediatrician:',
