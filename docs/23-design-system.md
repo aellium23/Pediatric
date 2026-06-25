@@ -59,8 +59,12 @@ Ordenadas por valor; as marcadas ✅ já entraram com este trabalho.
 | **PWA instalável** (manifest + theme-color + ícone) | ✅ | `app/manifest.ts` + `viewport.themeColor` |
 | **Acessibilidade** (focus-visible, prefers-reduced-motion) | ✅ | base; auditoria AA completa fica pendente |
 | **Estados vazios** + **skeleton loaders** | ✅ | `Skeleton`/`EmptyState` nas listas principais |
-| **Biometria / Passkeys** no login (backend já suporta) | ⏳ | precisa `WEBAUTHN_RP_ID`/origin do domínio (ver doc 21) |
+| **Biometria / Passkeys** | ◑ | UI em Definições → Segurança; degrada com aviso até `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` do domínio (doc 21). Backend já expõe os endpoints. |
 | **Deep links** + offline total (cache de dados) | ⏳ | PWA avançado |
+
+> **Backlog de UX esgotado** salvo itens que dependem de configuração/serviços
+> externos (passkeys → env do domínio; push → FCM/APNs; offline total/deep links →
+> PWA avançado). Tudo o resto do doc 19 está aplicado.
 
 > O backlog de **produto** (integrações reais, app nativa, faturação certificada,
 > DPIA) está em `docs/STATUS-fases.md` e `docs/21-integracoes.md`.

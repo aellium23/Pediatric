@@ -3015,6 +3015,15 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
     setNotif(v);
     if (typeof window !== 'undefined') localStorage.setItem('pedia_notif', v ? '1' : '0');
   }
+  const [secNote, setSecNote] = useState('');
+  function tryPasskey() {
+    const supported = typeof window !== 'undefined' && 'PublicKeyCredential' in window;
+    setSecNote(
+      supported
+        ? 'O teu dispositivo suporta passkeys/biometria. A ativação fica disponível quando o domínio tiver WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN configurados (ver docs/21-integracoes.md). O backend já expõe os endpoints WebAuthn.'
+        : 'Este dispositivo/navegador não suporta passkeys (WebAuthn).',
+    );
+  }
 
   return (
     <div className="section">
@@ -3064,6 +3073,21 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
             { v: 'es', label: 'Español' },
           ]}
         />
+      </div>
+
+      <div className="card section">
+        <strong>Segurança</strong>
+        <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
+          Passkey / biometria (Face ID, Touch ID) para entrar sem palavra-passe.
+        </p>
+        <button className="btn secondary small" onClick={tryPasskey}>
+          Ativar passkey
+        </button>
+        {secNote ? (
+          <p className="notice" style={{ marginTop: 10, fontSize: 13 }}>
+            {secNote}
+          </p>
+        ) : null}
       </div>
 
       <div className="card section">
