@@ -237,15 +237,16 @@ export default function MultiProfileApp() {
           <button
             key={tb.key}
             className={tab === tb.key ? 'active' : ''}
+            aria-label={t(`tab.${tb.key}`, tb.label)}
+            title={t(`tab.${tb.key}`, tb.label)}
             onClick={() => {
               setTab(tb.key);
               setMsg('');
             }}
           >
             <span className="ico">
-              <TabIcon name={tb.key} />
+              <TabIcon name={tb.key} active={tab === tb.key} />
             </span>
-            <span className="lbl">{t(`tab.${tb.key}`, tb.label)}</span>
           </button>
         ))}
       </nav>
@@ -253,8 +254,9 @@ export default function MultiProfileApp() {
   );
 }
 
-// Clean monochrome line icons (Uber-style bottom bar).
-function TabIcon({ name }: { name: string }) {
+// Clean monochrome line icons (Instagram-style bottom bar: thin when
+// inactive, heavier when active).
+function TabIcon({ name, active }: { name: string; active?: boolean }) {
   const person = (
     <>
       <circle cx="12" cy="8" r="3.2" />
@@ -345,7 +347,7 @@ function TabIcon({ name }: { name: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={active ? 2.4 : 1.7}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
