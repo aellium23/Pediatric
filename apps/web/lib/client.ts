@@ -222,6 +222,16 @@ export const Api = {
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
 
+  // Content library
+  articles: (category?: string) =>
+    request(`/content${category ? `?category=${encodeURIComponent(category)}` : ''}`) as Promise<
+      ArticleCard[]
+    >,
+  article: (slug: string) => request(`/content/${slug}`) as Promise<ArticleCard>,
+  myArticles: () => request('/content/mine') as Promise<ArticleCard[]>,
+  createArticle: (data: { title: string; body: string; category?: string; published?: boolean }) =>
+    request('/content', { method: 'POST', body: JSON.stringify(data) }),
+
   // Privacy / GDPR
   consents: () => request('/privacy/consents') as Promise<ConsentRow[]>,
   revokeConsent: (id: string) => request(`/privacy/consents/${id}/revoke`, { method: 'POST' }),
@@ -270,6 +280,16 @@ export const Api = {
       body: JSON.stringify({ pediatricianId }),
     }),
 };
+
+export interface ArticleCard {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  body: string;
+  published?: boolean;
+  createdAt: string;
+}
 
 export interface ConsentRow {
   id: string;

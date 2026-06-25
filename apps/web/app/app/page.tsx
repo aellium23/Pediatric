@@ -24,6 +24,7 @@ import {
   type MySubscription,
   type ConsentRow,
   type InvoicesDto,
+  type ArticleCard,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -85,6 +86,17 @@ function isForbidden(e: unknown): boolean {
 }
 function svcLabel(t: string): string {
   return t === 'VIDEO' ? 'Vídeo' : t === 'MESSAGE' ? 'Mensagem' : t;
+}
+function svcFullLabel(t: string): string {
+  const m: Record<string, string> = {
+    MESSAGE: '💬 Mensagem',
+    VIDEO: '🎥 Vídeo',
+    SECOND_OPINION: '🔎 2ª opinião',
+    FOLLOW_UP: '🔁 Seguimento',
+    ASYNC: '📨 Assíncrona',
+    PRESCRIPTION_RENEWAL: '💊 Renovar receita',
+  };
+  return m[t] ?? t;
 }
 
 export default function MultiProfileApp() {
@@ -211,6 +223,7 @@ export default function MultiProfileApp() {
         {tab === 'audit' ? <AuditTab onMsg={setMsg} /> : null}
         {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
+        {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
         {tab === 'notif' ? <NotifTab onMsg={setMsg} /> : null}
       </div>
 
@@ -240,6 +253,7 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
       { key: 'children', label: 'Crianças', ico: '👶' },
       { key: 'consult', label: 'Consultar', ico: '🔎' },
       { key: 'myconsults', label: 'Consultas', ico: '💬' },
+      { key: 'content', label: 'Saber+', ico: '📚' },
       { key: 'myaccount', label: 'Conta', ico: '👤' },
       notif,
     ];
@@ -761,6 +775,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [booking, setBooking] = useState<PediatricianCard | null>(null);
   const [detail, setDetail] = useState<PediatricianCard | null>(null);
   const [triageFor, setTriageFor] = useState<PediatricianCard | null>(null);
+  const [triageServiceId, setTriageServiceId] = useState('');
   const [busy, setBusy] = useState(false);
   // filters
   const [fSpec, setFSpec] = useState('');
@@ -806,20 +821,23 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
+  function startService(p: PediatricianCard, serviceId: string) {
+    if (!child) return onMsg('Seleciona uma criança.');
+    setDetail(null);
+    setTriageServiceId(serviceId);
+    setTriageFor(p);
+  }
   function startMessage(p: PediatricianCard) {
     const svc = p.services.find((s) => s.type === 'MESSAGE');
     if (!svc) return onMsg('Sem serviço de mensagem.');
-    if (!child) return onMsg('Seleciona uma criança.');
-    setDetail(null);
-    setTriageFor(p);
+    startService(p, svc.id);
   }
 
   if (triageFor) {
-    const svc = triageFor.services.find((s) => s.type === 'MESSAGE');
     return (
       <TriageDialog
         childId={child}
-        serviceId={svc?.id ?? ''}
+        serviceId={triageServiceId}
         onCancel={() => setTriageFor(null)}
         onDone={() => {
           setTriageFor(null);
@@ -853,7 +871,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
         canBook={!!child}
         onBack={() => setDetail(null)}
         onToggleFav={() => toggleFav(detail)}
-        onMessage={() => startMessage(detail)}
+        onStartService={(sid) => startService(detail, sid)}
         onVideo={() => setBooking(detail)}
         onMsg={onMsg}
       />
@@ -965,7 +983,7 @@ function PedDetail({
   canBook,
   onBack,
   onToggleFav,
-  onMessage,
+  onStartService,
   onVideo,
   onMsg,
 }: {
@@ -974,15 +992,13 @@ function PedDetail({
   canBook: boolean;
   onBack: () => void;
   onToggleFav: () => void;
-  onMessage: () => void;
+  onStartService: (serviceId: string) => void;
   onVideo: () => void;
   onMsg: (m: string) => void;
 }) {
   const [reviews, setReviews] = useState<
     { id: string; rating: number; comment: string | null; createdAt: string }[]
   >([]);
-  const msgSvc = ped.services.find((s) => s.type === 'MESSAGE');
-  const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
 
   useEffect(() => {
     Api.reviews(ped.id)
@@ -1007,17 +1023,24 @@ function PedDetail({
       </p>
       {ped.bio ? <p>{ped.bio}</p> : null}
 
+      <h3 style={{ marginTop: 14 }}>Serviços</h3>
       <div className="row">
-        {msgSvc ? (
-          <button className="btn small" onClick={onMessage}>
-            💬 Mensagem · {euro(msgSvc.priceCents)}
-          </button>
-        ) : null}
-        {vidSvc ? (
-          <button className="btn small secondary" onClick={onVideo} disabled={!canBook}>
-            🎥 Vídeo · {euro(vidSvc.priceCents)}
-          </button>
-        ) : null}
+        {ped.services.map((s) =>
+          s.type === 'VIDEO' ? (
+            <button
+              key={s.id}
+              className="btn small secondary"
+              onClick={onVideo}
+              disabled={!canBook}
+            >
+              🎥 Vídeo · {euro(s.priceCents)}
+            </button>
+          ) : (
+            <button key={s.id} className="btn small" onClick={() => onStartService(s.id)}>
+              {svcFullLabel(s.type)} · {euro(s.priceCents)}
+            </button>
+          ),
+        )}
       </div>
 
       <h3 style={{ marginTop: 18 }}>Avaliações</h3>
@@ -1672,6 +1695,8 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
           Adicionar serviço
         </button>
       </div>
+
+      <ContentAuthor onMsg={onMsg} />
 
       <h3 style={{ marginTop: 20 }}>Subscrição</h3>
       <SubscriptionSection onMsg={onMsg} />
@@ -2499,6 +2524,123 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+// ───────────────────────── Content library (read) ─────────────────────────
+function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [items, setItems] = useState<ArticleCard[]>([]);
+  const [open, setOpen] = useState<ArticleCard | null>(null);
+  useEffect(() => {
+    Api.articles()
+      .then(setItems)
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (open) {
+    return (
+      <div className="section">
+        <button className="btn secondary small" onClick={() => setOpen(null)} style={{ marginBottom: 12 }}>
+          ← Voltar
+        </button>
+        <span className="pill muted">{open.category}</span>
+        <h2>{open.title}</h2>
+        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{open.body}</p>
+        <p className="muted" style={{ fontSize: 12 }}>
+          Conteúdo informativo · não substitui avaliação médica.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="section">
+      <h2>Saber+ · conteúdos validados</h2>
+      {items.length === 0 ? (
+        <p className="muted">Ainda sem artigos.</p>
+      ) : (
+        <div className="grid">
+          {items.map((a) => (
+            <button
+              key={a.id}
+              className="card"
+              onClick={() => setOpen(a)}
+              style={{ textAlign: 'left', cursor: 'pointer' }}
+            >
+              <span className="pill muted">{a.category}</span>
+              <h3 style={{ margin: '6px 0 4px' }}>{a.title}</h3>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {a.body.slice(0, 90)}…
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Content authoring (pediatrician/admin) ─────────────────────────
+function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
+  const [mine, setMine] = useState<ArticleCard[]>([]);
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('geral');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      setMine(await Api.myArticles());
+    } catch {
+      /* ignore */
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function publish() {
+    if (!title || !body) return onMsg('Indica título e texto.');
+    setBusy(true);
+    try {
+      await Api.createArticle({ title, body, category, published: true });
+      setTitle('');
+      setBody('');
+      onMsg('Artigo publicado ✓');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="section">
+      <h3>Conteúdos</h3>
+      {mine.length > 0 ? (
+        <div className="grid">
+          {mine.map((a) => (
+            <div key={a.id} className="card">
+              <span className={a.published ? 'pill ok' : 'pill muted'}>
+                {a.published ? 'publicado' : 'rascunho'}
+              </span>
+              <strong>{a.title}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="card section">
+        <input placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input placeholder="Categoria" value={category} onChange={(e) => setCategory(e.target.value)} />
+        <textarea placeholder="Texto…" value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
+        <button className="btn" onClick={publish} disabled={busy}>
+          Publicar artigo
+        </button>
+      </div>
     </div>
   );
 }

@@ -547,3 +547,18 @@ model Favorite {
   @@unique([userId, pediatricianId])
   @@index([userId])
 }
+
+// ── Content library (Phase J) ────────────────────────
+model Article {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  title        String
+  category     String   @default("geral")
+  body         String
+  authorUserId String?
+  published    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([published])
+}

@@ -83,6 +83,35 @@ async function main(): Promise<void> {
     });
   }
 
+  // Demo content library (idempotent by slug).
+  const articles = [
+    {
+      slug: 'febre-nas-criancas',
+      title: 'Febre nas crianças: o que fazer',
+      category: 'sintomas',
+      body: 'A febre é uma resposta natural do organismo. Mantém a criança hidratada, vigia o estado geral e contacta o pediatra se a febre durar mais de 3 dias, se houver prostração ou dificuldade respiratória.',
+    },
+    {
+      slug: 'sono-do-bebe',
+      title: 'O sono do bebé nos primeiros meses',
+      category: 'desenvolvimento',
+      body: 'Os padrões de sono mudam muito no primeiro ano. Cria uma rotina calma, coloca o bebé de costas para dormir e evita ecrãs antes de deitar.',
+    },
+    {
+      slug: 'vacinacao-em-dia',
+      title: 'Manter a vacinação em dia',
+      category: 'prevenção',
+      body: 'O plano nacional de vacinação protege contra várias doenças graves. Regista as vacinas no perfil de saúde da criança e fala com o pediatra sobre reforços.',
+    },
+  ];
+  for (const a of articles) {
+    await prisma.article.upsert({
+      where: { slug: a.slug },
+      update: {},
+      create: { ...a, published: true, authorUserId: user.id },
+    });
+  }
+
   // eslint-disable-next-line no-console
   console.log(
     'Seeded demo pediatrician:',
