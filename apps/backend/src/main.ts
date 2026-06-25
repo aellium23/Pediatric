@@ -13,13 +13,18 @@ async function bootstrap(): Promise<void> {
   // ── Security middleware (Secure by Default) ──
   app.use(helmet());
   // Explicit allow-list (Secure by Default). In the demo environment
-  // (ENABLE_DEV_LOGIN=true) with no explicit list, reflect the request origin so
-  // the hosted web client can call the API with bearer tokens (no cookies).
-  const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
+  // (ENABLE_DEV_LOGIN=true) we ALWAYS reflect the request origin so the hosted
+  // web client can call the API with bearer tokens (no cookies) regardless of
+  // any CORS_ORIGINS value — this avoids a misconfigured list silently blocking
+  // the browser. In real production, a strict allow-list is enforced.
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   const demoEnv = process.env.ENABLE_DEV_LOGIN === 'true';
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : demoEnv ? true : false,
-    credentials: corsOrigins.length > 0,
+    origin: demoEnv ? true : corsOrigins.length > 0 ? corsOrigins : false,
+    credentials: !demoEnv && corsOrigins.length > 0,
   });
   app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
 
