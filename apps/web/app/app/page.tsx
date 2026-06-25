@@ -511,7 +511,38 @@ function Thread({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [video, setVideo] = useState<string>('');
+  const [summary, setSummary] = useState<string | null>(null);
+  const [sumDraft, setSumDraft] = useState('');
+  const [editSum, setEditSum] = useState(false);
   const myId = currentUserId();
+
+  async function loadSummary() {
+    try {
+      const r = await Api.consultationSummary(consultation.id);
+      setSummary(r.summary);
+      setSumDraft(r.summary ?? '');
+    } catch {
+      /* ignore */
+    }
+  }
+  useEffect(() => {
+    void loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultation.id]);
+
+  async function saveSummary() {
+    setBusy(true);
+    try {
+      await Api.setSummary(consultation.id, sumDraft);
+      setEditSum(false);
+      onMsg('Resumo guardado ✓');
+      await loadSummary();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function load() {
     try {
@@ -589,6 +620,33 @@ function Thread({
         ) : null}
         {video ? <p className="muted" style={{ fontSize: 12 }}>{video}</p> : null}
       </div>
+
+      {/* Post-consultation summary (pediatrician writes; both read). */}
+      {summary && !editSum ? (
+        <div className="card" style={{ borderColor: 'var(--brand)', marginTop: 12 }}>
+          <strong>Resumo do pediatra</strong>
+          <p style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{summary}</p>
+          {canClose ? (
+            <button className="btn secondary small" onClick={() => setEditSum(true)} style={{ marginTop: 8 }}>
+              Editar resumo
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {canClose && (editSum || !summary) ? (
+        <div className="card section">
+          <strong>Resumo / nota clínica</strong>
+          <textarea
+            placeholder="Resumo da consulta para a família…"
+            value={sumDraft}
+            onChange={(e) => setSumDraft(e.target.value)}
+            rows={3}
+          />
+          <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
+            Guardar resumo
+          </button>
+        </div>
+      ) : null}
 
       <div className="chat">
         {messages.length === 0 ? (

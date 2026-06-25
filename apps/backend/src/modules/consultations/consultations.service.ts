@@ -110,6 +110,29 @@ export class ConsultationsService {
     }));
   }
 
+  /** Pediatrician writes/updates the post-consultation note (encrypted). */
+  async setSummary(userId: string, consultationId: string, text: string) {
+    const consultation = await this.assertParticipant(userId, consultationId);
+    if (consultation.pediatrician.userId !== userId) {
+      throw new ForbiddenException('Only the pediatrician can write the summary');
+    }
+    await this.prisma.consultation.update({
+      where: { id: consultationId },
+      data: { summary: this.crypto.encrypt(text) },
+    });
+    return { ok: true };
+  }
+
+  /** Either participant reads the decrypted post-consultation note. */
+  async getSummary(userId: string, consultationId: string) {
+    await this.assertParticipant(userId, consultationId);
+    const c = await this.prisma.consultation.findUnique({
+      where: { id: consultationId },
+      select: { summary: true },
+    });
+    return { summary: this.crypto.decrypt(c?.summary ?? null) };
+  }
+
   async sendMessage(userId: string, consultationId: string, dto: SendMessageDto) {
     const consultation = await this.assertParticipant(userId, consultationId);
     const message = await this.persistMessage(consultationId, userId, dto.body);

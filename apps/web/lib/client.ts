@@ -191,6 +191,10 @@ export const Api = {
     request(`/consultations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   videoToken: (consultationId: string) =>
     request(`/video/${consultationId}/token`) as Promise<{ token: string; roomId: string }>,
+  consultationSummary: (id: string) =>
+    request(`/consultations/${id}/summary`) as Promise<{ summary: string | null }>,
+  setSummary: (id: string, text: string) =>
+    request(`/consultations/${id}/summary`, { method: 'POST', body: JSON.stringify({ text }) }),
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,

@@ -56,6 +56,22 @@ class ConsultationsController {
     return this.service.sendMessage(user.userId, id, dto);
   }
 
+  @Get(':id/summary')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  getSummary(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.getSummary(user.userId, id);
+  }
+
+  @Post(':id/summary')
+  @Roles(Role.PEDIATRICIAN)
+  setSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('text') text: string,
+  ) {
+    return this.service.setSummary(user.userId, id, text ?? '');
+  }
+
   @Post(':id/close')
   @Roles(Role.PEDIATRICIAN)
   close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

@@ -227,6 +227,7 @@ model Consultation {
   scheduledAt    DateTime?
   triage         Json?
   episodeId      String?
+  summary        String? // pediatrician's post-consultation note (AES-256-GCM)
   openedAt       DateTime           @default(now())
   answeredAt     DateTime?
   closedAt       DateTime?
