@@ -27,7 +27,8 @@ import {
   type ArticleCard,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
-import { useT, LanguageSwitcher } from '@/lib/i18n';
+import { useT, type Lang } from '@/lib/i18n';
+import { useTheme, type Theme, type TextSize } from '@/lib/theme';
 
 interface Profile {
   email: string;
@@ -104,6 +105,7 @@ export default function MultiProfileApp() {
   const { t } = useT();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -195,8 +197,14 @@ export default function MultiProfileApp() {
             </span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <LanguageSwitcher />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            className="iconbtn"
+            aria-label="Definições"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <TabIcon name="profile" />
+          </button>
           <button className="btn secondary small" onClick={leave}>
             {t('app.switchProfile')}
           </button>
@@ -206,6 +214,11 @@ export default function MultiProfileApp() {
       {msg ? <p className="notice">{msg}</p> : null}
 
       <div style={{ minHeight: '50vh' }}>
+        {settingsOpen ? (
+          <SettingsScreen profile={profile} onClose={() => setSettingsOpen(false)} />
+        ) : null}
+        {settingsOpen ? null : (
+          <>
         {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
         {tab === 'consult' ? <ConsultTab onMsg={setMsg} /> : null}
         {tab === 'myconsults' ? <MyConsultsTab onMsg={setMsg} /> : null}
@@ -231,6 +244,8 @@ export default function MultiProfileApp() {
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
         {tab === 'notif' ? <NotifTab onMsg={setMsg} /> : null}
+          </>
+        )}
       </div>
 
       <nav className="appbar">
@@ -242,6 +257,7 @@ export default function MultiProfileApp() {
             title={t(`tab.${tb.key}`, tb.label)}
             onClick={() => {
               setTab(tb.key);
+              setSettingsOpen(false);
               setMsg('');
             }}
           >
@@ -2784,6 +2800,103 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
           Publicar artigo
         </button>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Settings ─────────────────────────
+function Seg<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { v: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="seg">
+      {options.map((o) => (
+        <button
+          key={o.v}
+          className={o.v === value ? 'active' : ''}
+          onClick={() => onChange(o.v)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const { theme, setTheme, textSize, setTextSize } = useTheme();
+  const { lang, setLang } = useT();
+
+  return (
+    <div className="section">
+      <button className="btn secondary small" onClick={onClose} style={{ marginBottom: 14 }}>
+        ← Voltar
+      </button>
+      <h2>Definições</h2>
+
+      <div className="card section">
+        <strong>Aparência</strong>
+        <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
+          Tema
+        </p>
+        <Seg<Theme>
+          value={theme}
+          onChange={setTheme}
+          options={[
+            { v: 'light', label: 'Claro' },
+            { v: 'dark', label: 'Escuro' },
+            { v: 'system', label: 'Sistema' },
+          ]}
+        />
+        <p className="muted" style={{ fontSize: 13, margin: '14px 0 8px' }}>
+          Tamanho do texto
+        </p>
+        <Seg<TextSize>
+          value={textSize}
+          onChange={setTextSize}
+          options={[
+            { v: 'normal', label: 'Normal' },
+            { v: 'large', label: 'Grande' },
+          ]}
+        />
+      </div>
+
+      <div className="card section">
+        <strong>Idioma</strong>
+        <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
+          Língua da aplicação
+        </p>
+        <Seg<Lang>
+          value={lang}
+          onChange={setLang}
+          options={[
+            { v: 'pt', label: 'Português' },
+            { v: 'en', label: 'English' },
+            { v: 'es', label: 'Español' },
+          ]}
+        />
+      </div>
+
+      <div className="card section">
+        <strong>Conta</strong>
+        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+          Sessão: {profile.name} · {profile.role}
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          Segurança (biometria/passkeys), notificações push e mais preferências chegam com as
+          credenciais de dispositivo/serviço.
+        </p>
+      </div>
+
+      <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+        Pédia · ambiente de demonstração
+      </p>
     </div>
   );
 }

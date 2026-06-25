@@ -14,6 +14,38 @@
   --shadow: 0 1px 3px rgba(16, 33, 31, 0.06);
 }
 
+:root[data-theme="dark"] {
+  --brand: #2bb3a6;
+  --brand-press: #239b8f;
+  --text: #eef4f3;
+  --muted: #93a3a0;
+  --bg: #0c1413;
+  --surface: #16201f;
+  --fill: #1f2c2a;
+  --border: #283633;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+:root[data-text="large"] body {
+  font-size: 18px;
+}
+
+:root[data-theme="dark"] .hero {
+  background: linear-gradient(160deg, #12302c 0%, var(--bg) 72%);
+}
+:root[data-theme="dark"] .notice {
+  background: #12302c;
+  border-color: #1e4a44;
+  color: #bfe7e2;
+}
+:root[data-theme="dark"] .notice.warn {
+  background: #2e2410;
+  border-color: #5a481c;
+  color: #e8d9a8;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -146,7 +178,7 @@ textarea {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  background: #fff;
+  background: var(--surface);
   border-top: 1px solid var(--border);
   box-shadow: 0 -6px 24px rgba(16, 33, 31, 0.07);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
@@ -182,9 +214,7 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: rgba(250, 250, 250, 0.9);
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -296,7 +326,7 @@ button.card:active {
   height: 44px;
   border-radius: 50%;
   background: var(--fill);
-  color: #4a5a58;
+  color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -309,6 +339,48 @@ button.card:active {
 .avatar.sm svg {
   width: 18px;
   height: 18px;
+}
+
+.iconbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+}
+.iconbtn:active {
+  transform: scale(0.92);
+}
+
+/* Segmented control (settings). */
+.seg {
+  display: flex;
+  background: var(--fill);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg button {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 9px 6px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 
 .badge {
