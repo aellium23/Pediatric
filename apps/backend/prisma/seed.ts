@@ -39,15 +39,31 @@ async function main(): Promise<void> {
     skipDuplicates: true,
   });
 
-  // A demo parent (use POST /auth/dev-login { email } to sign in as them).
-  await prisma.user.upsert({
-    where: { email: 'marta@demo.pedia' },
-    update: {},
-    create: { email: 'marta@demo.pedia', emailVerified: true, role: Role.PARENT },
-  });
+  // A demo user for every profile (sign in with POST /auth/dev-login { email }).
+  const demoUsers: { email: string; role: Role }[] = [
+    { email: 'marta@demo.pedia', role: Role.PARENT },
+    { email: 'clinica.admin@demo.pedia', role: Role.CLINIC_ADMIN },
+    { email: 'clinica.staff@demo.pedia', role: Role.CLINIC_STAFF },
+    { email: 'admin@demo.pedia', role: Role.PLATFORM_ADMIN },
+    { email: 'suporte@demo.pedia', role: Role.SUPPORT },
+    { email: 'financas@demo.pedia', role: Role.FINANCE },
+    { email: 'compliance@demo.pedia', role: Role.COMPLIANCE },
+  ];
+  for (const u of demoUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { role: u.role },
+      create: { email: u.email, emailVerified: true, role: u.role },
+    });
+  }
 
   // eslint-disable-next-line no-console
-  console.log('Seeded demo pediatrician:', ped.id, 'and demo parent marta@demo.pedia');
+  console.log(
+    'Seeded demo pediatrician:',
+    ped.id,
+    '+ demo users:',
+    ['ines@demo.pedia (pediatra)', ...demoUsers.map((u) => `${u.email} (${u.role})`)].join(', '),
+  );
 }
 
 main()

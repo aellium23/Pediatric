@@ -55,44 +55,48 @@ precisas de uma API pública; ver nota no fim.)
 
 ## 🌐 Stack completo online no iPhone — Backend no Render + Web na Vercel
 
-Para teres **dados reais** (não demo) e o fluxo de login/consultas, o backend
-precisa de estar online. Usamos:
-- **Supabase** → a base de dados (Postgres).
-- **Render** → corre o servidor NestJS (a partir do `render.yaml`), ligado ao Supabase.
+Para teres **dados reais** (não demo) o backend precisa de estar online.
+Usamos **Render** para correr o servidor NestJS **e** a base de dados Postgres —
+tudo criado e ligado automaticamente pelo `render.yaml` (1 clique, sem copiar
+connection strings).
 
-**A) Base de dados no Supabase:**
-1. Em **supabase.com**, cria (ou usa) um projeto.
-2. **Project Settings → Database → Connection string** → separador **Session pooler**
-   → copia o URI (porta 5432, IPv4 — funciona com o Render e com as migrações).
-   Substitui `[YOUR-PASSWORD]` pela password do projeto. Mantém `?sslmode=require`.
-
-**B) Backend no Render (no Safari):**
-3. Vai a **render.com** e entra com o **GitHub**.
-4. **New → Blueprint** → seleciona o repo `aellium23/Pediatric` e o branch
+**A) Backend + base de dados no Render (no Safari):**
+1. Vai a **render.com** e entra com o **GitHub**.
+2. **New → Blueprint** → seleciona o repo `aellium23/Pediatric` e o branch
    `claude/telepediatria-platform-design-pq1y1v`. O Render lê o `render.yaml`.
-5. O Render vai pedir os valores das variáveis marcadas: cola a connection string
-   do Supabase em **`DATABASE_URL`** (as restantes podes deixar/gerar). **Apply**.
-6. Espera ~3–5 min. No arranque, o backend **cria as tabelas** no teu Supabase e
-   **semeia** um pediatra verificado + um pai demo. Anota o URL:
-   `https://pedia-backend-xxxx.onrender.com`.
-   - Testa: abre `…onrender.com/docs` (Swagger) no Safari.
+3. **Apply**. O Render cria o serviço `pedia-backend` **+** a base de dados
+   `pedia-db` (free) e liga-os sozinho (gera também os segredos JWT).
+4. Espera ~3–5 min. No arranque, cria as tabelas e **semeia** um pediatra
+   verificado + um utilizador para cada perfil. Anota o URL:
+   `https://pedia-backend-xxxx.onrender.com` — testa `…/docs` (Swagger).
 
-**C) Ligar a Web (Vercel) ao backend:**
-7. No projeto da Vercel → **Settings → Environment Variables** → adiciona
+**B) Ligar a Web (Vercel) ao backend:**
+5. Vercel → **Settings → Environment Variables** → adiciona
    `NEXT_PUBLIC_API_BASE = https://pedia-backend-xxxx.onrender.com/api` → **Redeploy**.
-8. Abre o teu URL Vercel `/marketplace` no iPhone → agora mostra **dados reais**
-   do backend (sem o banner de demonstração).
-9. Abre **`/demo`** para o fluxo interativo: **Entrar em modo demo** → adicionar
-   uma criança → **escolher pediatra → iniciar consulta por mensagem**. Tudo no
-   Safari do iPhone.
+6. Abre `/marketplace` (dados reais) e **`/demo`** (login → criança → consulta) no
+   iPhone. O CORS já está aberto para o ambiente de demo.
 
-> CORS: no ambiente de demo (`ENABLE_DEV_LOGIN=true`, já no `render.yaml`) o
-> backend aceita pedidos de qualquer origem com *bearer token*, por isso **não
-> precisas de configurar `CORS_ORIGINS`** para a demo funcionar.
+### Utilizadores de teste (um por perfil)
+Sem password — usa `POST /api/auth/dev-login` com o email (no Swagger, ou a `/demo`
+usa o de pai automaticamente):
 
-**Login de teste:** o endpoint `POST /api/auth/dev-login` está ativo neste
-ambiente (`ENABLE_DEV_LOGIN=true`). Pelo Swagger podes obter um token como
-`marta@demo.pedia` e experimentar os endpoints autenticados (crianças, consultas).
+| Perfil | Email |
+|---|---|
+| Pai / Encarregado | `marta@demo.pedia` |
+| Pediatra (verificado) | `ines@demo.pedia` |
+| Clínica — Administrador | `clinica.admin@demo.pedia` |
+| Clínica — Staff | `clinica.staff@demo.pedia` |
+| Administrador da plataforma | `admin@demo.pedia` |
+| Suporte | `suporte@demo.pedia` |
+| Finanças | `financas@demo.pedia` |
+| Compliance | `compliance@demo.pedia` |
+
+**Como testar cada perfil:**
+- **Pai** → na web em **`/demo`** (UI completa: criança + consulta).
+- **Pediatra / Clínica / Admin** → no **Swagger** (`…/docs`): `POST /auth/dev-login`
+  com o email do perfil → copia o `accessToken` → botão **Authorize** (cola o token)
+  → chama os endpoints desse perfil (ex.: pediatra `GET /pediatricians/me/finance`;
+  admin/finance `POST /consultations/{id}/refund`).
 
 > **Notas (free tier):** o serviço Render adormece com inatividade — o 1.º pedido
 > após pausa pode demorar ~30s (cold start). A base free do Render é temporária
