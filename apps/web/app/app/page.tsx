@@ -2895,6 +2895,14 @@ function Seg<T extends string>({
 function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () => void }) {
   const { theme, setTheme, textSize, setTextSize } = useTheme();
   const { lang, setLang } = useT();
+  const [notif, setNotif] = useState(false);
+  useEffect(() => {
+    setNotif(typeof window !== 'undefined' && localStorage.getItem('pedia_notif') === '1');
+  }, []);
+  function toggleNotif(v: boolean) {
+    setNotif(v);
+    if (typeof window !== 'undefined') localStorage.setItem('pedia_notif', v ? '1' : '0');
+  }
 
   return (
     <div className="section">
@@ -2944,6 +2952,25 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
             { v: 'es', label: 'Español' },
           ]}
         />
+      </div>
+
+      <div className="card section">
+        <strong>Notificações</strong>
+        <label
+          className="row"
+          style={{ justifyContent: 'space-between', marginTop: 8, cursor: 'pointer' }}
+        >
+          <span className="muted">Receber avisos da app</span>
+          <input
+            type="checkbox"
+            checked={notif}
+            onChange={(e) => toggleNotif(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+        </label>
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          Push real (FCM/APNs) requer credenciais de serviço.
+        </p>
       </div>
 
       <div className="card section">

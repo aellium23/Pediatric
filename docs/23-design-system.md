@@ -55,10 +55,12 @@ Ordenadas por valor; as marcadas ✅ já entraram com este trabalho.
 | **Pesquisa** no marketplace (campo de busca) | ✅ | busca por especialidade/idioma/bio |
 | **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje consentimento inline |
 | **Biometria / Passkeys** no login (backend já suporta) | ⏳ | falta UI WebAuthn |
-| **Preferências de notificações** + push (FCM/APNs) | ⏳ | precisa credenciais |
+| **Preferências de notificações** (UI) | ✅ | toggle nas Definições; push real precisa de credenciais |
+| **PWA instalável** (manifest + theme-color + ícone) | ✅ | `app/manifest.ts` + `viewport.themeColor`; falta service worker p/ offline total |
+| **Acessibilidade** (focus-visible, prefers-reduced-motion) | ✅ | base; auditoria AA completa fica pendente |
 | **Estados vazios** ilustrados e skeleton loaders | ⏳ | polish |
-| **Offline / cache** + deep links | ⏳ | PWA/serviço |
-| **Acessibilidade AA** completa (focus rings, leitores de ecrã) | ⏳ | auditoria |
+| **Offline total** (service worker) + deep links | ⏳ | PWA avançado |
+| **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje inline |
 
 > O backlog de **produto** (integrações reais, app nativa, faturação certificada,
 > DPIA) está em `docs/STATUS-fases.md` e `docs/21-integracoes.md`.
