@@ -511,3 +511,26 @@ model Episode {
 
   @@index([childId])
 }
+
+// ── Subscriptions (Phase D) ──────────────────────────
+enum SubscriptionPlan {
+  FAMILY
+  PED_PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model Subscription {
+  id          String             @id @default(uuid())
+  userId      String
+  plan        SubscriptionPlan
+  status      SubscriptionStatus @default(ACTIVE)
+  priceCents  Int
+  startedAt   DateTime           @default(now())
+  cancelledAt DateTime?
+
+  @@index([userId])
+}

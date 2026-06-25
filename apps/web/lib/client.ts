@@ -199,6 +199,13 @@ export const Api = {
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
 
+  // Subscriptions
+  subPlans: () => request('/subscriptions/plans') as Promise<PlanDto[]>,
+  mySubscription: () => request('/subscriptions/me') as Promise<MySubscription | null>,
+  subscribe: (plan: string) =>
+    request('/subscriptions', { method: 'POST', body: JSON.stringify({ plan }) }),
+  cancelSubscription: () => request('/subscriptions/cancel', { method: 'POST' }),
+
   // Health records (rich child health profile)
   childHealth: (childId: string) =>
     request(`/health-records/${childId}`) as Promise<HealthOverview>,
@@ -233,6 +240,21 @@ export const Api = {
       body: JSON.stringify({ pediatricianId }),
     }),
 };
+
+export interface PlanDto {
+  plan: string;
+  name: string;
+  priceCents: number;
+  perks: string[];
+}
+export interface MySubscription {
+  id: string;
+  plan: string;
+  status: string;
+  priceCents: number;
+  startedAt: string;
+  catalog: { name: string; priceCents: number; perks: string[] };
+}
 
 export interface HealthOverview {
   growth: {

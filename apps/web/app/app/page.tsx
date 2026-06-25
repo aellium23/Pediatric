@@ -20,6 +20,8 @@ import {
   type AuditRow,
   type ClinicDashboard,
   type HealthOverview,
+  type PlanDto,
+  type MySubscription,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -187,6 +189,12 @@ export default function MultiProfileApp() {
         {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
         {tab === 'consult' ? <ConsultTab onMsg={setMsg} /> : null}
         {tab === 'myconsults' ? <MyConsultsTab onMsg={setMsg} /> : null}
+        {tab === 'plan' ? (
+          <div className="section">
+            <h2>O meu plano</h2>
+            <SubscriptionSection onMsg={setMsg} />
+          </div>
+        ) : null}
         {tab === 'inbox' ? <InboxTab onMsg={setMsg} /> : null}
         {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
         {tab === 'profile' ? <PedProfileTab onMsg={setMsg} /> : null}
@@ -227,6 +235,7 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
       { key: 'children', label: 'Crianças', ico: '👶' },
       { key: 'consult', label: 'Consultar', ico: '🔎' },
       { key: 'myconsults', label: 'Consultas', ico: '💬' },
+      { key: 'plan', label: 'Plano', ico: '💳' },
       notif,
     ];
   if (role === 'PEDIATRICIAN')
@@ -1351,6 +1360,104 @@ function PedProfileTab({ onMsg }: { onMsg: (m: string) => void }) {
           Adicionar serviço
         </button>
       </div>
+
+      <h3 style={{ marginTop: 20 }}>Subscrição</h3>
+      <SubscriptionSection onMsg={onMsg} />
+    </div>
+  );
+}
+
+// ───────────────────────── Subscriptions (parent + pediatrician) ─────────────────────────
+function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const [sub, setSub] = useState<MySubscription | null>(null);
+  const [plans, setPlans] = useState<PlanDto[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      const [s, p] = await Promise.all([Api.mySubscription(), Api.subPlans()]);
+      setSub(s);
+      setPlans(p);
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setLoaded(true);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function subscribe(plan: string) {
+    setBusy(true);
+    try {
+      await Api.subscribe(plan);
+      onMsg('Subscrição ativada ✓');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function cancel() {
+    setBusy(true);
+    try {
+      await Api.cancelSubscription();
+      onMsg('Subscrição cancelada.');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!loaded) return <p className="muted">A carregar…</p>;
+
+  if (sub) {
+    return (
+      <div className="card">
+        <span className="pill ok">Ativo</span>
+        <h3 style={{ margin: '6px 0' }}>{sub.catalog.name}</h3>
+        <div className="muted">{euro(sub.priceCents)} / mês</div>
+        <ul>
+          {sub.catalog.perks.map((p) => (
+            <li key={p} className="muted">
+              {p}
+            </li>
+          ))}
+        </ul>
+        <button className="btn danger small" onClick={cancel} disabled={busy}>
+          Cancelar plano
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid">
+      {plans.map((p) => (
+        <div key={p.plan} className="card">
+          <h3 style={{ margin: '0 0 4px' }}>{p.name}</h3>
+          <div className="muted">{euro(p.priceCents)} / mês</div>
+          <ul>
+            {p.perks.map((perk) => (
+              <li key={perk} className="muted">
+                {perk}
+              </li>
+            ))}
+          </ul>
+          <button className="btn small" onClick={() => subscribe(p.plan)} disabled={busy}>
+            Subscrever
+          </button>
+        </div>
+      ))}
+      <p className="muted" style={{ fontSize: 13 }}>
+        Sem Stripe configurado, a subscrição ativa-se em modo demonstração (sem cobrança real).
+      </p>
     </div>
   );
 }
