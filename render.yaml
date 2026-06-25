@@ -8,9 +8,11 @@ services:
     rootDir: apps/backend
     plan: free
     branch: claude/telepediatria-platform-design-pq1y1v
-    buildCommand: npm install && npx prisma generate && npm run build
-    # db push + seed run on boot (idempotent); then start the API.
-    startCommand: npx prisma db push --skip-generate && npm run seed && node dist/main.js
+    # --include=dev forces devDependencies even with NODE_ENV=production
+    # (nest CLI, prisma CLI, ts-node) so the build and seed work on Render.
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    # db push + seed run on boot (idempotent, non-fatal); then start the API.
+    startCommand: npx prisma db push --skip-generate && (npm run seed || true) && node dist/main.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
