@@ -31,12 +31,14 @@ async function main(): Promise<void> {
     },
   });
 
+  // Idempotent across re-seeds (the seed runs on every Render boot): clear this
+  // pediatrician's services first so they don't accumulate duplicates.
+  await prisma.pediatricianService.deleteMany({ where: { pediatricianId: ped.id } });
   await prisma.pediatricianService.createMany({
     data: [
       { pediatricianId: ped.id, type: ServiceType.MESSAGE, priceCents: 1800, slaHours: 4, scopeText: '1 questão + esclarecimentos' },
       { pediatricianId: ped.id, type: ServiceType.VIDEO, priceCents: 4500, slaHours: 24 },
     ],
-    skipDuplicates: true,
   });
 
   // A demo user for every profile (sign in with POST /auth/dev-login { email }).
