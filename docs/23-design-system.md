@@ -50,12 +50,12 @@ Ordenadas por valor; as marcadas ✅ já entraram com este trabalho.
 | Tamanho de texto (a11y) | ✅ | Definições |
 | i18n PT/EN/ES | ✅ | Fase K |
 | Ecrã de Definições | ✅ | engrenagem no topo |
-| Acesso rápido **"Emergência? → SNS 24 / 112"** sempre presente | ⏳ | doc 19 pede; falta um atalho fixo |
-| **Chat em bolhas** (estilo messaging) no thread de consulta | ⏳ | hoje é lista de cartões |
+| Acesso rápido **"Emergência? → SNS 24 / 112"** sempre presente | ✅ | botão SOS fixo + bottom sheet com `tel:` |
+| **Chat em bolhas** (estilo messaging) no thread de consulta | ✅ | bolhas me/them (alinhamento por JWT `sub`) |
+| **Pesquisa** no marketplace (campo de busca) | ✅ | busca por especialidade/idioma/bio |
 | **Onboarding/consentimentos** com ecrãs próprios | ⏳ | hoje consentimento inline |
 | **Biometria / Passkeys** no login (backend já suporta) | ⏳ | falta UI WebAuthn |
 | **Preferências de notificações** + push (FCM/APNs) | ⏳ | precisa credenciais |
-| **Pesquisa** no marketplace (campo de busca) | ⏳ | filtros já existem |
 | **Estados vazios** ilustrados e skeleton loaders | ⏳ | polish |
 | **Offline / cache** + deep links | ⏳ | PWA/serviço |
 | **Acessibilidade AA** completa (focus rings, leitores de ecrã) | ⏳ | auditoria |

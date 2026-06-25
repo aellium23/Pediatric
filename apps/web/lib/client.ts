@@ -15,6 +15,19 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/** Decode the current user id (sub) from the stored JWT, for chat alignment. */
+export function currentUserId(): string | null {
+  const t = getToken();
+  if (!t) return null;
+  try {
+    const part = t.split('.')[1];
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    return (JSON.parse(json).sub as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function request(path: string, init: RequestInit = {}): Promise<any> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {

@@ -6,6 +6,7 @@ import {
   hasApi,
   setToken,
   clearToken,
+  currentUserId,
   type ChildDto,
   type ConsultationDto,
   type MessageDto,
@@ -267,6 +268,8 @@ export default function MultiProfileApp() {
           </button>
         ))}
       </nav>
+
+      <Emergency />
     </main>
   );
 }
@@ -467,6 +470,7 @@ function Thread({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [video, setVideo] = useState<string>('');
+  const myId = currentUserId();
 
   async function load() {
     try {
@@ -545,18 +549,19 @@ function Thread({
         {video ? <p className="muted" style={{ fontSize: 12 }}>{video}</p> : null}
       </div>
 
-      <div className="section">
+      <div className="chat">
         {messages.length === 0 ? (
           <p className="muted">Ainda sem mensagens.</p>
         ) : (
-          messages.map((m) => (
-            <div key={m.id} className="card" style={{ marginBottom: 8 }}>
-              <div>{m.body}</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {when(m.createdAt)}
+          messages.map((m) => {
+            const mine = !!myId && m.senderUserId === myId;
+            return (
+              <div key={m.id} className={mine ? 'bubble me' : 'bubble them'}>
+                <span>{m.body}</span>
+                <span className="bubble-time">{when(m.createdAt)}</span>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -940,6 +945,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [fSpec, setFSpec] = useState('');
   const [fMaxEuro, setFMaxEuro] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
+  const [search, setSearch] = useState('');
 
   async function load() {
     try {
@@ -1037,11 +1043,24 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
     );
   }
 
-  const shown = onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds;
+  const q = search.trim().toLowerCase();
+  const shown = (onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds).filter(
+    (p) =>
+      !q ||
+      `${p.specialties.join(' ')} ${p.languages.join(' ')} ${p.bio ?? ''}`
+        .toLowerCase()
+        .includes(q),
+  );
 
   return (
     <div className="section">
       <h2>Escolher pediatra</h2>
+      <input
+        className="search"
+        placeholder="Pesquisar especialidade, idioma…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       {children.length === 0 ? (
         <p className="notice">Adiciona uma criança no separador "Crianças" primeiro.</p>
       ) : (
@@ -2801,6 +2820,50 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// ───────────────────────── Emergency (always present) ─────────────────────────
+function Emergency() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="fab-sos" aria-label="Emergência" onClick={() => setOpen(true)}>
+        SOS
+      </button>
+      {open ? (
+        <div className="sheet-backdrop" onClick={() => setOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grip" />
+            <h2 style={{ marginTop: 4 }}>É uma emergência?</h2>
+            <p className="muted">
+              Se a criança tem dificuldade a respirar, está prostrada, com convulsões ou lábios
+              azulados, <strong>não espere</strong>.
+            </p>
+            <a className="btn danger" href="tel:112" style={{ display: 'block', textAlign: 'center' }}>
+              Ligar 112 (emergência)
+            </a>
+            <a
+              className="btn secondary"
+              href="tel:808242424"
+              style={{ display: 'block', textAlign: 'center', marginTop: 8 }}
+            >
+              Ligar SNS 24 · 808 24 24 24
+            </a>
+            <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+              A teleconsulta não substitui o atendimento de emergência.
+            </p>
+            <button
+              className="btn secondary small"
+              onClick={() => setOpen(false)}
+              style={{ marginTop: 4 }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
