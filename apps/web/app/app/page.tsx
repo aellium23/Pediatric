@@ -19,6 +19,7 @@ import {
   type AdminUserRow,
   type AuditRow,
   type ClinicDashboard,
+  type HealthOverview,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -408,6 +409,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [birthDate, setBirthDate] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<ChildDto | null>(null);
 
   async function load() {
     try {
@@ -439,6 +441,8 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
+  if (open) return <ChildHealth child={open} onBack={() => setOpen(null)} onMsg={onMsg} />;
+
   return (
     <div className="section">
       <h2>As crianças</h2>
@@ -447,10 +451,17 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
       ) : (
         <div className="grid">
           {children.map((c) => (
-            <div key={c.id} className="card">
+            <button
+              key={c.id}
+              className="card"
+              onClick={() => setOpen(c)}
+              style={{ textAlign: 'left', cursor: 'pointer' }}
+            >
               <strong>{c.name}</strong>
-              <div className="muted">{new Date(c.birthDate).toLocaleDateString('pt-PT')}</div>
-            </div>
+              <div className="muted">
+                {new Date(c.birthDate).toLocaleDateString('pt-PT')} · ver saúde →
+              </div>
+            </button>
           ))}
         </div>
       )}
@@ -471,6 +482,258 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
           Adicionar
         </button>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Parent: Child health profile ─────────────────────────
+function ChildHealth({
+  child,
+  onBack,
+  onMsg,
+}: {
+  child: ChildDto;
+  onBack: () => void;
+  onMsg: (m: string) => void;
+}) {
+  const [d, setD] = useState<HealthOverview | null>(null);
+  const [busy, setBusy] = useState(false);
+  // growth form
+  const [gDate, setGDate] = useState('');
+  const [gH, setGH] = useState('');
+  const [gW, setGW] = useState('');
+  // vaccine form
+  const [vName, setVName] = useState('');
+  const [vDate, setVDate] = useState('');
+  // medication form
+  const [mName, setMName] = useState('');
+  const [mDose, setMDose] = useState('');
+  // episode form
+  const [eTitle, setETitle] = useState('');
+  const [eSummary, setESummary] = useState('');
+
+  async function load() {
+    try {
+      setD(await Api.childHealth(child.id));
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [child.id]);
+
+  async function run(fn: () => Promise<unknown>, ok: string) {
+    setBusy(true);
+    try {
+      await fn();
+      onMsg(ok);
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="section">
+      <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
+        ← Voltar
+      </button>
+      <h2>{child.name}</h2>
+      <p className="muted">
+        {new Date(child.birthDate).toLocaleDateString('pt-PT')} · perfil de saúde 🔒 (dados
+        sensíveis cifrados)
+      </p>
+      {!d ? (
+        <p className="muted">A carregar…</p>
+      ) : (
+        <>
+          {/* Growth */}
+          <h3 style={{ marginTop: 16 }}>📈 Crescimento</h3>
+          {d.growth.length === 0 ? (
+            <p className="muted">Sem medições.</p>
+          ) : (
+            <div className="grid">
+              {d.growth.map((g) => (
+                <div key={g.id} className="card">
+                  <strong>{new Date(g.measuredAt).toLocaleDateString('pt-PT')}</strong>
+                  <div className="muted">
+                    {g.heightCm ? `${g.heightCm} cm` : ''} {g.weightKg ? `· ${g.weightKg} kg` : ''}
+                    {g.bmi ? ` · IMC ${g.bmi}` : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="card section">
+            <div className="row">
+              <input type="date" value={gDate} onChange={(e) => setGDate(e.target.value)} style={{ width: 150 }} />
+              <input placeholder="Altura cm" value={gH} onChange={(e) => setGH(e.target.value)} style={{ width: 100 }} />
+              <input placeholder="Peso kg" value={gW} onChange={(e) => setGW(e.target.value)} style={{ width: 100 }} />
+            </div>
+            <button
+              className="btn small"
+              disabled={busy || !gDate}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addGrowth(child.id, {
+                      measuredAt: gDate,
+                      heightCm: gH ? Number(gH) : undefined,
+                      weightKg: gW ? Number(gW) : undefined,
+                    }).then(() => {
+                      setGDate('');
+                      setGH('');
+                      setGW('');
+                    }),
+                  'Medição adicionada ✓',
+                )
+              }
+            >
+              Adicionar medição
+            </button>
+          </div>
+
+          {/* Vaccines */}
+          <h3 style={{ marginTop: 16 }}>💉 Vacinas</h3>
+          {d.vaccines.length === 0 ? (
+            <p className="muted">Sem vacinas registadas.</p>
+          ) : (
+            d.vaccines.map((v) => (
+              <div key={v.id} className="card" style={{ marginBottom: 8 }}>
+                <strong>{v.name}</strong>
+                <div className="muted">{new Date(v.date).toLocaleDateString('pt-PT')}</div>
+              </div>
+            ))
+          )}
+          <div className="card section">
+            <div className="row">
+              <input placeholder="Vacina" value={vName} onChange={(e) => setVName(e.target.value)} />
+              <input type="date" value={vDate} onChange={(e) => setVDate(e.target.value)} style={{ width: 150 }} />
+            </div>
+            <button
+              className="btn small"
+              disabled={busy || !vName || !vDate}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addVaccine(child.id, { name: vName, date: vDate }).then(() => {
+                      setVName('');
+                      setVDate('');
+                    }),
+                  'Vacina adicionada ✓',
+                )
+              }
+            >
+              Adicionar vacina
+            </button>
+          </div>
+
+          {/* Medications */}
+          <h3 style={{ marginTop: 16 }}>💊 Medicação</h3>
+          {d.medications.length === 0 ? (
+            <p className="muted">Sem medicação.</p>
+          ) : (
+            d.medications.map((m) => (
+              <div key={m.id} className="card" style={{ marginBottom: 8 }}>
+                <span className={m.active ? 'pill ok' : 'pill muted'}>
+                  {m.active ? 'ativa' : 'parada'}
+                </span>{' '}
+                <strong>{m.name}</strong>
+                {m.dose ? <span className="muted"> · {m.dose}</span> : null}
+                <div>
+                  <button
+                    className="btn small secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      run(
+                        () => Api.setMedicationActive(child.id, m.id, !m.active),
+                        'Atualizado ✓',
+                      )
+                    }
+                  >
+                    {m.active ? 'Marcar parada' : 'Reativar'}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          <div className="card section">
+            <div className="row">
+              <input placeholder="Medicamento" value={mName} onChange={(e) => setMName(e.target.value)} />
+              <input placeholder="Dose" value={mDose} onChange={(e) => setMDose(e.target.value)} style={{ width: 120 }} />
+            </div>
+            <button
+              className="btn small"
+              disabled={busy || !mName}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addMedication(child.id, { name: mName, dose: mDose || undefined }).then(
+                      () => {
+                        setMName('');
+                        setMDose('');
+                      },
+                    ),
+                  'Medicação adicionada ✓',
+                )
+              }
+            >
+              Adicionar medicação
+            </button>
+          </div>
+
+          {/* Episodes */}
+          <h3 style={{ marginTop: 16 }}>🗂️ Episódios clínicos</h3>
+          {d.episodes.length === 0 ? (
+            <p className="muted">Sem episódios.</p>
+          ) : (
+            d.episodes.map((ep) => (
+              <div key={ep.id} className="card" style={{ marginBottom: 8 }}>
+                <span className={ep.status === 'OPEN' ? 'pill' : 'pill ok'}>
+                  {ep.status === 'OPEN' ? 'aberto' : 'fechado'}
+                </span>{' '}
+                <strong>{ep.title}</strong>
+                {ep.summary ? <div className="muted">{ep.summary}</div> : null}
+                {ep.status === 'OPEN' ? (
+                  <button
+                    className="btn small secondary"
+                    disabled={busy}
+                    onClick={() => run(() => Api.closeEpisode(child.id, ep.id), 'Episódio fechado ✓')}
+                  >
+                    Fechar
+                  </button>
+                ) : null}
+              </div>
+            ))
+          )}
+          <div className="card section">
+            <input placeholder="Título do episódio" value={eTitle} onChange={(e) => setETitle(e.target.value)} />
+            <textarea placeholder="Resumo (opcional)" value={eSummary} onChange={(e) => setESummary(e.target.value)} rows={2} />
+            <button
+              className="btn small"
+              disabled={busy || !eTitle}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addEpisode(child.id, { title: eTitle, summary: eSummary || undefined }).then(
+                      () => {
+                        setETitle('');
+                        setESummary('');
+                      },
+                    ),
+                  'Episódio criado ✓',
+                )
+              }
+            >
+              Criar episódio
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

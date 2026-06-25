@@ -463,3 +463,51 @@ model ClinicPediatrician {
   @@unique([clinicId, pediatricianId])
   @@index([pediatricianId])
 }
+
+// ── Rich health profile + clinical episodes (Phase C) ─
+model GrowthMeasurement {
+  id         String   @id @default(uuid())
+  childId    String
+  measuredAt DateTime
+  heightCm   Float?
+  weightKg   Float?
+  headCm     Float?
+  createdAt  DateTime @default(now())
+
+  @@index([childId])
+}
+
+model Vaccination {
+  id        String   @id @default(uuid())
+  childId   String
+  name      String // encrypted
+  date      DateTime
+  notes     String? // encrypted
+  createdAt DateTime @default(now())
+
+  @@index([childId])
+}
+
+model Medication {
+  id        String    @id @default(uuid())
+  childId   String
+  name      String // encrypted
+  dose      String? // encrypted
+  active    Boolean   @default(true)
+  startedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([childId])
+}
+
+model Episode {
+  id        String    @id @default(uuid())
+  childId   String
+  title     String // encrypted
+  summary   String? // encrypted
+  status    String    @default("OPEN")
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+
+  @@index([childId])
+}

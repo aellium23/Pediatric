@@ -199,6 +199,30 @@ export const Api = {
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
 
+  // Health records (rich child health profile)
+  childHealth: (childId: string) =>
+    request(`/health-records/${childId}`) as Promise<HealthOverview>,
+  addGrowth: (
+    childId: string,
+    data: { measuredAt: string; heightCm?: number; weightKg?: number; headCm?: number },
+  ) => request(`/health-records/${childId}/growth`, { method: 'POST', body: JSON.stringify(data) }),
+  addVaccine: (childId: string, data: { name: string; date: string; notes?: string }) =>
+    request(`/health-records/${childId}/vaccines`, { method: 'POST', body: JSON.stringify(data) }),
+  addMedication: (childId: string, data: { name: string; dose?: string; startedAt?: string }) =>
+    request(`/health-records/${childId}/medications`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  setMedicationActive: (childId: string, id: string, active: boolean) =>
+    request(`/health-records/${childId}/medications/${id}/active`, {
+      method: 'POST',
+      body: JSON.stringify({ active }),
+    }),
+  addEpisode: (childId: string, data: { title: string; summary?: string }) =>
+    request(`/health-records/${childId}/episodes`, { method: 'POST', body: JSON.stringify(data) }),
+  closeEpisode: (childId: string, id: string) =>
+    request(`/health-records/${childId}/episodes/${id}/close`, { method: 'POST' }),
+
   // Clinics (B2B)
   myClinic: () => request('/clinics/me') as Promise<ClinicDashboard | null>,
   addClinicStaff: (clinicId: string, email: string, role: string) =>
@@ -209,6 +233,33 @@ export const Api = {
       body: JSON.stringify({ pediatricianId }),
     }),
 };
+
+export interface HealthOverview {
+  growth: {
+    id: string;
+    measuredAt: string;
+    heightCm: number | null;
+    weightKg: number | null;
+    headCm: number | null;
+    bmi: number | null;
+  }[];
+  vaccines: { id: string; name: string | null; date: string; notes: string | null }[];
+  medications: {
+    id: string;
+    name: string | null;
+    dose: string | null;
+    active: boolean;
+    startedAt: string | null;
+  }[];
+  episodes: {
+    id: string;
+    title: string | null;
+    summary: string | null;
+    status: string;
+    createdAt: string;
+    closedAt: string | null;
+  }[];
+}
 
 export interface ClinicDashboard {
   clinic: { id: string; name: string; taxId: string | null; countryCode: string };

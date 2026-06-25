@@ -24,6 +24,7 @@ import { VideoModule } from './modules/video/video.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
+import { HealthRecordsModule } from './modules/health-records/health-records.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ClinicsModule } from './modules/clinics/clinics.module';
     NotificationsModule,
     AdminModule,
     ClinicsModule,
+    HealthRecordsModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.

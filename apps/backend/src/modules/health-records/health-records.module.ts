@@ -1,0 +1,268 @@
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Injectable,
+  Module,
+  Param,
+  Post,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { Role } from '@prisma/client';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { EncryptionService } from '../../common/crypto/encryption.service';
+import { CurrentUser, Roles } from '../../common/security/decorators';
+import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+
+class GrowthDto {
+  @ApiProperty() @IsDateString() measuredAt!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() heightCm?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() weightKg?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() headCm?: number;
+}
+class VaccineDto {
+  @ApiProperty() @IsString() @MaxLength(200) name!: string;
+  @ApiProperty() @IsDateString() date!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+}
+class MedicationDto {
+  @ApiProperty() @IsString() @MaxLength(200) name!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) dose?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsDateString() startedAt?: string;
+}
+class EpisodeDto {
+  @ApiProperty() @IsString() @MaxLength(200) title!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(2000) summary?: string;
+}
+class ActiveDto {
+  @ApiProperty() @IsBoolean() active!: boolean;
+}
+
+@Injectable()
+export class HealthRecordsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly crypto: EncryptionService,
+  ) {}
+
+  /** Parent must own the child; pediatrician must share a consultation with them. */
+  private async assertAccess(user: AuthenticatedUser, childId: string) {
+    const child = await this.prisma.child.findUnique({ where: { id: childId } });
+    if (!child) throw new ForbiddenException('Child not found');
+    if (user.role === Role.PARENT) {
+      const member = await this.prisma.familyMember.findFirst({
+        where: { userId: user.userId, familyId: child.familyId },
+      });
+      if (!member) throw new ForbiddenException('Not authorized for this child');
+      return;
+    }
+    if (user.role === Role.PEDIATRICIAN) {
+      const ped = await this.prisma.pediatrician.findUnique({ where: { userId: user.userId } });
+      const link = ped
+        ? await this.prisma.consultation.findFirst({
+            where: { childId, pediatricianId: ped.id },
+          })
+        : null;
+      if (!link) throw new ForbiddenException('No consultation with this child');
+      return;
+    }
+    throw new ForbiddenException('Not authorized');
+  }
+
+  async overview(user: AuthenticatedUser, childId: string) {
+    await this.assertAccess(user, childId);
+    const [growth, vaccines, medications, episodes] = await Promise.all([
+      this.prisma.growthMeasurement.findMany({ where: { childId }, orderBy: { measuredAt: 'asc' } }),
+      this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'desc' } }),
+      this.prisma.medication.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    return {
+      growth: growth.map((g) => ({
+        id: g.id,
+        measuredAt: g.measuredAt,
+        heightCm: g.heightCm,
+        weightKg: g.weightKg,
+        headCm: g.headCm,
+        bmi:
+          g.heightCm && g.weightKg
+            ? Math.round((g.weightKg / Math.pow(g.heightCm / 100, 2)) * 10) / 10
+            : null,
+      })),
+      vaccines: vaccines.map((v) => ({
+        id: v.id,
+        name: this.crypto.decrypt(v.name),
+        date: v.date,
+        notes: this.crypto.decrypt(v.notes),
+      })),
+      medications: medications.map((m) => ({
+        id: m.id,
+        name: this.crypto.decrypt(m.name),
+        dose: this.crypto.decrypt(m.dose),
+        active: m.active,
+        startedAt: m.startedAt,
+      })),
+      episodes: episodes.map((e) => ({
+        id: e.id,
+        title: this.crypto.decrypt(e.title),
+        summary: this.crypto.decrypt(e.summary),
+        status: e.status,
+        createdAt: e.createdAt,
+        closedAt: e.closedAt,
+      })),
+    };
+  }
+
+  async addGrowth(user: AuthenticatedUser, childId: string, dto: GrowthDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.growthMeasurement.create({
+      data: {
+        childId,
+        measuredAt: new Date(dto.measuredAt),
+        heightCm: dto.heightCm,
+        weightKg: dto.weightKg,
+        headCm: dto.headCm,
+      },
+    });
+  }
+
+  async addVaccine(user: AuthenticatedUser, childId: string, dto: VaccineDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.vaccination.create({
+      data: {
+        childId,
+        name: this.crypto.encrypt(dto.name) as string,
+        date: new Date(dto.date),
+        notes: this.crypto.encrypt(dto.notes),
+      },
+    });
+  }
+
+  async addMedication(user: AuthenticatedUser, childId: string, dto: MedicationDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.medication.create({
+      data: {
+        childId,
+        name: this.crypto.encrypt(dto.name) as string,
+        dose: this.crypto.encrypt(dto.dose),
+        startedAt: dto.startedAt ? new Date(dto.startedAt) : null,
+      },
+    });
+  }
+
+  async setMedicationActive(user: AuthenticatedUser, childId: string, id: string, active: boolean) {
+    await this.assertAccess(user, childId);
+    await this.prisma.medication.updateMany({ where: { id, childId }, data: { active } });
+    return { ok: true };
+  }
+
+  async addEpisode(user: AuthenticatedUser, childId: string, dto: EpisodeDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.episode.create({
+      data: {
+        childId,
+        title: this.crypto.encrypt(dto.title) as string,
+        summary: this.crypto.encrypt(dto.summary),
+      },
+    });
+  }
+
+  async closeEpisode(user: AuthenticatedUser, childId: string, id: string) {
+    await this.assertAccess(user, childId);
+    await this.prisma.episode.updateMany({
+      where: { id, childId },
+      data: { status: 'CLOSED', closedAt: new Date() },
+    });
+    return { ok: true };
+  }
+}
+
+@ApiTags('health-records')
+@ApiBearerAuth()
+@Controller('health-records')
+class HealthRecordsController {
+  constructor(private readonly service: HealthRecordsService) {}
+
+  @Get(':childId')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  overview(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
+    return this.service.overview(user, childId);
+  }
+
+  @Post(':childId/growth')
+  @Roles(Role.PARENT)
+  growth(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: GrowthDto,
+  ) {
+    return this.service.addGrowth(user, childId, dto);
+  }
+
+  @Post(':childId/vaccines')
+  @Roles(Role.PARENT)
+  vaccine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: VaccineDto,
+  ) {
+    return this.service.addVaccine(user, childId, dto);
+  }
+
+  @Post(':childId/medications')
+  @Roles(Role.PARENT)
+  medication(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: MedicationDto,
+  ) {
+    return this.service.addMedication(user, childId, dto);
+  }
+
+  @Post(':childId/medications/:id/active')
+  @Roles(Role.PARENT)
+  setActive(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Param('id') id: string,
+    @Body() dto: ActiveDto,
+  ) {
+    return this.service.setMedicationActive(user, childId, id, dto.active);
+  }
+
+  @Post(':childId/episodes')
+  @Roles(Role.PARENT)
+  episode(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: EpisodeDto,
+  ) {
+    return this.service.addEpisode(user, childId, dto);
+  }
+
+  @Post(':childId/episodes/:id/close')
+  @Roles(Role.PARENT)
+  closeEpisode(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.closeEpisode(user, childId, id);
+  }
+}
+
+@Module({
+  controllers: [HealthRecordsController],
+  providers: [HealthRecordsService],
+  exports: [HealthRecordsService],
+})
+export class HealthRecordsModule {}
