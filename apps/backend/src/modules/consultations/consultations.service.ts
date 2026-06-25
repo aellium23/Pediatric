@@ -57,6 +57,7 @@ export class ConsultationsService {
         scopeSnapshot: service.scopeText,
         slaDueAt,
         triage: dto.triage as Prisma.InputJsonValue | undefined,
+        episodeId: dto.episodeId,
       },
     });
 

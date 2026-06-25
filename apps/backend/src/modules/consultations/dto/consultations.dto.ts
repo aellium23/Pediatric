@@ -26,6 +26,11 @@ export class StartConsultationDto {
   @IsOptional()
   @IsObject()
   triage?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  episodeId?: string;
 }
 
 export class SendMessageDto {

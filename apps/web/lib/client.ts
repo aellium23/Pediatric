@@ -48,6 +48,8 @@ export interface ConsultationDto {
   slaDueAt: string | null;
   answeredAt: string | null;
   closedAt: string | null;
+  episodeId?: string | null;
+  triage?: Record<string, unknown> | null;
 }
 
 export interface MessageDto {
@@ -144,8 +146,13 @@ export const Api = {
   favorites: () => request('/pediatricians/favorites') as Promise<unknown[]>,
   addFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'POST' }),
   removeFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'DELETE' }),
-  startConsultation: (data: { childId: string; serviceId: string; question: string }) =>
-    request('/consultations', { method: 'POST', body: JSON.stringify(data) }),
+  startConsultation: (data: {
+    childId: string;
+    serviceId: string;
+    question: string;
+    triage?: Record<string, unknown>;
+    episodeId?: string;
+  }) => request('/consultations', { method: 'POST', body: JSON.stringify(data) }),
   myConsultations: () => request('/consultations') as Promise<ConsultationDto[]>,
   cancelConsultation: (id: string) =>
     request(`/consultations/${id}/cancel`, { method: 'POST' }),

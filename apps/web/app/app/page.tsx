@@ -755,6 +755,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [child, setChild] = useState('');
   const [booking, setBooking] = useState<PediatricianCard | null>(null);
   const [detail, setDetail] = useState<PediatricianCard | null>(null);
+  const [triageFor, setTriageFor] = useState<PediatricianCard | null>(null);
   const [busy, setBusy] = useState(false);
   // filters
   const [fSpec, setFSpec] = useState('');
@@ -800,23 +801,28 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
-  async function startMessage(p: PediatricianCard) {
+  function startMessage(p: PediatricianCard) {
     const svc = p.services.find((s) => s.type === 'MESSAGE');
     if (!svc) return onMsg('Sem serviço de mensagem.');
     if (!child) return onMsg('Seleciona uma criança.');
-    setBusy(true);
-    try {
-      await Api.startConsultation({
-        childId: child,
-        serviceId: svc.id,
-        question: 'Olá, tenho uma dúvida sobre o meu filho.',
-      });
-      onMsg('Consulta por mensagem criada ✓ (vê em "Consultas")');
-    } catch (e) {
-      onMsg(`Erro: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+    setDetail(null);
+    setTriageFor(p);
+  }
+
+  if (triageFor) {
+    const svc = triageFor.services.find((s) => s.type === 'MESSAGE');
+    return (
+      <TriageDialog
+        childId={child}
+        serviceId={svc?.id ?? ''}
+        onCancel={() => setTriageFor(null)}
+        onDone={() => {
+          setTriageFor(null);
+          onMsg('Consulta por mensagem criada ✓ (vê em "Consultas")');
+        }}
+        onMsg={onMsg}
+      />
+    );
   }
 
   if (booking) {
@@ -1023,6 +1029,138 @@ function PedDetail({
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+const RED_FLAGS = [
+  { key: 'breathing', label: 'Dificuldade a respirar / respiração muito rápida', severe: true },
+  { key: 'unresponsive', label: 'Prostração / difícil de acordar', severe: true },
+  { key: 'seizure', label: 'Convulsões', severe: true },
+  { key: 'bluish', label: 'Lábios ou pele azulados', severe: true },
+  { key: 'highfever', label: 'Febre alta há mais de 3 dias', severe: false },
+  { key: 'dehydration', label: 'Não bebe / sem urinar há muitas horas', severe: false },
+];
+
+function TriageDialog({
+  childId,
+  serviceId,
+  onCancel,
+  onDone,
+  onMsg,
+}: {
+  childId: string;
+  serviceId: string;
+  onCancel: () => void;
+  onDone: () => void;
+  onMsg: (m: string) => void;
+}) {
+  const [flags, setFlags] = useState<Record<string, boolean>>({});
+  const [question, setQuestion] = useState('');
+  const [episodes, setEpisodes] = useState<{ id: string; title: string | null; status: string }[]>(
+    [],
+  );
+  const [episodeId, setEpisodeId] = useState('');
+  const [ack, setAck] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const severe = RED_FLAGS.some((f) => f.severe && flags[f.key]);
+
+  useEffect(() => {
+    Api.childHealth(childId)
+      .then((d) => setEpisodes(d.episodes.filter((e) => e.status === 'OPEN')))
+      .catch(() => {});
+  }, [childId]);
+
+  async function submit() {
+    if (!serviceId) return onMsg('Sem serviço de mensagem.');
+    if (severe && !ack) return onMsg('Confirma o aviso de urgência para continuar.');
+    setBusy(true);
+    try {
+      await Api.startConsultation({
+        childId,
+        serviceId,
+        question: question || 'Olá, tenho uma dúvida sobre o meu filho.',
+        triage: { redFlags: Object.keys(flags).filter((k) => flags[k]), severe },
+        episodeId: episodeId || undefined,
+      });
+      onDone();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="section">
+      <button className="btn secondary small" onClick={onCancel} style={{ marginBottom: 12 }}>
+        ← Voltar
+      </button>
+      <h2>Antes de começar — triagem</h2>
+      <p className="muted">Assinala se a criança tem algum destes sinais:</p>
+      <div className="card">
+        {RED_FLAGS.map((f) => (
+          <label key={f.key} style={{ display: 'block', margin: '6px 0' }}>
+            <input
+              type="checkbox"
+              checked={!!flags[f.key]}
+              onChange={(e) => setFlags((p) => ({ ...p, [f.key]: e.target.checked }))}
+              style={{ width: 'auto', marginRight: 8 }}
+            />
+            {f.label}
+          </label>
+        ))}
+      </div>
+
+      {severe ? (
+        <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', marginTop: 12 }}>
+          <strong style={{ color: '#d7263d' }}>⚠️ Sinais de alarme</strong>
+          <p style={{ margin: '6px 0' }}>
+            Estes sintomas podem ser urgentes. Liga <strong>112</strong> ou recorre à urgência. A
+            teleconsulta <em>não substitui</em> emergência.
+          </p>
+          <label className="muted">
+            <input
+              type="checkbox"
+              checked={ack}
+              onChange={(e) => setAck(e.target.checked)}
+              style={{ width: 'auto', marginRight: 8 }}
+            />
+            Compreendi; quero ainda assim contactar o pediatra.
+          </label>
+        </div>
+      ) : null}
+
+      <div className="card section">
+        <h3>A tua questão</h3>
+        <textarea
+          placeholder="Descreve a dúvida…"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={3}
+        />
+        {episodes.length > 0 ? (
+          <label className="muted" style={{ display: 'block', marginTop: 8 }}>
+            Associar a episódio:
+            <select
+              value={episodeId}
+              onChange={(e) => setEpisodeId(e.target.value)}
+              style={{ marginLeft: 8 }}
+            >
+              <option value="">— nenhum —</option>
+              {episodes.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.title ?? 'Episódio'}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+
+      <button className="btn" onClick={submit} disabled={busy}>
+        Iniciar consulta
+      </button>
     </div>
   );
 }

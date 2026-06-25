@@ -226,6 +226,7 @@ model Consultation {
   slaDueAt       DateTime?
   scheduledAt    DateTime?
   triage         Json?
+  episodeId      String?
   openedAt       DateTime           @default(now())
   answeredAt     DateTime?
   closedAt       DateTime?
@@ -238,6 +239,7 @@ model Consultation {
 
   @@index([pediatricianId, status])
   @@index([familyId])
+  @@index([episodeId])
 }
 
 model Message {
