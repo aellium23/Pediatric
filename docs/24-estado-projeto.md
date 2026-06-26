@@ -45,10 +45,11 @@ uniformiza termos.
 (2) **estruturação por LLM** (Claude, botão "Estruturar com IA", atrás de
 `ANTHROPIC_API_KEY`) · ✅ **ditado de voz** da nota (Web Speech API).
 
-**Por fazer (produto):** **percentis WHO** — ◑ motor LMS (z-score, percentil,
-classificação WHO, interpolação) **implementado e testado** (`common/growth/lms.ts`);
-falta só integrar as **tabelas LMS oficiais** como dados versionados (ver
-**doc 25**) · **AI administrativa** ◑ — **estruturação SOAP por LLM** (Claude) implementada
+**Por fazer (produto):** **percentis WHO** — ✅ **0–5 anos completo**: motor LMS +
+**tabelas oficiais WHO integradas** (byte-exact do `anthro`), z/percentil/
+classificação por medição no `overview` e **curvas P3–P97** no gráfico da web
+(ver **doc 25**); falta só a **referência 5–19 anos** (extensão de dados) ·
+**AI administrativa** ◑ — **estruturação SOAP por LLM** (Claude) implementada
 (endpoint `POST /consultations/:id/summary/structure` + botão "Estruturar com IA";
 ativa com `ANTHROPIC_API_KEY`, degrada com 503 sem ela) · **AI scribe** de vídeo
 (transcrição ambiente — planeado, ver **doc 26**; 🔑 STT + ⚖️ consentimento/DPA/DPIA).
