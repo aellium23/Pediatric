@@ -730,6 +730,18 @@ function ChildSummary({ childId }: { childId: string }) {
             <div>
               <strong>Peso recente:</strong> {lastWeight != null ? `${lastWeight} kg` : '—'}
             </div>
+            {(d.vitals ?? [])[0] ? (
+              <div>
+                <strong>Últimos vitais:</strong>{' '}
+                {[
+                  (d.vitals ?? [])[0].temperatureC != null ? `${(d.vitals ?? [])[0].temperatureC}ºC` : null,
+                  (d.vitals ?? [])[0].heartRateBpm != null ? `${(d.vitals ?? [])[0].heartRateBpm} bpm` : null,
+                  (d.vitals ?? [])[0].spo2Pct != null ? `SpO₂ ${(d.vitals ?? [])[0].spo2Pct}%` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || '—'}
+              </div>
+            ) : null}
           </div>
         )
       ) : null}
@@ -1168,6 +1180,11 @@ function ChildHealth({
   const [gDate, setGDate] = useState('');
   const [gH, setGH] = useState('');
   const [gW, setGW] = useState('');
+  // vitals form
+  const [vtTemp, setVtTemp] = useState('');
+  const [vtHr, setVtHr] = useState('');
+  const [vtRr, setVtRr] = useState('');
+  const [vtSpo2, setVtSpo2] = useState('');
   // vaccine form
   const [vName, setVName] = useState('');
   const [vDate, setVDate] = useState('');
@@ -1283,6 +1300,62 @@ function ChildHealth({
               }
             >
               Adicionar medição
+            </button>
+          </div>
+
+          {/* Vital signs */}
+          <h3 style={{ marginTop: 16 }}>Sinais vitais</h3>
+          {(d.vitals ?? []).length === 0 ? (
+            <p className="muted">Sem registos.</p>
+          ) : (
+            <div className="grid">
+              {(d.vitals ?? []).slice(0, 6).map((v) => (
+                <div key={v.id} className="card">
+                  <strong>{new Date(v.measuredAt).toLocaleDateString('pt-PT')}</strong>
+                  <div className="muted">
+                    {[
+                      v.temperatureC != null ? `${v.temperatureC}ºC` : null,
+                      v.heartRateBpm != null ? `${v.heartRateBpm} bpm` : null,
+                      v.respRateBpm != null ? `${v.respRateBpm} cpm` : null,
+                      v.spo2Pct != null ? `SpO₂ ${v.spo2Pct}%` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="card section">
+            <div className="row">
+              <input placeholder="Tª ºC" value={vtTemp} onChange={(e) => setVtTemp(e.target.value)} style={{ width: 80 }} />
+              <input placeholder="FC bpm" value={vtHr} onChange={(e) => setVtHr(e.target.value)} style={{ width: 80 }} />
+              <input placeholder="FR cpm" value={vtRr} onChange={(e) => setVtRr(e.target.value)} style={{ width: 80 }} />
+              <input placeholder="SpO₂ %" value={vtSpo2} onChange={(e) => setVtSpo2(e.target.value)} style={{ width: 80 }} />
+            </div>
+            <button
+              className="btn small"
+              disabled={busy || (!vtTemp && !vtHr && !vtRr && !vtSpo2)}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addVital(child.id, {
+                      measuredAt: new Date().toISOString(),
+                      temperatureC: vtTemp ? Number(vtTemp) : undefined,
+                      heartRateBpm: vtHr ? Number(vtHr) : undefined,
+                      respRateBpm: vtRr ? Number(vtRr) : undefined,
+                      spo2Pct: vtSpo2 ? Number(vtSpo2) : undefined,
+                    }).then(() => {
+                      setVtTemp('');
+                      setVtHr('');
+                      setVtRr('');
+                      setVtSpo2('');
+                    }),
+                  'Sinais vitais registados ✓',
+                )
+              }
+            >
+              Registar sinais vitais
             </button>
           </div>
 

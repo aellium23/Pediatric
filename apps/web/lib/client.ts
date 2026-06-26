@@ -306,6 +306,18 @@ export const Api = {
     childId: string,
     data: { measuredAt: string; heightCm?: number; weightKg?: number; headCm?: number },
   ) => request(`/health-records/${childId}/growth`, { method: 'POST', body: JSON.stringify(data) }),
+  addVital: (
+    childId: string,
+    data: {
+      measuredAt: string;
+      temperatureC?: number;
+      heartRateBpm?: number;
+      respRateBpm?: number;
+      spo2Pct?: number;
+      systolicMmHg?: number;
+      diastolicMmHg?: number;
+    },
+  ) => request(`/health-records/${childId}/vitals`, { method: 'POST', body: JSON.stringify(data) }),
   addVaccine: (
     childId: string,
     data: { name: string; date: string; notes?: string; pnvAbbr?: string; cvx?: string },
@@ -445,6 +457,16 @@ export interface HealthOverview {
     status: string;
     createdAt: string;
     closedAt: string | null;
+  }[];
+  vitals?: {
+    id: string;
+    measuredAt: string;
+    temperatureC: number | null;
+    heartRateBpm: number | null;
+    respRateBpm: number | null;
+    spo2Pct: number | null;
+    systolicMmHg: number | null;
+    diastolicMmHg: number | null;
   }[];
 }
 
