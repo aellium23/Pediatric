@@ -29,6 +29,8 @@ import {
   type ArticleCard,
   type ReferralDto,
   type VerificationDoc,
+  type PatientFamily,
+  type ChildHistory,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 import { useT, type Lang } from '@/lib/i18n';
@@ -331,6 +333,7 @@ export default function MultiProfileApp() {
           </div>
         ) : null}
         {tab === 'inbox' ? <InboxTab onMsg={setMsg} /> : null}
+        {tab === 'patients' ? <PatientsTab onMsg={setMsg} /> : null}
         {tab === 'referrals' ? <ReferralsTab onMsg={setMsg} /> : null}
         {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
         {tab === 'profile' ? <PedProfileTab onMsg={setMsg} onLeave={leave} /> : null}
@@ -528,6 +531,7 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
   if (role === 'PEDIATRICIAN')
     return [
       { key: 'inbox', label: 'Caixa', ico: '📥' },
+      { key: 'patients', label: 'Doentes', ico: '🧒' },
       { key: 'referrals', label: '2ª opinião', ico: '🤝' },
       { key: 'agenda', label: 'Agenda', ico: '📅' },
       { key: 'profile', label: 'Perfil', ico: '⚙️' },
@@ -2217,6 +2221,222 @@ function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
             </button>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Pediatrician: Patient chart ─────────────────────────
+function ageLabel(birthDate: string): string {
+  const b = new Date(birthDate);
+  const now = new Date();
+  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  if (now.getDate() < b.getDate()) months -= 1;
+  if (months < 0) months = 0;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y === 0) return `${m} ${m === 1 ? 'mês' : 'meses'}`;
+  return m === 0 ? `${y} ${y === 1 ? 'ano' : 'anos'}` : `${y}a ${m}m`;
+}
+/** Longitudinal chart for one child: consultation timeline + health record. */
+function ChildChart({
+  childId,
+  childName,
+  birthDate,
+  onBack,
+  onMsg,
+}: {
+  childId: string;
+  childName: string;
+  birthDate: string;
+  onBack: () => void;
+  onMsg: (m: string) => void;
+}) {
+  const [history, setHistory] = useState<ChildHistory | null>(null);
+  const [health, setHealth] = useState<HealthOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const [h, hc] = await Promise.all([
+          Api.childHistory(childId),
+          Api.childHealth(childId).catch(() => null),
+        ]);
+        if (!live) return;
+        setHistory(h);
+        setHealth(hc);
+      } catch (e) {
+        onMsg(`Erro a carregar o doente: ${String(e)}`);
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId]);
+
+  const growthPts = (health?.growth ?? [])
+    .filter((g) => g.weightKg != null)
+    .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.weightKg as number }));
+  const activeMeds = (health?.medications ?? []).filter((m) => m.active);
+  const openProblems = (health?.episodes ?? []).filter((e) => e.status !== 'CLOSED');
+
+  return (
+    <div className="section">
+      <button className="link" onClick={onBack}>
+        ← Doentes
+      </button>
+      <h2 style={{ marginTop: 8 }}>
+        {childName} <span className="muted">· {ageLabel(birthDate)}</span>
+      </h2>
+
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : (
+        <>
+          <div className="card">
+            <strong>Problemas ativos</strong>
+            {openProblems.length === 0 ? (
+              <div className="muted">Sem problemas em aberto.</div>
+            ) : (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {openProblems.map((e) => (
+                  <li key={e.id}>
+                    {e.title ?? '—'}{' '}
+                    {e.icpc2Code ? <span className="pill">{e.icpc2Code}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="card">
+            <strong>Medicação ativa</strong>
+            {activeMeds.length === 0 ? (
+              <div className="muted">Nenhuma.</div>
+            ) : (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {activeMeds.map((m) => (
+                  <li key={m.id}>
+                    {m.name ?? '—'}
+                    {m.dose ? ` · ${m.dose}` : ''}
+                    {m.frequency ? ` · ${m.frequency}` : ''}
+                    {m.atcCode ? <span className="pill" style={{ marginLeft: 6 }}>{m.atcCode}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {growthPts.length >= 2 ? (
+            <div className="card">
+              <strong>Peso (kg)</strong>
+              <GrowthChart points={growthPts} label="Peso" unit="kg" />
+            </div>
+          ) : null}
+
+          <div className="card">
+            <strong>Vacinas registadas</strong>
+            {(health?.vaccines ?? []).length === 0 ? (
+              <div className="muted">Nenhuma.</div>
+            ) : (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {(health?.vaccines ?? []).map((v) => (
+                  <li key={v.id}>
+                    {v.name ?? '—'} · {when(v.date)}
+                    {v.pnvAbbr ? <span className="pill" style={{ marginLeft: 6 }}>{v.pnvAbbr}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <h3 style={{ marginTop: 16 }}>Histórico de consultas</h3>
+          {(history?.consultations ?? []).length === 0 ? (
+            <EmptyState title="Sem consultas registadas" />
+          ) : (
+            <div className="grid">
+              {(history?.consultations ?? []).map((c) => (
+                <div key={c.id} className="card">
+                  <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+                  <div>
+                    <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+                  </div>
+                  <div className="muted">Aberta: {when(c.openedAt)}</div>
+                  {c.closedAt ? <div className="muted">Fechada: {when(c.closedAt)}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [families, setFamilies] = useState<PatientFamily[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [picked, setPicked] = useState<{ id: string; name: string; birthDate: string } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setFamilies(await Api.patients());
+      } catch (e) {
+        onMsg(`Erro a carregar doentes: ${String(e)}`);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (picked)
+    return (
+      <ChildChart
+        childId={picked.id}
+        childName={picked.name}
+        birthDate={picked.birthDate}
+        onBack={() => setPicked(null)}
+        onMsg={onMsg}
+      />
+    );
+
+  return (
+    <div className="section">
+      <h2>Os meus doentes</h2>
+      <p className="muted">Agrupados por família — irmãos juntos. Toca numa criança para o registo.</p>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : families.length === 0 ? (
+        <EmptyState title="Ainda sem doentes" hint="Aparecem aqui as crianças que já consultaste." />
+      ) : (
+        families.map((fam) => (
+          <div key={fam.id} className="card" style={{ marginBottom: 12 }}>
+            <strong>{fam.name}</strong>
+            <div className="grid" style={{ marginTop: 8 }}>
+              {fam.children.map((c) => (
+                <button
+                  key={c.id}
+                  className="card"
+                  style={{ textAlign: 'left', cursor: 'pointer' }}
+                  onClick={() => setPicked({ id: c.id, name: c.name, birthDate: c.birthDate })}
+                >
+                  <strong>{c.name}</strong> <span className="muted">· {ageLabel(c.birthDate)}</span>
+                  <div className="muted">
+                    {c.consultationCount} consulta{c.consultationCount === 1 ? '' : 's'} · última{' '}
+                    {when(c.lastConsultAt)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

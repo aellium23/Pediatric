@@ -207,6 +207,10 @@ export const Api = {
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,
+  // Patient chart (caseload grouped by family + per-child consultation history)
+  patients: () => request('/consultations/patients') as Promise<PatientFamily[]>,
+  childHistory: (childId: string) =>
+    request(`/consultations/child/${childId}/history`) as Promise<ChildHistory>,
   closeConsultation: (id: string) =>
     request(`/consultations/${id}/close`, { method: 'POST' }),
   finance: () => request('/pediatricians/me/finance') as Promise<FinanceDto>,
@@ -301,9 +305,22 @@ export const Api = {
     childId: string,
     data: { measuredAt: string; heightCm?: number; weightKg?: number; headCm?: number },
   ) => request(`/health-records/${childId}/growth`, { method: 'POST', body: JSON.stringify(data) }),
-  addVaccine: (childId: string, data: { name: string; date: string; notes?: string }) =>
-    request(`/health-records/${childId}/vaccines`, { method: 'POST', body: JSON.stringify(data) }),
-  addMedication: (childId: string, data: { name: string; dose?: string; startedAt?: string }) =>
+  addVaccine: (
+    childId: string,
+    data: { name: string; date: string; notes?: string; pnvAbbr?: string; cvx?: string },
+  ) => request(`/health-records/${childId}/vaccines`, { method: 'POST', body: JSON.stringify(data) }),
+  addMedication: (
+    childId: string,
+    data: {
+      name: string;
+      dose?: string;
+      startedAt?: string;
+      atcCode?: string;
+      route?: string;
+      frequency?: string;
+      durationDays?: number;
+    },
+  ) =>
     request(`/health-records/${childId}/medications`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -313,10 +330,26 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ active }),
     }),
-  addEpisode: (childId: string, data: { title: string; summary?: string }) =>
-    request(`/health-records/${childId}/episodes`, { method: 'POST', body: JSON.stringify(data) }),
+  addEpisode: (
+    childId: string,
+    data: { title: string; summary?: string; icpc2Code?: string; icd10Code?: string },
+  ) => request(`/health-records/${childId}/episodes`, { method: 'POST', body: JSON.stringify(data) }),
   closeEpisode: (childId: string, id: string) =>
     request(`/health-records/${childId}/episodes/${id}/close`, { method: 'POST' }),
+
+  // Clinical reference catalogs (autocomplete + coding)
+  catConditions: (q: string) =>
+    request(`/catalog/conditions?q=${encodeURIComponent(q)}`) as Promise<CatalogCondition[]>,
+  catMedications: (q: string) =>
+    request(`/catalog/medications?q=${encodeURIComponent(q)}`) as Promise<CatalogMedication[]>,
+  catAllergens: (q: string) =>
+    request(`/catalog/allergens?q=${encodeURIComponent(q)}`) as Promise<CatalogAllergen[]>,
+  catVaccines: (dueByAgeMonths?: number) =>
+    request(
+      `/catalog/vaccines${dueByAgeMonths != null ? `?dueByAgeMonths=${dueByAgeMonths}` : ''}`,
+    ) as Promise<CatalogVaccine[]>,
+  catDose: (atc: string, weightKg: number) =>
+    request(`/catalog/dose?atc=${encodeURIComponent(atc)}&weightKg=${weightKg}`) as Promise<DoseSuggestion>,
 
   // Clinics (B2B)
   myClinic: () => request('/clinics/me') as Promise<ClinicDashboard | null>,
@@ -383,11 +416,22 @@ export interface HealthOverview {
     headCm: number | null;
     bmi: number | null;
   }[];
-  vaccines: { id: string; name: string | null; date: string; notes: string | null }[];
+  vaccines: {
+    id: string;
+    name: string | null;
+    date: string;
+    notes: string | null;
+    pnvAbbr?: string | null;
+    cvx?: string | null;
+  }[];
   medications: {
     id: string;
     name: string | null;
     dose: string | null;
+    atcCode?: string | null;
+    route?: string | null;
+    frequency?: string | null;
+    durationDays?: number | null;
     active: boolean;
     startedAt: string | null;
   }[];
@@ -395,10 +439,66 @@ export interface HealthOverview {
     id: string;
     title: string | null;
     summary: string | null;
+    icpc2Code?: string | null;
+    icd10Code?: string | null;
     status: string;
     createdAt: string;
     closedAt: string | null;
   }[];
+}
+
+export interface CatalogCondition {
+  icpc2: string;
+  term: string;
+  chapter: string;
+  icd10?: string;
+  synonyms?: string[];
+}
+export interface CatalogMedication {
+  atc: string;
+  dci: string;
+  forms: string[];
+  brands?: string[];
+  dosing?: { mgPerKgDose?: number; mgPerKgDay?: number; maxDoseMg?: number; everyHours?: number; note: string };
+}
+export interface CatalogAllergen {
+  code: string;
+  term: string;
+  category: 'farmaco' | 'alimento' | 'ambiental';
+}
+export interface CatalogVaccine {
+  abbr: string;
+  name: string;
+  agesMonths?: number[];
+  cvx?: string;
+  covers?: string;
+  ageMonths?: number;
+}
+export interface DoseSuggestion {
+  found: boolean;
+  perDoseMg?: number;
+  perDayMg?: number;
+  everyHours?: number;
+  note?: string;
+  verify: boolean;
+}
+
+export interface PatientChild {
+  id: string;
+  name: string;
+  birthDate: string;
+  sex: string | null;
+  consultationCount: number;
+  lastConsultAt: string | null;
+}
+export interface PatientFamily {
+  id: string;
+  name: string;
+  children: PatientChild[];
+}
+export interface ChildHistory {
+  child: { id: string; name: string; birthDate: string; sex: string | null };
+  consultations: ConsultationDto[];
 }
 
 export interface VerificationDoc {
