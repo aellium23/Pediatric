@@ -81,7 +81,8 @@ scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
 autorização + ciclo de vida), **pediatricians-documents** (submissão/listagem),
 **privacy/RGPD** (exportação com scope por perfil + anonimização), **clinics**
 (autorização CLINIC_ADMIN/platform + revenue-share), **growth-lms** (motor de
-percentis WHO). ⏳ restantes módulos (admin, content), integração e E2E.
+percentis WHO), **content** (slug único + autorização autor/admin). ⏳ admin,
+testes de integração e E2E dos fluxos principais.
 
 ---
 
