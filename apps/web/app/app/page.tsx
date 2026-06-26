@@ -2413,7 +2413,7 @@ function BookVideo({
           onChange={(e) => setConsent(e.target.checked)}
           style={{ width: 'auto', marginRight: 8 }}
         />
-        Consinto a teleconsulta (vídeo) 🔒
+        Consinto a teleconsulta por vídeo e o tratamento dos dados de saúde da criança 🔒
       </label>
       <h3 style={{ marginTop: 14 }}>Próximos horários disponíveis</h3>
       {loading ? (

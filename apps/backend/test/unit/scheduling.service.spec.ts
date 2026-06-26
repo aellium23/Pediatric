@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ConsentSubject } from '@prisma/client';
 import { SchedulingService } from '../../src/modules/scheduling/scheduling.service';
 
 function build(blocks: any[], booked: any[] = []) {
@@ -60,5 +61,53 @@ describe('SchedulingService.nextSlots', () => {
     const service = build([]); // no blocks → no slots on any day
     const days = await service.nextSlots('p1', 5);
     expect(days).toEqual([]);
+  });
+});
+
+describe('SchedulingService.book — health-data consent', () => {
+  function bookService(existingHealthConsent: unknown) {
+    const prisma: any = {
+      child: { findUnique: jest.fn().mockResolvedValue({ id: 'ch1', familyId: 'f1' }) },
+      familyMember: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      consent: { findFirst: jest.fn().mockResolvedValue(existingHealthConsent) },
+      pediatricianService: {
+        findFirstOrThrow: jest
+          .fn()
+          .mockResolvedValue({ id: 's1', pediatricianId: 'p1', priceCents: 4500, currency: 'EUR', scopeText: null }),
+      },
+      consultation: { create: jest.fn().mockResolvedValue({ id: 'c1' }) },
+      videoSession: { create: jest.fn().mockResolvedValue({ roomId: 'r1' }) },
+    };
+    const consent: any = { record: jest.fn().mockResolvedValue(undefined) };
+    const payments: any = {
+      createIntentForConsultation: jest.fn().mockResolvedValue({ clientSecret: 'cs' }),
+    };
+    return { service: new SchedulingService(prisma, consent, payments), consent };
+  }
+  const future = () => new Date(Date.now() + 3600 * 1000).toISOString();
+  const dto = () => ({ childId: 'ch1', serviceId: 's1', scheduledAt: future(), teleconsultConsent: true });
+
+  it('records a health-data consent when missing (self-heal for a verified guardian)', async () => {
+    const { service, consent } = bookService(null);
+    const res = await service.book('u1', dto());
+    expect(res.consultationId).toBe('c1');
+    const subjects = consent.record.mock.calls.map((c: unknown[]) => c[1]);
+    expect(subjects).toContain(ConsentSubject.HEALTH_DATA);
+    expect(subjects).toContain(ConsentSubject.TELECONSULT);
+  });
+
+  it('does not duplicate the health-data consent when one already exists', async () => {
+    const { service, consent } = bookService({ id: 'existing' });
+    await service.book('u1', dto());
+    const subjects = consent.record.mock.calls.map((c: unknown[]) => c[1]);
+    expect(subjects).not.toContain(ConsentSubject.HEALTH_DATA);
+    expect(subjects).toContain(ConsentSubject.TELECONSULT);
+  });
+
+  it('rejects booking without teleconsultation consent', async () => {
+    const { service } = bookService({ id: 'existing' });
+    await expect(
+      service.book('u1', { ...dto(), teleconsultConsent: false }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

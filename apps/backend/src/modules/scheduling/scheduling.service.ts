@@ -119,7 +119,19 @@ export class SchedulingService {
     if (!dto.teleconsultConsent) {
       throw new BadRequestException('Teleconsultation consent is required');
     }
-    await this.consent.assertHealthConsent(child.id);
+    // Health-data consent is normally recorded when the child is added. If it is
+    // missing (e.g. a child created before that gate existed), the verified
+    // guardian giving explicit consent here records it now — keeping an audited
+    // consent on file before any clinical processing, rather than dead-ending.
+    const healthConsent = await this.prisma.consent.findFirst({
+      where: { childId: child.id, subject: ConsentSubject.HEALTH_DATA, revokedAt: null },
+    });
+    if (!healthConsent) {
+      await this.consent.record(userId, ConsentSubject.HEALTH_DATA, '2026-06-01', child.id, {
+        method: 'explicit',
+        via: 'video-booking',
+      });
+    }
 
     const service = await this.prisma.pediatricianService.findFirstOrThrow({
       where: { id: dto.serviceId, active: true, type: ServiceType.VIDEO },
