@@ -8,6 +8,7 @@ export interface PediatricianService {
 
 export interface PediatricianCard {
   id: string;
+  displayName?: string | null;
   bio: string | null;
   experienceYears: number | null;
   languages: string[];
@@ -15,4 +16,5 @@ export interface PediatricianCard {
   region?: string | null;
   ratingAvg: number;
   services: PediatricianService[];
+  availableWeekdays?: number[];
 }

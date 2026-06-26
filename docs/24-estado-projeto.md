@@ -125,6 +125,16 @@ e **consultation-flow** (marcação→mensagens cifradas→resumo cifrado→cicl
 OPEN→ANSWERED→CLOSED→REFUNDED, com autorização de participante). ⏳ alargar E2E
 a pagamentos reais (Stripe) e faturação (precisa credenciais de teste).
 
+✅ **marketplace + agenda de vídeo (usabilidade)**: o pediatra passa a ter
+**nome público** (`Pediatrician.displayName`), mostrado no marketplace, no
+detalhe, na agenda do pai e na verificação de admin. Os cartões exibem a
+**especialidade traduzida (PT)** e a **disponibilidade** (dias da semana). A
+marcação de videoconsulta deixa de obrigar a adivinhar datas: carrega
+automaticamente os **próximos horários livres** (`GET
+/scheduling/pediatricians/:id/next-slots`). O seed cria uma **videoconsulta
+agendada para hoje** (Tomás ↔ Dra. Inês, com `VideoSession`) — basta entrar
+como `ines@demo.pedia` para simular a chamada.
+
 ---
 
 ## Prioridades sugeridas (próximos passos sem bloqueios externos)

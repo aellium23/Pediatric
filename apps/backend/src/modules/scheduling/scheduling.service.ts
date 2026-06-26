@@ -88,6 +88,26 @@ export class SchedulingService {
     return out;
   }
 
+  /**
+   * Upcoming days (up to `days` ahead, capped) that have free slots, so the
+   * parent can book without guessing dates. Returns only days with slots.
+   */
+  async nextSlots(
+    pediatricianId: string,
+    days = 10,
+  ): Promise<{ date: string; slots: string[] }[]> {
+    const span = Math.min(Math.max(days, 1), 21);
+    const out: { date: string; slots: string[] }[] = [];
+    const base = Date.now();
+    for (let i = 0; i < span && out.length < 7; i++) {
+      const day = new Date(base + i * 24 * 3600 * 1000);
+      const dateStr = day.toISOString().slice(0, 10);
+      const slots = await this.slots(pediatricianId, dateStr);
+      if (slots.length) out.push({ date: dateStr, slots });
+    }
+    return out;
+  }
+
   /** Books a video consultation: consent + consultation + video room + payment intent. */
   async book(userId: string, dto: BookVideoDto) {
     const child = await this.prisma.child.findUnique({ where: { id: dto.childId } });

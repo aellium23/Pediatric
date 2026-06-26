@@ -40,3 +40,25 @@ describe('SchedulingService.slots', () => {
     await expect(service.slots('p1', 'not-a-date')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('SchedulingService.nextSlots', () => {
+  it('returns only upcoming days that have free slots', async () => {
+    // Availability on every weekday → the two future days always yield slots;
+    // today is included only when the current UTC time is before the block, so
+    // assert a 2–3 range rather than an exact count (avoids a time-of-day flake).
+    const service = build([{ startMinute: 600, endMinute: 660, slotMinutes: 20 }]);
+    const days = await service.nextSlots('p1', 3);
+    expect(days.length).toBeGreaterThanOrEqual(2);
+    expect(days.length).toBeLessThanOrEqual(3);
+    for (const d of days) {
+      expect(d.slots.length).toBeGreaterThan(0);
+      expect(d.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('skips days without availability', async () => {
+    const service = build([]); // no blocks → no slots on any day
+    const days = await service.nextSlots('p1', 5);
+    expect(days).toEqual([]);
+  });
+});

@@ -27,7 +27,7 @@ export class PediatriciansService {
     if (q.type) serviceFilter.type = q.type;
     if (q.maxPriceCents != null) serviceFilter.priceCents = { lte: q.maxPriceCents };
 
-    return this.prisma.pediatrician.findMany({
+    const peds = await this.prisma.pediatrician.findMany({
       where: {
         status: PediatricianStatus.ACTIVE,
         ...(q.language ? { languages: { has: q.language } } : {}),
@@ -38,6 +38,7 @@ export class PediatriciansService {
       },
       select: {
         id: true,
+        displayName: true,
         bio: true,
         experienceYears: true,
         languages: true,
@@ -51,13 +52,37 @@ export class PediatriciansService {
       },
       orderBy: { ratingAvg: 'desc' },
     });
+
+    // Attach the weekdays each pediatrician has availability on (one query) so
+    // the marketplace can show "available" and the parent knows booking works.
+    const weekdays = await this.availableWeekdaysByPediatrician(peds.map((p) => p.id));
+    return peds.map((p) => ({ ...p, availableWeekdays: weekdays.get(p.id) ?? [] }));
+  }
+
+  /** Distinct availability weekdays per pediatrician, for the given ids. */
+  private async availableWeekdaysByPediatrician(ids: string[]): Promise<Map<string, number[]>> {
+    const out = new Map<string, number[]>();
+    if (!ids.length) return out;
+    const blocks = await this.prisma.availability.findMany({
+      where: { pediatricianId: { in: ids } },
+      select: { pediatricianId: true, weekday: true },
+    });
+    for (const b of blocks) {
+      const set = out.get(b.pediatricianId) ?? [];
+      if (!set.includes(b.weekday)) set.push(b.weekday);
+      out.set(b.pediatricianId, set);
+    }
+    for (const [k, v] of out) out.set(k, v.sort((a, b) => a - b));
+    return out;
   }
 
   async getPublic(id: string) {
-    return this.prisma.pediatrician.findFirstOrThrow({
+    const ped = await this.prisma.pediatrician.findFirstOrThrow({
       where: { id, status: PediatricianStatus.ACTIVE },
       include: { services: { where: { active: true } } },
     });
+    const weekdays = await this.availableWeekdaysByPediatrician([ped.id]);
+    return { ...ped, availableWeekdays: weekdays.get(ped.id) ?? [] };
   }
 
   async getMe(userId: string) {

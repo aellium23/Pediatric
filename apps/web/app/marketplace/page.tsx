@@ -38,7 +38,11 @@ export default async function Marketplace() {
             return (
               <article key={p.id} className="card">
                 <span className="badge">✓ Cédula verificada</span>
-                <h3>{p.specialties[0] ?? 'Pediatria geral'}</h3>
+                <h3 style={{ marginBottom: 2 }}>{p.displayName ?? p.specialties[0] ?? 'Pediatria geral'}</h3>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {p.specialties[0] ?? 'Pediatria geral'}
+                  {p.region ? ` · 📍 ${p.region}` : ''}
+                </p>
                 <p className="muted">
                   {p.languages.join(' · ')}
                   {p.experienceYears ? ` · ${p.experienceYears} anos` : ''}

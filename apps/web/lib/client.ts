@@ -109,7 +109,10 @@ export interface ConsultationDto {
   closedAt: string | null;
   episodeId?: string | null;
   childId?: string | null;
+  scheduledAt?: string | null;
   triage?: Record<string, unknown> | null;
+  child?: { id: string; name: string; birthDate?: string } | null;
+  pediatrician?: { displayName: string | null; specialties: string[] } | null;
 }
 
 export interface MessageDto {
@@ -141,6 +144,7 @@ export interface ServiceDto {
 
 export interface PedMeDto {
   id: string;
+  displayName?: string | null;
   bio: string | null;
   experienceYears: number | null;
   languages: string[];
@@ -225,6 +229,10 @@ export const Api = {
   slots: (pedId: string, date: string) =>
     request(`/scheduling/pediatricians/${pedId}/slots?date=${encodeURIComponent(date)}`) as Promise<
       string[]
+    >,
+  nextSlots: (pedId: string, days = 10) =>
+    request(`/scheduling/pediatricians/${pedId}/next-slots?days=${days}`) as Promise<
+      { date: string; slots: string[] }[]
     >,
   book: (data: { childId: string; serviceId: string; scheduledAt: string; teleconsultConsent: boolean }) =>
     request('/scheduling/book', { method: 'POST', body: JSON.stringify(data) }) as Promise<{
@@ -648,6 +656,7 @@ export interface AdminMetrics {
 }
 export interface AdminPedRow {
   id: string;
+  displayName?: string | null;
   status: string;
   licenseNumber: string;
   ratingAvg: number;

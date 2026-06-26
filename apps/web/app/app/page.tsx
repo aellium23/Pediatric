@@ -50,7 +50,7 @@ interface Profile {
 
 const PROFILES: Profile[] = [
   { email: 'marta@demo.pedia', role: 'PARENT', name: 'Marta', emoji: '👩‍👧', desc: 'Mãe / Encarregada' },
-  { email: 'ines@demo.pedia', role: 'PEDIATRICIAN', name: 'Dra. Inês', emoji: '👩‍⚕️', desc: 'Pediatra verificada' },
+  { email: 'ines@demo.pedia', role: 'PEDIATRICIAN', name: 'Dra. Inês', emoji: '👩‍⚕️', desc: 'Pediatra verificada · tem videoconsulta agendada hoje' },
   { email: 'admin@demo.pedia', role: 'PLATFORM_ADMIN', name: 'Admin', emoji: '🛡️', desc: 'Administrador da plataforma' },
   { email: 'financas@demo.pedia', role: 'FINANCE', name: 'Finanças', emoji: '💶', desc: 'Equipa financeira' },
   { email: 'clinica.admin@demo.pedia', role: 'CLINIC_ADMIN', name: 'Clínica · Admin', emoji: '🏥', desc: 'Administrador de clínica' },
@@ -98,6 +98,32 @@ function isForbidden(e: unknown): boolean {
 }
 function svcLabel(t: string): string {
   return t === 'VIDEO' ? 'Vídeo' : t === 'MESSAGE' ? 'Mensagem' : t;
+}
+const SPECIALTY_PT: Record<string, string> = {
+  general: 'Pediatria geral',
+  neonatology: 'Neonatologia',
+  pulmonology: 'Pneumologia',
+  allergology: 'Alergologia',
+  cardiology: 'Cardiologia',
+  gastroenterology: 'Gastroenterologia',
+  dermatology: 'Dermatologia',
+  neurology: 'Neurologia',
+};
+function specLabel(s?: string | null): string {
+  if (!s) return 'Pediatria geral';
+  return SPECIALTY_PT[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
+}
+const WEEKDAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+/** "Seg–Sáb", "Todos os dias", or a short list of available weekdays. */
+function availabilityLabel(days?: number[]): string | null {
+  if (!days || days.length === 0) return null;
+  if (days.length === 7) return 'Todos os dias';
+  const sorted = [...days].sort((a, b) => a - b);
+  const contiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1);
+  if (contiguous && sorted.length >= 3) {
+    return `${WEEKDAYS_PT[sorted[0]]}–${WEEKDAYS_PT[sorted[sorted.length - 1]]}`;
+  }
+  return sorted.map((d) => WEEKDAYS_PT[d]).join(' · ');
 }
 function Skeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -2044,11 +2070,19 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
                     {favIds.has(p.id) ? '❤️' : '🤍'}
                   </span>
                 </div>
-                <h3 style={{ margin: '6px 0' }}>{p.specialties[0] ?? 'Pediatria geral'}</h3>
+                <h3 style={{ margin: '6px 0 2px' }}>{p.displayName ?? specLabel(p.specialties[0])}</h3>
                 <p className="muted" style={{ margin: 0 }}>
-                  {p.region ? `📍 ${p.region} · ` : ''}
+                  {specLabel(p.specialties[0])}
+                  {p.region ? ` · 📍 ${p.region}` : ''}
+                </p>
+                <p className="muted" style={{ margin: '2px 0 0' }}>
                   {p.languages.join(' · ')} · ⭐ {p.ratingAvg.toFixed(1)}
                 </p>
+                {availabilityLabel(p.availableWeekdays) ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--brand)' }}>
+                    📅 Disponível · {availabilityLabel(p.availableWeekdays)}
+                  </p>
+                ) : null}
                 <button
                   className="btn small secondary"
                   onClick={() => setDetail(p)}
@@ -2117,15 +2151,21 @@ function PedDetail({
         ← Voltar
       </button>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>{ped.specialties[0] ?? 'Pediatria geral'}</h2>
+        <h2 style={{ margin: 0 }}>{ped.displayName ?? specLabel(ped.specialties[0])}</h2>
         <span style={{ cursor: 'pointer', fontSize: 22 }} onClick={onToggleFav}>
           {isFav ? '❤️' : '🤍'}
         </span>
       </div>
+      <p className="muted" style={{ marginBottom: 2 }}>{specLabel(ped.specialties[0])}</p>
       <p className="muted">
         {ped.region ? `📍 ${ped.region} · ` : ''}⭐ {ped.ratingAvg.toFixed(1)} ·{' '}
         {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
       </p>
+      {availabilityLabel(ped.availableWeekdays) ? (
+        <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--brand)' }}>
+          📅 Disponível · {availabilityLabel(ped.availableWeekdays)}
+        </p>
+      ) : null}
       {ped.bio ? <p>{ped.bio}</p> : null}
 
       <h3 style={{ marginTop: 14 }}>Serviços</h3>
@@ -2314,28 +2354,35 @@ function BookVideo({
   onDone: () => void;
   onMsg: (m: string) => void;
 }) {
-  const [date, setDate] = useState('');
-  const [slots, setSlots] = useState<string[]>([]);
-  const [searched, setSearched] = useState(false);
+  const [days, setDays] = useState<{ date: string; slots: string[] }[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
 
-  async function findSlots() {
-    if (!date) return onMsg('Escolhe uma data.');
-    setBusy(true);
-    try {
-      setSlots(await Api.slots(ped.id, date));
-      setSearched(true);
-    } catch (e) {
-      onMsg(`Erro a procurar horários: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // Load the next available days up front, so the parent picks a time directly
+  // instead of guessing dates (minimum effort → higher adherence).
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const next = await Api.nextSlots(ped.id, 14);
+        if (live) setDays(next);
+      } catch (e) {
+        if (live) onMsg(`Erro a procurar horários: ${String(e)}`);
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ped.id]);
+
   async function book(slot: string) {
     if (!vidSvc) return;
-    if (!consent) return onMsg('Confirma o consentimento de teleconsulta.');
+    if (!consent) return onMsg('Confirma o consentimento de teleconsulta primeiro.');
     setBusy(true);
     try {
       await Api.book({ childId, serviceId: vidSvc.id, scheduledAt: slot, teleconsultConsent: true });
@@ -2353,18 +2400,12 @@ function BookVideo({
         ← Voltar
       </button>
       <h2>Marcar videoconsulta</h2>
-      <p className="muted">
-        {ped.specialties[0] ?? 'Pediatria geral'} · {vidSvc ? euro(vidSvc.priceCents) : ''}
+      <p className="muted" style={{ marginBottom: 2 }}>
+        {ped.displayName ?? specLabel(ped.specialties[0])}
       </p>
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => {
-          setDate(e.target.value);
-          setSearched(false);
-          setSlots([]);
-        }}
-      />
+      <p className="muted">
+        {specLabel(ped.specialties[0])} · {vidSvc ? euro(vidSvc.priceCents) : ''}
+      </p>
       <label className="muted" style={{ display: 'block', margin: '8px 0' }}>
         <input
           type="checkbox"
@@ -2374,23 +2415,38 @@ function BookVideo({
         />
         Consinto a teleconsulta (vídeo) 🔒
       </label>
-      <button className="btn" onClick={findSlots} disabled={busy}>
-        Ver horários
-      </button>
-      {slots.length > 0 ? (
-        <div className="row" style={{ marginTop: 12 }}>
-          {slots.map((s) => (
-            <button key={s} className="btn small secondary" onClick={() => book(s)} disabled={busy}>
-              {new Date(s).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
-            </button>
-          ))}
-        </div>
-      ) : searched ? (
+      <h3 style={{ marginTop: 14 }}>Próximos horários disponíveis</h3>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : days.length === 0 ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-          Sem horários para esta data. A pediatra define disponibilidade no perfil dela (separador
-          "Agenda").
+          Sem horários nos próximos dias. Este pediatra ainda não tem agenda aberta.
         </p>
-      ) : null}
+      ) : (
+        days.map((d) => (
+          <div key={d.date} style={{ marginTop: 10 }}>
+            <strong style={{ fontSize: 14, textTransform: 'capitalize' }}>
+              {new Date(`${d.date}T00:00:00`).toLocaleDateString('pt-PT', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+              })}
+            </strong>
+            <div className="row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
+              {d.slots.slice(0, 12).map((s) => (
+                <button
+                  key={s}
+                  className="btn small secondary"
+                  onClick={() => book(s)}
+                  disabled={busy}
+                >
+                  {new Date(s).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -2455,10 +2511,21 @@ function MyConsultsTab({ onMsg }: { onMsg: (m: string) => void }) {
           {rows.map((c) => (
             <div key={c.id} className="card">
               <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
-              <div>
-                <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+              {c.type === 'VIDEO' ? (
+                <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
+              ) : null}
+              <div style={{ marginTop: 4 }}>
+                <strong>{c.pediatrician?.displayName ?? specLabel(c.pediatrician?.specialties?.[0])}</strong>
+                {c.child?.name ? ` · ${c.child.name}` : ''}
               </div>
-              <div className="muted">{when(c.openedAt)}</div>
+              <div className="muted">
+                {svcLabel(c.type)} · {euro(c.priceCents)}
+              </div>
+              {c.type === 'VIDEO' && c.scheduledAt ? (
+                <div style={{ color: 'var(--brand)', fontSize: 13 }}>📅 {when(c.scheduledAt)}</div>
+              ) : (
+                <div className="muted">{when(c.openedAt)}</div>
+              )}
               <div className="row" style={{ marginTop: 8 }}>
                 <button className="btn small" onClick={() => setOpen(c)}>
                   Abrir
@@ -2806,10 +2873,18 @@ function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
               style={{ textAlign: 'left', cursor: 'pointer' }}
             >
               <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
-              <div>
-                <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+              {c.type === 'VIDEO' ? (
+                <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
+              ) : null}
+              <div style={{ marginTop: 4 }}>
+                <strong>{c.child?.name ?? 'Doente'}</strong> · {svcLabel(c.type)} ·{' '}
+                {euro(c.priceCents)}
               </div>
-              <div className="muted">SLA: {when(c.slaDueAt)}</div>
+              {c.type === 'VIDEO' && c.scheduledAt ? (
+                <div style={{ color: 'var(--brand)', fontSize: 13 }}>📅 {when(c.scheduledAt)}</div>
+              ) : (
+                <div className="muted">SLA: {when(c.slaDueAt)}</div>
+              )}
             </button>
           ))}
         </div>
@@ -3242,9 +3317,14 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
     <div className="section">
       <h2>O meu perfil</h2>
       <div className="card">
-        <span className="pill ok">{me.status}</span> · ⭐ {me.ratingAvg.toFixed(1)} ·{' '}
-        {me.experienceYears ?? 0} anos
-        <div className="muted">{me.languages.join(' · ')}</div>
+        {me.displayName ? <strong>{me.displayName}</strong> : null}
+        <div style={{ marginTop: me.displayName ? 4 : 0 }}>
+          <span className="pill ok">{me.status}</span> · ⭐ {me.ratingAvg.toFixed(1)} ·{' '}
+          {me.experienceYears ?? 0} anos
+        </div>
+        <div className="muted">
+          {specLabel(me.specialties?.[0])} · {me.languages.join(' · ')}
+        </div>
       </div>
       <div className="card section">
         <h3>Bio</h3>
@@ -3952,7 +4032,10 @@ function VerifyTab({ onMsg }: { onMsg: (m: string) => void }) {
             <div key={p.id} className="card">
               <span className={p.status === 'ACTIVE' ? 'pill ok' : 'pill warn'}>{p.status}</span>
               <div>
-                <strong>{p.user?.email ?? p.specialties[0] ?? 'Pediatra'}</strong>
+                <strong>{p.displayName ?? p.user?.email ?? p.specialties[0] ?? 'Pediatra'}</strong>
+                {p.displayName && p.user?.email ? (
+                  <span className="muted"> · {p.user.email}</span>
+                ) : null}
               </div>
               <div className="muted">
                 Licença {p.licenseNumber} · ⭐ {p.ratingAvg.toFixed(1)}

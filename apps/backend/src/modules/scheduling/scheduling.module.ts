@@ -46,6 +46,12 @@ class SchedulingController {
     return this.service.slots(id, date);
   }
 
+  @Get('pediatricians/:id/next-slots')
+  @Roles(Role.PARENT)
+  nextSlots(@Param('id') id: string, @Query('days') days?: string) {
+    return this.service.nextSlots(id, days ? Number(days) : 10);
+  }
+
   @Post('book')
   @Roles(Role.PARENT)
   book(@CurrentUser() user: AuthenticatedUser, @Body() dto: BookVideoDto) {

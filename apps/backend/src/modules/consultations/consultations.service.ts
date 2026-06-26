@@ -185,6 +185,10 @@ export class ConsultationsService {
     return this.prisma.consultation.findMany({
       where: { familyId: { in: memberships.map((m) => m.familyId) } },
       orderBy: { openedAt: 'desc' },
+      include: {
+        child: { select: { id: true, name: true } },
+        pediatrician: { select: { displayName: true, specialties: true } },
+      },
     });
   }
 
@@ -205,6 +209,7 @@ export class ConsultationsService {
         status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE, ConsultationStatus.ANSWERED] },
       },
       orderBy: { slaDueAt: 'asc' },
+      include: { child: { select: { id: true, name: true, birthDate: true } } },
     });
   }
 

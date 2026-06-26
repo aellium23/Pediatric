@@ -7,7 +7,7 @@ import {
   PaymentStatus,
   ConsentSubject,
 } from '@prisma/client';
-import { createCipheriv, randomBytes, createHash } from 'crypto';
+import { createCipheriv, randomBytes, createHash, randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -76,6 +76,7 @@ async function seedPediatricians() {
       where: { userId: user.id },
       update: {
         licenseVerifiedAt: new Date(),
+        displayName: p.name,
         bio: p.bio,
         experienceYears: p.experienceYears,
         languages: p.languages,
@@ -88,6 +89,7 @@ async function seedPediatricians() {
         userId: user.id,
         licenseNumber: p.license,
         licenseVerifiedAt: new Date(),
+        displayName: p.name,
         bio: p.bio,
         experienceYears: p.experienceYears,
         languages: p.languages,
@@ -347,8 +349,10 @@ async function main(): Promise<void> {
         data: { consultationId: c1.id, familyId: silva.id, pediatricianId: inesPed.pedId, rating: 5, comment: 'Resposta rápida e tranquilizadora. Recomendo!' },
       });
 
-      // An open video consultation (shows in the inbox).
-      await prisma.consultation.create({
+      // A scheduled video consultation for today (+45 min) with a live room —
+      // log in as Dra. Inês (ines@demo.pedia) to join and simulate the call.
+      const videoAt = new Date(Date.now() + 45 * 60 * 1000);
+      const videoConsult = await prisma.consultation.create({
         data: {
           familyId: silva.id,
           childId: tomas.id,
@@ -357,7 +361,15 @@ async function main(): Promise<void> {
           status: ConsultationStatus.OPEN,
           priceCents: 4500,
           openedAt: ago(1),
-          slaDueAt: new Date(Date.now() + 23 * 3600 * 1000),
+          scheduledAt: videoAt,
+          slaDueAt: videoAt,
+        },
+      });
+      await prisma.videoSession.create({
+        data: {
+          consultationId: videoConsult.id,
+          roomId: randomUUID(),
+          scheduledAt: videoAt,
         },
       });
     }
