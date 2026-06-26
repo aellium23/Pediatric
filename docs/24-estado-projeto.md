@@ -94,8 +94,11 @@ cêntimo; reembolso total/parcial), **invoicing** (fatura do ato isenta de IVA +
 comissão a 23%; idempotência; **valor segue o split capturado**), **token**
 (rotação de refresh + deteção de reutilização → revoga sessões), **video**
 (token só a participantes + JWT LiveKit HS256 verificável), **auth** (upsert
-OIDC + *account-linking* por email + dev-login). ⏳ admin, notifications,
-testes de integração e E2E dos fluxos principais.
+OIDC + *account-linking* por email + dev-login), **ai** (estruturação SOAP:
+gating sem chave, chamada à Anthropic, surface honesto do erro upstream),
+**notifications** (fan-out de mensagem com dedup + destinatários do ciclo de
+vida). ⏳ admin (métricas/backoffice), testes de integração e E2E dos fluxos
+principais.
 
 ---
 
