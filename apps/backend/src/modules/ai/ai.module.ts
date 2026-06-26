@@ -41,24 +41,35 @@ export class AiService {
     const fetchFn = (globalThis as { fetch?: (...args: unknown[]) => Promise<unknown> }).fetch;
     if (!fetchFn) throw new ServiceUnavailableException('fetch unavailable in this runtime');
 
-    const res = (await fetchFn('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 1024,
-        system: AiService.SYSTEM,
-        messages: [{ role: 'user', content: text }],
-      }),
-    })) as { ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown> };
+    // Bound the upstream call so a hung connection can't tie up the request.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    let res: { ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown> };
+    try {
+      res = (await fetchFn('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 1024,
+          system: AiService.SYSTEM,
+          messages: [{ role: 'user', content: text }],
+        }),
+      })) as { ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown> };
+    } catch (err) {
+      this.logger.warn(`Anthropic request error: ${(err as Error).name}`);
+      throw new ServiceUnavailableException('AI request failed (network/timeout)');
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      this.logger.warn(`Anthropic ${res.status}: ${body.slice(0, 300)}`);
       let detail = `HTTP ${res.status}`;
       try {
         const j = JSON.parse(body) as { error?: { message?: string } };
@@ -66,6 +77,8 @@ export class AiService {
       } catch {
         /* non-JSON body */
       }
+      // Log status + Anthropic's own error message only — never the raw body.
+      this.logger.warn(`Anthropic ${detail}`);
       throw new ServiceUnavailableException(`AI request failed (${detail})`);
     }
 

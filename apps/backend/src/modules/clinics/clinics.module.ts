@@ -11,7 +11,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
@@ -23,8 +23,10 @@ class CreateClinicDto {
 }
 class AddStaffDto {
   @ApiProperty() @IsEmail() email!: string;
+  // Restrict to the two clinic roles — @IsEnum(Role) would accept any platform
+  // role (PLATFORM_ADMIN, FINANCE, …), a privilege-escalation vector.
   @ApiProperty({ enum: [Role.CLINIC_ADMIN, Role.CLINIC_STAFF] })
-  @IsEnum(Role)
+  @IsIn([Role.CLINIC_ADMIN, Role.CLINIC_STAFF])
   role!: Role;
 }
 class AddPediatricianDto {
@@ -114,8 +116,10 @@ export class ClinicsService {
   async addStaff(user: AuthenticatedUser, clinicId: string, dto: AddStaffDto) {
     await this.assertManage(user, clinicId);
     let member = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    // Lazily-created staff accounts are NOT email-verified — they verify on
+    // first sign-in (don't grant a verified status to an unconfirmed address).
     member ??= await this.prisma.user.create({
-      data: { email: dto.email, emailVerified: true, role: dto.role },
+      data: { email: dto.email, emailVerified: false, role: dto.role },
     });
     return this.prisma.clinicMember.upsert({
       where: { clinicId_userId: { clinicId, userId: member.id } },

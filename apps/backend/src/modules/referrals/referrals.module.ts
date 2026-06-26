@@ -127,8 +127,8 @@ export class ReferralsService {
     if (referral.toPediatricianId !== me.id) {
       throw new ForbiddenException('Only the addressed pediatrician can answer');
     }
-    if (referral.status === ReferralStatus.DECLINED) {
-      throw new BadRequestException('Referral was declined');
+    if (referral.status !== ReferralStatus.ACCEPTED) {
+      throw new BadRequestException('Referral must be accepted before answering');
     }
     const updated = await this.prisma.referral.update({
       where: { id },

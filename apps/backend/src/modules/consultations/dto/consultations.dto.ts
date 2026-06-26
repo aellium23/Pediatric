@@ -39,3 +39,10 @@ export class SendMessageDto {
   @MaxLength(4000)
   body!: string;
 }
+
+export class SummaryTextDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(20000)
+  text!: string;
+}

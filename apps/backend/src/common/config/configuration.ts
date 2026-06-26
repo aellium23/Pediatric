@@ -16,7 +16,13 @@ export interface AppConfig {
   enableDevLogin: boolean;
 }
 
-export default (): AppConfig => ({
+const DEV_DEFAULTS = {
+  JWT_ACCESS_SECRET: 'dev_access',
+  JWT_REFRESH_SECRET: 'dev_refresh',
+  FIELD_ENCRYPTION_KEY: 'dev_32byte_key_dev_32byte_key_xx',
+};
+
+const cfg = (): AppConfig => ({
   env: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3000', 10),
   jwt: {
@@ -49,3 +55,19 @@ export default (): AppConfig => ({
   // Explicit opt-in for the password-less test login (never default-on in prod).
   enableDevLogin: process.env.ENABLE_DEV_LOGIN === 'true',
 });
+
+export default (): AppConfig => {
+  // Fail fast: never run production with the built-in dev secrets — tokens
+  // would be forgeable and "encrypted" clinical fields decryptable from source.
+  if ((process.env.NODE_ENV ?? 'development') === 'production') {
+    const weak = (Object.keys(DEV_DEFAULTS) as (keyof typeof DEV_DEFAULTS)[]).filter(
+      (k) => (process.env[k] ?? DEV_DEFAULTS[k]) === DEV_DEFAULTS[k],
+    );
+    if (weak.length) {
+      throw new Error(
+        `Refusing to boot: insecure default secret(s) in production — set ${weak.join(', ')}.`,
+      );
+    }
+  }
+  return cfg();
+};

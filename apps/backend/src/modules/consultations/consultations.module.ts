@@ -5,7 +5,7 @@ import { Role } from '@prisma/client';
 import { ConsultationsService } from './consultations.service';
 import { ConsultationsGateway } from './consultations.gateway';
 import { SlaScheduler } from './sla.scheduler';
-import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
+import { StartConsultationDto, SendMessageDto, SummaryTextDto } from './dto/consultations.dto';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsModule } from '../payments/payments.module';
@@ -68,9 +68,9 @@ class ConsultationsController {
   setSummary(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body('text') text: string,
+    @Body() dto: SummaryTextDto,
   ) {
-    return this.service.setSummary(user.userId, id, text ?? '');
+    return this.service.setSummary(user.userId, id, dto.text ?? '');
   }
 
   @Post(':id/summary/structure')
@@ -78,9 +78,9 @@ class ConsultationsController {
   structureSummary(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body('text') text: string,
+    @Body() dto: SummaryTextDto,
   ) {
-    return this.service.structureSummary(user.userId, id, text ?? '');
+    return this.service.structureSummary(user.userId, id, dto.text ?? '');
   }
 
   @Post(':id/close')
