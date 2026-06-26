@@ -67,8 +67,9 @@ pipeline de **deploy automatizado para produção** (ECS) + ambiente de **stagin
 ## 9. Qualidade / testes
 ◑ e2e (health) + unit em crescimento. ✅ unit: encryption, roles.guard, reviews,
 scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
-(catálogo por perfil + rejeição de plano incompatível). ⏳ **cobertura ampla**
-dos restantes módulos novos (admin, clinics, health-records, content, privacy),
+(catálogo por perfil + rejeição de plano incompatível), **health-records**
+(controlo de acesso pai/pediatra + cálculo de IMC). ⏳ **cobertura ampla**
+dos restantes módulos novos (admin, clinics, content, privacy),
 testes de integração e E2E dos fluxos principais.
 
 ---
