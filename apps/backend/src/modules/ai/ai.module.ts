@@ -58,8 +58,15 @@ export class AiService {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      this.logger.warn(`Anthropic ${res.status}: ${body.slice(0, 200)}`);
-      throw new ServiceUnavailableException('AI request failed');
+      this.logger.warn(`Anthropic ${res.status}: ${body.slice(0, 300)}`);
+      let detail = `HTTP ${res.status}`;
+      try {
+        const j = JSON.parse(body) as { error?: { message?: string } };
+        if (j.error?.message) detail = `${res.status}: ${j.error.message}`;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ServiceUnavailableException(`AI request failed (${detail})`);
     }
 
     const data = (await res.json()) as { content?: { type: string; text?: string }[] };
