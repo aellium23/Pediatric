@@ -54,6 +54,15 @@ class EpisodeDto {
 class ActiveDto {
   @ApiProperty() @IsBoolean() active!: boolean;
 }
+class VitalDto {
+  @ApiProperty() @IsDateString() measuredAt!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() temperatureC?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() heartRateBpm?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() respRateBpm?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() spo2Pct?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() systolicMmHg?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() diastolicMmHg?: number;
+}
 
 @Injectable()
 export class HealthRecordsService {
@@ -88,11 +97,12 @@ export class HealthRecordsService {
 
   async overview(user: AuthenticatedUser, childId: string) {
     await this.assertAccess(user, childId);
-    const [growth, vaccines, medications, episodes] = await Promise.all([
+    const [growth, vaccines, medications, episodes, vitals] = await Promise.all([
       this.prisma.growthMeasurement.findMany({ where: { childId }, orderBy: { measuredAt: 'asc' } }),
       this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'desc' } }),
       this.prisma.medication.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.vital.findMany({ where: { childId }, orderBy: { measuredAt: 'desc' }, take: 50 }),
     ]);
     return {
       growth: growth.map((g) => ({
@@ -135,7 +145,33 @@ export class HealthRecordsService {
         createdAt: e.createdAt,
         closedAt: e.closedAt,
       })),
+      vitals: vitals.map((v) => ({
+        id: v.id,
+        measuredAt: v.measuredAt,
+        temperatureC: v.temperatureC,
+        heartRateBpm: v.heartRateBpm,
+        respRateBpm: v.respRateBpm,
+        spo2Pct: v.spo2Pct,
+        systolicMmHg: v.systolicMmHg,
+        diastolicMmHg: v.diastolicMmHg,
+      })),
     };
+  }
+
+  async addVital(user: AuthenticatedUser, childId: string, dto: VitalDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.vital.create({
+      data: {
+        childId,
+        measuredAt: new Date(dto.measuredAt),
+        temperatureC: dto.temperatureC,
+        heartRateBpm: dto.heartRateBpm,
+        respRateBpm: dto.respRateBpm,
+        spo2Pct: dto.spo2Pct,
+        systolicMmHg: dto.systolicMmHg,
+        diastolicMmHg: dto.diastolicMmHg,
+      },
+    });
   }
 
   async addGrowth(user: AuthenticatedUser, childId: string, dto: GrowthDto) {
@@ -220,6 +256,16 @@ class HealthRecordsController {
   @Roles(Role.PARENT, Role.PEDIATRICIAN)
   overview(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
     return this.service.overview(user, childId);
+  }
+
+  @Post(':childId/vitals')
+  @Roles(Role.PARENT)
+  vitals(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: VitalDto,
+  ) {
+    return this.service.addVital(user, childId, dto);
   }
 
   @Post(':childId/growth')

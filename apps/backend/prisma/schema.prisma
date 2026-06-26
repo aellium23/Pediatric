@@ -503,6 +503,24 @@ model GrowthMeasurement {
   @@index([childId])
 }
 
+// Point-in-time vital signs (home monitoring or during a consultation).
+// Numeric/clear so they can drive trends and alerts; no free-text PII.
+model Vital {
+  id             String   @id @default(uuid())
+  childId        String
+  measuredAt     DateTime
+  temperatureC   Float?
+  heartRateBpm   Int?
+  respRateBpm    Int?
+  spo2Pct        Int?
+  systolicMmHg   Int?
+  diastolicMmHg  Int?
+  consultationId String?
+  createdAt      DateTime @default(now())
+
+  @@index([childId])
+}
+
 model Vaccination {
   id        String   @id @default(uuid())
   childId   String
