@@ -2205,7 +2205,10 @@ function TriageDialog({
       </div>
 
       {severe ? (
-        <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', marginTop: 12 }}>
+        <div
+          className="card"
+          style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14', marginTop: 12 }}
+        >
           <strong style={{ color: '#d7263d' }}>⚠️ Sinais de alarme</strong>
           <p style={{ margin: '6px 0' }}>
             Estes sintomas podem ser urgentes. Liga <strong>112</strong> ou recorre à urgência. A
