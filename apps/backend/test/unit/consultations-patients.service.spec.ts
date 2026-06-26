@@ -39,7 +39,7 @@ describe('ConsultationsService — patient chart', () => {
       expect(out).toHaveLength(1);
       expect(out[0].name).toBe('Família Silva');
       expect(out[0].children).toHaveLength(2);
-      const ana = out[0].children.find((c: any) => c.id === 'c1');
+      const ana = out[0].children.find((c) => c.id === 'c1')!;
       expect(ana.consultationCount).toBe(2);
       expect(ana.lastConsultAt).toEqual(new Date('2026-03-01'));
     });

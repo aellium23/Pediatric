@@ -110,7 +110,15 @@ export class ConsultationsService {
       stat.set(c.childId, s);
     }
 
-    const byFamily = new Map<string, { id: string; name: string; children: unknown[] }>();
+    type PatientChild = {
+      id: string;
+      name: string;
+      birthDate: Date;
+      sex: string | null;
+      consultationCount: number;
+      lastConsultAt: Date | null;
+    };
+    const byFamily = new Map<string, { id: string; name: string; children: PatientChild[] }>();
     for (const fam of families) {
       byFamily.set(fam.id, { id: fam.id, name: fam.name, children: [] });
     }
