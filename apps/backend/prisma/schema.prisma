@@ -172,6 +172,8 @@ model Pediatrician {
 
   services      PediatricianService[]
   consultations Consultation[]
+  referralsSent     Referral[] @relation("ReferralsSent")
+  referralsReceived Referral[] @relation("ReferralsReceived")
 
   @@index([status])
 }
@@ -237,6 +239,7 @@ model Consultation {
   payment      Payment?
   invoice      Invoice?
   videoSession VideoSession?
+  referrals    Referral[]
 
   @@index([pediatricianId, status])
   @@index([familyId])
@@ -562,4 +565,32 @@ model Article {
   updatedAt    DateTime @updatedAt
 
   @@index([published])
+}
+
+// ── Doctor-to-doctor second opinion (referrals) ──────
+enum ReferralStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+}
+
+model Referral {
+  id                 String         @id @default(uuid())
+  consultationId     String
+  consultation       Consultation   @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  fromPediatricianId String
+  fromPediatrician   Pediatrician   @relation("ReferralsSent", fields: [fromPediatricianId], references: [id])
+  toPediatricianId   String
+  toPediatrician     Pediatrician   @relation("ReferralsReceived", fields: [toPediatricianId], references: [id])
+  status             ReferralStatus @default(PENDING)
+  reason             String         // clinical context, AES-256-GCM
+  opinion            String?        // colleague's opinion, AES-256-GCM
+  createdAt          DateTime       @default(now())
+  respondedAt        DateTime?
+  completedAt        DateTime?
+
+  @@index([toPediatricianId, status])
+  @@index([fromPediatricianId])
+  @@index([consultationId])
 }

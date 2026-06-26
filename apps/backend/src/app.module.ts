@@ -29,6 +29,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ContentModule } from './modules/content/content.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ContentModule } from './modules/content/content.module';
     ObservabilityModule,
     PrivacyModule,
     ContentModule,
+    ReferralsModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.
