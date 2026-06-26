@@ -30,10 +30,16 @@ export class InvoicingService {
     });
     if (existing) return;
 
+    // Gross paid by the family = pediatrician's share + platform fee. Derive it
+    // once so the issued document and the stored record can never drift (in the
+    // happy path it equals consultation.priceCents, but the captured split is
+    // the source of truth for what was actually billed).
+    const grossCents = event.pediatricianAmount + event.platformFeeCents;
+
     const issued = await this.billing.issueInvoice({
       consultationId: consultation.id,
       issuer: 'pediatrician',
-      amountCents: event.pediatricianAmount + event.platformFeeCents,
+      amountCents: grossCents,
       vatCents: 0,
       vatRegime: 'exempt',
       description: `Consulta de pediatria (${consultation.type})`,
@@ -43,7 +49,7 @@ export class InvoicingService {
       data: {
         consultationId: consultation.id,
         issuer: 'pediatrician',
-        amountCents: consultation.priceCents,
+        amountCents: grossCents,
         vatCents: 0,
         vatRegime: 'exempt',
         atcud: issued.atcud,
