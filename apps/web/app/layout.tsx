@@ -4,6 +4,7 @@ import './globals.css';
 import { LanguageProvider } from '@/lib/i18n';
 import { ThemeProvider } from '@/lib/theme';
 import { RegisterSW } from '@/lib/sw-register';
+import { RecoverOnResume } from '@/lib/lifecycle';
 
 export const metadata: Metadata = {
   title: 'HOC — Healthcare on Call',
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <LanguageProvider>{children}</LanguageProvider>
         </ThemeProvider>
         <RegisterSW />
+        <RecoverOnResume />
       </body>
     </html>
   );
