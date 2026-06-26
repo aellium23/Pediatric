@@ -2558,6 +2558,14 @@ function ageLabel(birthDate: string): string {
   if (y === 0) return `${m} ${m === 1 ? 'mês' : 'meses'}`;
   return m === 0 ? `${y} ${y === 1 ? 'ano' : 'anos'}` : `${y}a ${m}m`;
 }
+function ageMonths(birthDate: string): number {
+  const b = new Date(birthDate);
+  const now = new Date();
+  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  if (now.getDate() < b.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
 /** Longitudinal chart for one child: consultation timeline + health record. */
 function ChildChart({
   childId,
@@ -2574,19 +2582,22 @@ function ChildChart({
 }) {
   const [history, setHistory] = useState<ChildHistory | null>(null);
   const [health, setHealth] = useState<HealthOverview | null>(null);
+  const [dueVax, setDueVax] = useState<{ abbr: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        const [h, hc] = await Promise.all([
+        const [h, hc, due] = await Promise.all([
           Api.childHistory(childId),
           Api.childHealth(childId).catch(() => null),
+          Api.catVaccines(ageMonths(birthDate)).catch(() => []),
         ]);
         if (!live) return;
         setHistory(h);
         setHealth(hc);
+        setDueVax(due.map((v) => ({ abbr: v.abbr, name: v.name })));
       } catch (e) {
         onMsg(`Erro a carregar o doente: ${String(e)}`);
       } finally {
@@ -2604,6 +2615,16 @@ function ChildChart({
     .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.weightKg as number }));
   const activeMeds = (health?.medications ?? []).filter((m) => m.active);
   const openProblems = (health?.episodes ?? []).filter((e) => e.status !== 'CLOSED');
+  // Vaccines whose scheduled age has passed but that aren't recorded by PNV code.
+  const recordedPnv = new Set(
+    (health?.vaccines ?? []).map((v) => v.pnvAbbr).filter(Boolean) as string[],
+  );
+  const seenAbbr = new Set<string>();
+  const overdueVax = dueVax.filter((v) => {
+    if (recordedPnv.has(v.abbr) || seenAbbr.has(v.abbr)) return false;
+    seenAbbr.add(v.abbr);
+    return true;
+  });
 
   return (
     <div className="section">
@@ -2618,6 +2639,22 @@ function ChildChart({
         <Skeleton rows={3} />
       ) : (
         <>
+          {overdueVax.length > 0 ? (
+            <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
+              <strong>⚠️ Vacinas possivelmente em atraso</strong>
+              <div className="muted" style={{ marginTop: 4 }}>
+                Para a idade ({ageLabel(birthDate)}), sem registo destas vacinas do PNV — confirmar
+                com o boletim:
+              </div>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {overdueVax.map((v) => (
+                  <li key={v.abbr}>
+                    {v.name} <span className="pill">{v.abbr}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="card">
             <strong>Problemas ativos</strong>
             {openProblems.length === 0 ? (
