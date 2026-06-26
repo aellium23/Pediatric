@@ -141,7 +141,7 @@ export const Api = {
 
   // Parent
   children: () => request('/children') as Promise<ChildDto[]>,
-  addChild: (data: { name: string; birthDate: string; healthDataConsent: boolean }) =>
+  addChild: (data: { name: string; birthDate: string; sex?: string; healthDataConsent: boolean }) =>
     request('/children', { method: 'POST', body: JSON.stringify(data) }),
   pediatricians: (filters?: {
     specialty?: string;

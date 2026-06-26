@@ -1147,6 +1147,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [sex, setSex] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ChildDto | null>(null);
@@ -1168,9 +1169,10 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
     if (!consent) return onMsg('Tens de autorizar o tratamento de dados de saúde.');
     setBusy(true);
     try {
-      await Api.addChild({ name, birthDate, healthDataConsent: true });
+      await Api.addChild({ name, birthDate, sex: sex || undefined, healthDataConsent: true });
       setName('');
       setBirthDate('');
+      setSex('');
       setConsent(false);
       onMsg('Criança adicionada ✓');
       await load();
@@ -1209,6 +1211,11 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
         <h3>Adicionar criança</h3>
         <input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
         <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+        <select value={sex} onChange={(e) => setSex(e.target.value)} style={{ display: 'block', margin: '8px 0' }}>
+          <option value="">Sexo (para percentis WHO)…</option>
+          <option value="M">Masculino</option>
+          <option value="F">Feminino</option>
+        </select>
         <label className="muted" style={{ display: 'block', margin: '8px 0' }}>
           <input
             type="checkbox"
