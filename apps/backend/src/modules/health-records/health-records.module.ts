@@ -22,6 +22,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { evaluate, evaluateBmi, centileBands, sexCode } from '../../common/growth/who-growth';
 
 class GrowthDto {
   @ApiProperty() @IsDateString() measuredAt!: string;
@@ -71,7 +72,8 @@ export class HealthRecordsService {
     private readonly crypto: EncryptionService,
   ) {}
 
-  /** Parent must own the child; pediatrician must share a consultation with them. */
+  /** Parent must own the child; pediatrician must share a consultation with them.
+   *  Returns the child so callers can use its birthDate/sex (e.g. WHO percentiles). */
   private async assertAccess(user: AuthenticatedUser, childId: string) {
     const child = await this.prisma.child.findUnique({ where: { id: childId } });
     if (!child) throw new ForbiddenException('Child not found');
@@ -80,7 +82,7 @@ export class HealthRecordsService {
         where: { userId: user.userId, familyId: child.familyId },
       });
       if (!member) throw new ForbiddenException('Not authorized for this child');
-      return;
+      return child;
     }
     if (user.role === Role.PEDIATRICIAN) {
       const ped = await this.prisma.pediatrician.findUnique({ where: { userId: user.userId } });
@@ -90,13 +92,13 @@ export class HealthRecordsService {
           })
         : null;
       if (!link) throw new ForbiddenException('No consultation with this child');
-      return;
+      return child;
     }
     throw new ForbiddenException('Not authorized');
   }
 
   async overview(user: AuthenticatedUser, childId: string) {
-    await this.assertAccess(user, childId);
+    const child = await this.assertAccess(user, childId);
     const [growth, vaccines, medications, episodes, vitals] = await Promise.all([
       this.prisma.growthMeasurement.findMany({ where: { childId }, orderBy: { measuredAt: 'asc' } }),
       this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'desc' } }),
@@ -104,18 +106,39 @@ export class HealthRecordsService {
       this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.vital.findMany({ where: { childId }, orderBy: { measuredAt: 'desc' }, take: 50 }),
     ]);
+
+    // WHO percentiles (0–5y): needs the child's sex and age at each measurement.
+    const sex = sexCode(child.sex);
+    const ageDaysAt = (when: Date) =>
+      Math.floor((when.getTime() - new Date(child.birthDate).getTime()) / 86_400_000);
     return {
-      growth: growth.map((g) => ({
-        id: g.id,
-        measuredAt: g.measuredAt,
-        heightCm: g.heightCm,
-        weightKg: g.weightKg,
-        headCm: g.headCm,
-        bmi:
+      who: sex ? { sex: sex === 1 ? 'M' : 'F', source: 'WHO Child Growth Standards 0–5y' } : null,
+      growth: growth.map((g) => {
+        const ageDays = ageDaysAt(g.measuredAt);
+        const bmi =
           g.heightCm && g.weightKg
             ? Math.round((g.weightKg / Math.pow(g.heightCm / 100, 2)) * 10) / 10
-            : null,
-      })),
+            : null;
+        const wfa = sex && g.weightKg ? evaluate('wfa', sex, ageDays, g.weightKg) : null;
+        const lhfa = sex && g.heightCm ? evaluate('lhfa', sex, ageDays, g.heightCm) : null;
+        const bfa = sex && bmi ? evaluateBmi(sex, ageDays, bmi) : null;
+        return {
+          id: g.id,
+          measuredAt: g.measuredAt,
+          ageDays,
+          heightCm: g.heightCm,
+          weightKg: g.weightKg,
+          headCm: g.headCm,
+          bmi,
+          weightP: wfa?.percentile ?? null,
+          weightZ: wfa?.z ?? null,
+          heightP: lhfa?.percentile ?? null,
+          heightZ: lhfa?.z ?? null,
+          bmiP: bfa?.percentile ?? null,
+          bmiZ: bfa?.z ?? null,
+          bmiClass: bfa?.classification ?? null,
+        };
+      }),
       vaccines: vaccines.map((v) => ({
         id: v.id,
         name: this.crypto.decrypt(v.name),
@@ -155,6 +178,19 @@ export class HealthRecordsService {
         systolicMmHg: v.systolicMmHg,
         diastolicMmHg: v.diastolicMmHg,
       })),
+      // WHO P3–P97 reference curves for the chart to draw under the child's
+      // points (only when sex is known and there is something to plot).
+      whoBands:
+        sex && growth.length
+          ? (() => {
+              const maxAge = Math.max(...growth.map((g) => ageDaysAt(g.measuredAt)), 0);
+              return {
+                wfa: centileBands('wfa', sex, maxAge),
+                lhfa: centileBands('lhfa', sex, maxAge),
+                bfa: centileBands('bfa', sex, maxAge),
+              };
+            })()
+          : null,
     };
   }
 
