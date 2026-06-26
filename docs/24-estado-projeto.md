@@ -97,8 +97,9 @@ comissão a 23%; idempotência; **valor segue o split capturado**), **token**
 OIDC + *account-linking* por email + dev-login), **ai** (estruturação SOAP:
 gating sem chave, chamada à Anthropic, surface honesto do erro upstream),
 **notifications** (fan-out de mensagem com dedup + destinatários do ciclo de
-vida). ⏳ admin (métricas/backoffice), testes de integração e E2E dos fluxos
-principais.
+vida), **admin** (KPIs: gross/comissão a partir dos splits + filas de
+verificação + revisão de documentos + mudança de role). ⏳ testes de
+integração e E2E dos fluxos principais.
 
 ---
 
