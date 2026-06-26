@@ -49,6 +49,32 @@ describe('ConsultationsService', () => {
     expect(events.emit).toHaveBeenCalledWith('payment.captured', expect.anything());
   });
 
+  it('setSummary() rejects a caller who is not the assigned pediatrician', async () => {
+    const { service } = build({ pediatrician: { userId: 'someone-else' } });
+    await expect(service.setSummary('ped-user', 'c1', 'nota')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('setSummary() encrypts the note before persisting it', async () => {
+    const { service, prisma } = build();
+    await service.setSummary('ped-user', 'c1', 'nota clínica');
+    expect(prisma.consultation.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { summary: 'enc(nota clínica)' },
+    });
+  });
+
+  it('getSummary() returns the decrypted note to a participant', async () => {
+    const { service, prisma } = build();
+    prisma.consultation.findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'c1', familyId: 'f1', pediatrician: { userId: 'ped-user' } })
+      .mockResolvedValueOnce({ summary: 'texto-decifrado' });
+    const result = await service.getSummary('ped-user', 'c1');
+    expect(result).toEqual({ summary: 'texto-decifrado' });
+  });
+
   it('expireOverdue() refunds and expires consultations past SLA', async () => {
     const { service, prisma, payments, events } = build();
     const count = await service.expireOverdue();

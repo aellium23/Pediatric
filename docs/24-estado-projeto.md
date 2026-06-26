@@ -65,9 +65,11 @@ pipeline de **deploy automatizado para produção** (ECS) + ambiente de **stagin
 🔑(Mac/conta Apple) + compliance de loja (privacy labels, classificação etária).
 
 ## 9. Qualidade / testes
-◑ e2e (health) + scaffolding unit. ⏳ **cobertura ampla** dos módulos novos
-(admin, clinics, health-records, subscriptions, content, privacy), testes de
-integração e E2E dos fluxos principais.
+◑ e2e (health) + unit em crescimento. ✅ unit: encryption, roles.guard, reviews,
+scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
+(catálogo por perfil + rejeição de plano incompatível). ⏳ **cobertura ampla**
+dos restantes módulos novos (admin, clinics, health-records, content, privacy),
+testes de integração e E2E dos fluxos principais.
 
 ---
 
