@@ -30,6 +30,7 @@ import { ObservabilityModule } from './modules/observability/observability.modul
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ContentModule } from './modules/content/content.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
     PrivacyModule,
     ContentModule,
     ReferralsModule,
+    CatalogModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.
