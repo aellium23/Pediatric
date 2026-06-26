@@ -33,15 +33,23 @@ class VaccineDto {
   @ApiProperty() @IsString() @MaxLength(200) name!: string;
   @ApiProperty() @IsDateString() date!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) pnvAbbr?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) cvx?: string;
 }
 class MedicationDto {
   @ApiProperty() @IsString() @MaxLength(200) name!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) dose?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() startedAt?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) atcCode?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) route?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) frequency?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsNumber() durationDays?: number;
 }
 class EpisodeDto {
   @ApiProperty() @IsString() @MaxLength(200) title!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(2000) summary?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) icpc2Code?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) icd10Code?: string;
 }
 class ActiveDto {
   @ApiProperty() @IsBoolean() active!: boolean;
@@ -103,11 +111,17 @@ export class HealthRecordsService {
         name: this.crypto.decrypt(v.name),
         date: v.date,
         notes: this.crypto.decrypt(v.notes),
+        pnvAbbr: v.pnvAbbr,
+        cvx: v.cvx,
       })),
       medications: medications.map((m) => ({
         id: m.id,
         name: this.crypto.decrypt(m.name),
         dose: this.crypto.decrypt(m.dose),
+        atcCode: m.atcCode,
+        route: m.route,
+        frequency: m.frequency,
+        durationDays: m.durationDays,
         active: m.active,
         startedAt: m.startedAt,
       })),
@@ -115,6 +129,8 @@ export class HealthRecordsService {
         id: e.id,
         title: this.crypto.decrypt(e.title),
         summary: this.crypto.decrypt(e.summary),
+        icpc2Code: e.icpc2Code,
+        icd10Code: e.icd10Code,
         status: e.status,
         createdAt: e.createdAt,
         closedAt: e.closedAt,
@@ -143,6 +159,8 @@ export class HealthRecordsService {
         name: this.crypto.encrypt(dto.name) as string,
         date: new Date(dto.date),
         notes: this.crypto.encrypt(dto.notes),
+        pnvAbbr: dto.pnvAbbr,
+        cvx: dto.cvx,
       },
     });
   }
@@ -154,6 +172,10 @@ export class HealthRecordsService {
         childId,
         name: this.crypto.encrypt(dto.name) as string,
         dose: this.crypto.encrypt(dto.dose),
+        atcCode: dto.atcCode,
+        route: dto.route,
+        frequency: dto.frequency,
+        durationDays: dto.durationDays,
         startedAt: dto.startedAt ? new Date(dto.startedAt) : null,
       },
     });
@@ -172,6 +194,8 @@ export class HealthRecordsService {
         childId,
         title: this.crypto.encrypt(dto.title) as string,
         summary: this.crypto.encrypt(dto.summary),
+        icpc2Code: dto.icpc2Code,
+        icd10Code: dto.icd10Code,
       },
     });
   }

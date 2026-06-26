@@ -509,19 +509,25 @@ model Vaccination {
   name      String // encrypted
   date      DateTime
   notes     String? // encrypted
+  pnvAbbr   String? // PNV short code (clear, for schedule tracking)
+  cvx       String? // CDC CVX code (clear)
   createdAt DateTime @default(now())
 
   @@index([childId])
 }
 
 model Medication {
-  id        String    @id @default(uuid())
-  childId   String
-  name      String // encrypted
-  dose      String? // encrypted
-  active    Boolean   @default(true)
-  startedAt DateTime?
-  createdAt DateTime  @default(now())
+  id           String    @id @default(uuid())
+  childId      String
+  name         String // encrypted
+  dose         String? // encrypted
+  atcCode      String? // WHO ATC code (clear, for coded entry)
+  route        String? // oral, tópica, inalada, etc.
+  frequency    String? // e.g. "8/8h"
+  durationDays Int?
+  active       Boolean   @default(true)
+  startedAt    DateTime?
+  createdAt    DateTime  @default(now())
 
   @@index([childId])
 }
@@ -531,6 +537,8 @@ model Episode {
   childId   String
   title     String // encrypted
   summary   String? // encrypted
+  icpc2Code String? // ICPC-2 code (clear, for problem list / analytics)
+  icd10Code String? // mapped ICD-10 (clear)
   status    String    @default("OPEN")
   createdAt DateTime  @default(now())
   closedAt  DateTime?
