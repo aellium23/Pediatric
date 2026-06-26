@@ -33,9 +33,23 @@ de código**.
 | `LIVEKIT_API_SECRET` | API secret. |
 
 Com as três definidas, `GET /video/:consultationId/token` emite um **JWT LiveKit
-real** (HS256 com *video grant*) aceite por qualquer SDK LiveKit. Sem elas, emite
-um token de demonstração (o fluxo funciona, sem media real). Requer **DPA** com o
+real** (HS256 com *video grant*) aceite por qualquer SDK LiveKit, e a **app web
+abre uma sala de vídeo real** (`apps/web/.../VideoRoom.tsx` com
+`@livekit/components-react` — câmara, áudio, controlos). Sem elas, emite um token
+de demonstração (o fluxo funciona, sem media real). Requer **DPA** com o
 fornecedor UE antes de produção (ver doc 13/14).
+
+## AI — assistente de documentação clínica (Anthropic Claude)
+| Variável | Descrição |
+|---|---|
+| `ANTHROPIC_API_KEY` | Chave da API Anthropic (`sk-ant-…`). Sem ela, `POST /consultations/:id/summary/structure` ("Estruturar com IA") responde **503**. |
+| `ANTHROPIC_MODEL` | Modelo a usar (default `claude-haiku-4-5`). |
+
+Limpa/estrutura em **SOAP** a nota ditada ou escrita pelo pediatra, corrigindo
+termos de transcrição **sem inventar factos**. Chamada **server-side** (a chave
+nunca chega ao browser); o pediatra **revê antes de guardar**. Enviar texto
+clínico a um LLM é processamento de dados de saúde → **DPA + residência UE +
+consentimento** antes de produção (ver doc 26).
 
 ## Notificações push — FCM / APNs
 | Variável | Descrição |
@@ -83,6 +97,7 @@ modo simulado. Ver docs 12 e 13.
 ## Checklist de go-live
 - [ ] Stripe live + webhooks + MB WAY ativo + Connect testado
 - [ ] LiveKit UE provisionado + DPA assinado
+- [ ] Anthropic: `ANTHROPIC_API_KEY` + DPA + residência UE + consentimento (ou STT/LLM europeu)
 - [ ] FCM/APNs com apps publicadas
 - [ ] S3+KMS + IAM mínimo
 - [ ] Apple/Google OIDC de produção; `ENABLE_DEV_LOGIN` **desligado**

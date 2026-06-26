@@ -12,13 +12,14 @@ enterprise. Legenda: ✅ feito · ◑ parcial / a degradar até config · ⏳ po
 | **2 · Vídeo + Agenda** | ◑ | Agenda ✅, vídeo **media real** ✅ (sala LiveKit no web + token HS256 no backend; ativa com `LIVEKIT_*`), reembolsos/cancelamentos ✅, episódios ✅, notas/resumo pós-consulta ✅. Falta **lembretes push** 🔑, **Apple/Google Pay** 🔑(Stripe). |
 | **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n PT/EN/ES ✅, **partilha médico-médico** ✅. Falta **AI administrativa** (resumos), **percentis WHO** (temos IMC), **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
 
-## 2. Produto / funcional (backend = 19 módulos, 33 modelos)
+## 2. Produto / funcional (backend = 21 módulos, 35 modelos)
 Tudo o que não precisa de serviços externos está **implementado e em produção**:
 auth, children, **health-records** (crescimento/IMC, vacinas, medicação, episódios),
 consultations (mensagem + vídeo + SLA + triagem + episódios), pediatricians
 (perfil/serviços/reviews/favoritos), scheduling, video (token), payments,
 invoicing, subscriptions, clinics, content, notifications, files, privacy (RGPD),
-admin (backoffice), observability.
+admin (backoffice), observability, **referrals** (2ª opinião médico-médico),
+**ai** (estruturação SOAP da nota por Claude).
 
 **Feito recentemente:** ✅ **notas/resumo pós-consulta** (cifrado) · ✅ **gráfico de
 crescimento** (altura/peso ao longo do tempo).
@@ -28,8 +29,10 @@ cifrados: pedido + aceitar/recusar + parecer; backend + UI do pediatra) ·
 ✅ **gestão documental de verificação** (pediatra submete cédula/diploma/seguro;
 compliance aprova/recusa com nota; o binário usa o presign S3 quando ativo 🔑).
 
-**Feito recentemente (cont.):** ✅ **rascunho estruturado do resumo** (esqueleto
-SOAP pré-preenchido a partir da triagem; helper de template, não IA externa).
+**Feito recentemente (cont.):** ✅ **resumo pós-consulta** com **dois caminhos** —
+(1) rascunho SOAP determinístico a partir da triagem (`genDraft`, sem IA) e
+(2) **estruturação por LLM** (Claude, botão "Estruturar com IA", atrás de
+`ANTHROPIC_API_KEY`) · ✅ **ditado de voz** da nota (Web Speech API).
 
 **Por fazer (produto):** **percentis WHO** — ◑ motor LMS (z-score, percentil,
 classificação WHO, interpolação) **implementado e testado** (`common/growth/lms.ts`);

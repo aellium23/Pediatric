@@ -14,8 +14,19 @@ serviço de voz do browser (ex.: Chrome → Google), pelo que o **texto ditado �
 processado por esse serviço**; para produção, trocar por um STT europeu com DPA.
 Frontend-only; degrada com elegância se o browser não suportar.
 
-A secção seguinte descreve a **Via B** (transcrição ambiente de toda a consulta
-+ LLM), ainda planeada.
+## 0b. Estruturação SOAP por LLM (implementado)
+Para além do ditado, há já uma passagem **LLM real** (`AiService` →
+`POST /consultations/:id/summary/structure`, botão "✨ Estruturar com IA"):
+pega na nota ditada/escrita e, com o **Claude** (default `claude-haiku-4-5`),
+corrige os termos de transcrição a partir do contexto e organiza em SOAP — **sem
+inventar factos**. Chamada server-side (a chave nunca chega ao browser, timeout
+de 30s, só regista o status/erro da Anthropic, nunca o corpo); o pediatra **revê
+antes de guardar**. Ativa com `ANTHROPIC_API_KEY`; sem ela responde 503.
+Enviar texto clínico a um LLM é processamento de dados de saúde → produção exige
+**DPA + residência UE + consentimento**.
+
+A secção seguinte descreve a **Via B** (transcrição **ambiente** de toda a
+consulta — captar o áudio em direto + STT + LLM), ainda planeada.
 
 ## 1. Objetivo
 Durante uma consulta de vídeo, captar o áudio, transcrever e gerar um **rascunho
