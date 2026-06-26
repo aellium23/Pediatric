@@ -98,8 +98,12 @@ OIDC + *account-linking* por email + dev-login), **ai** (estruturação SOAP:
 gating sem chave, chamada à Anthropic, surface honesto do erro upstream),
 **notifications** (fan-out de mensagem com dedup + destinatários do ciclo de
 vida), **admin** (KPIs: gross/comissão a partir dos splits + filas de
-verificação + revisão de documentos + mudança de role). ⏳ testes de
-integração e E2E dos fluxos principais.
+verificação + revisão de documentos + mudança de role).
+✅ **integração/E2E sobre base de dados real** (Postgres do CI): **children-flow**
+(auth→RBAC→validação→cifra de campo→consentimento→ownership→rotação de refresh)
+e **consultation-flow** (marcação→mensagens cifradas→resumo cifrado→ciclo
+OPEN→ANSWERED→CLOSED→REFUNDED, com autorização de participante). ⏳ alargar E2E
+a pagamentos reais (Stripe) e faturação (precisa credenciais de teste).
 
 ---
 
