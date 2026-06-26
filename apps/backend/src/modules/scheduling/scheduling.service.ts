@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
@@ -13,6 +14,8 @@ import { SetAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
 
 @Injectable()
 export class SchedulingService {
+  private readonly logger = new Logger('Scheduling');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
@@ -133,10 +136,17 @@ export class SchedulingService {
       },
     });
 
-    const { clientSecret } = await this.payments.createIntentForConsultation(
-      userId,
-      consultation.id,
-    );
+    // Payment pre-auth is best-effort: the booking (consultation + video
+    // session) is already persisted, so a payment hiccup (missing/invalid
+    // Stripe key, PSP outage) must not fail the booking — it can be collected
+    // or retried later.
+    let clientSecret: string | null = null;
+    try {
+      const intent = await this.payments.createIntentForConsultation(userId, consultation.id);
+      clientSecret = intent.clientSecret;
+    } catch (err) {
+      this.logger.warn(`Payment intent failed for ${consultation.id}: ${String(err)}`);
+    }
 
     return { consultationId: consultation.id, roomId: session.roomId, clientSecret };
   }
