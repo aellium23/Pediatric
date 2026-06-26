@@ -55,6 +55,11 @@ class EpisodeDto {
 class ActiveDto {
   @ApiProperty() @IsBoolean() active!: boolean;
 }
+class AllergyDto {
+  @ApiProperty() @IsString() @MaxLength(200) label!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) code?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) category?: string;
+}
 class VitalDto {
   @ApiProperty() @IsDateString() measuredAt!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsNumber() temperatureC?: number;
@@ -99,12 +104,13 @@ export class HealthRecordsService {
 
   async overview(user: AuthenticatedUser, childId: string) {
     const child = await this.assertAccess(user, childId);
-    const [growth, vaccines, medications, episodes, vitals] = await Promise.all([
+    const [growth, vaccines, medications, episodes, vitals, allergies] = await Promise.all([
       this.prisma.growthMeasurement.findMany({ where: { childId }, orderBy: { measuredAt: 'asc' } }),
       this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'desc' } }),
       this.prisma.medication.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.vital.findMany({ where: { childId }, orderBy: { measuredAt: 'desc' }, take: 50 }),
+      this.prisma.allergy.findMany({ where: { childId }, orderBy: { createdAt: 'desc' } }),
     ]);
 
     // WHO percentiles (0–5y): needs the child's sex and age at each measurement.
@@ -178,6 +184,12 @@ export class HealthRecordsService {
         systolicMmHg: v.systolicMmHg,
         diastolicMmHg: v.diastolicMmHg,
       })),
+      allergies: allergies.map((a) => ({
+        id: a.id,
+        label: this.crypto.decrypt(a.label),
+        code: a.code,
+        category: a.category,
+      })),
       // WHO P3–P97 reference curves for the chart to draw under the child's
       // points (only when sex is known and there is something to plot).
       whoBands:
@@ -192,6 +204,24 @@ export class HealthRecordsService {
             })()
           : null,
     };
+  }
+
+  async addAllergy(user: AuthenticatedUser, childId: string, dto: AllergyDto) {
+    await this.assertAccess(user, childId);
+    return this.prisma.allergy.create({
+      data: {
+        childId,
+        label: this.crypto.encrypt(dto.label) as string,
+        code: dto.code,
+        category: dto.category,
+      },
+    });
+  }
+
+  async removeAllergy(user: AuthenticatedUser, childId: string, id: string) {
+    await this.assertAccess(user, childId);
+    await this.prisma.allergy.deleteMany({ where: { id, childId } });
+    return { ok: true };
   }
 
   async addVital(user: AuthenticatedUser, childId: string, dto: VitalDto) {
@@ -302,6 +332,26 @@ class HealthRecordsController {
     @Body() dto: VitalDto,
   ) {
     return this.service.addVital(user, childId, dto);
+  }
+
+  @Post(':childId/allergies')
+  @Roles(Role.PARENT)
+  addAllergy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: AllergyDto,
+  ) {
+    return this.service.addAllergy(user, childId, dto);
+  }
+
+  @Post(':childId/allergies/:id/remove')
+  @Roles(Role.PARENT)
+  removeAllergy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.removeAllergy(user, childId, id);
   }
 
   @Post(':childId/growth')

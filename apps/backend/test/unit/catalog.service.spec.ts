@@ -51,6 +51,33 @@ describe('CatalogService', () => {
     });
   });
 
+  describe('checkDrugAllergy', () => {
+    it('flags a direct drug-class clash', () => {
+      // Penicillin allergy + amoxicillin (J01CA04) → direct hit.
+      const hits = svc.checkDrugAllergy(['DRUG_PENICILLIN'], 'J01CA04');
+      expect(hits).toEqual([{ code: 'DRUG_PENICILLIN', cross: false }]);
+    });
+
+    it('flags beta-lactam cross-reactivity (penicillin allergy ↔ cephalosporin)', () => {
+      const hits = svc.checkDrugAllergy(['DRUG_PENICILLIN'], 'J01DC02'); // cefuroxime
+      expect(hits).toEqual([{ code: 'DRUG_PENICILLIN', cross: true }]);
+    });
+
+    it('does not flag an unrelated drug', () => {
+      expect(svc.checkDrugAllergy(['DRUG_PENICILLIN'], 'N02BE01')).toEqual([]); // paracetamol
+    });
+
+    it('flags NSAID allergy for ibuprofen and aspirin', () => {
+      expect(svc.checkDrugAllergy(['DRUG_NSAID'], 'M01AE01')).toHaveLength(1);
+      expect(svc.checkDrugAllergy(['DRUG_NSAID'], 'N02BA01')).toHaveLength(1);
+    });
+
+    it('returns nothing for empty input', () => {
+      expect(svc.checkDrugAllergy([], 'J01CA04')).toEqual([]);
+      expect(svc.checkDrugAllergy(['DRUG_PENICILLIN'], '')).toEqual([]);
+    });
+  });
+
   describe('doseForWeight', () => {
     it('computes paracetamol 15 mg/kg/dose and caps at the max', () => {
       const d = svc.doseForWeight('N02BE01', 10);

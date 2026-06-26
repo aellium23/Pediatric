@@ -505,6 +505,17 @@ model GrowthMeasurement {
 
 // Point-in-time vital signs (home monitoring or during a consultation).
 // Numeric/clear so they can drive trends and alerts; no free-text PII.
+model Allergy {
+  id        String   @id @default(uuid())
+  childId   String
+  code      String? // catalog allergen code (clear, for drug-conflict matching)
+  label     String // encrypted display label
+  category  String? // farmaco | alimento | ambiental (clear)
+  createdAt DateTime @default(now())
+
+  @@index([childId])
+}
+
 model Vital {
   id             String   @id @default(uuid())
   childId        String

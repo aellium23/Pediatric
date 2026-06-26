@@ -20,6 +20,7 @@ function build(prismaOverrides: Record<string, any> = {}) {
     medication: { findMany: jest.fn().mockResolvedValue([]) },
     episode: { findMany: jest.fn().mockResolvedValue([]) },
     vital: { findMany: jest.fn().mockResolvedValue([]) },
+    allergy: { findMany: jest.fn().mockResolvedValue([]) },
     ...prismaOverrides,
   };
   return { service: new HealthRecordsService(prisma, crypto), prisma };

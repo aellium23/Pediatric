@@ -49,6 +49,41 @@ export class CatalogService {
     return VACCINES;
   }
 
+  /**
+   * Drug-class allergy cross-check: maps each drug allergen to the ATC prefixes
+   * it contraindicates, and reports which of the child's recorded allergens
+   * clash with a medication's ATC code. A safety prompt, not a hard block —
+   * cross-reactivity (e.g. penicillin↔cephalosporin) is intentionally flagged.
+   */
+  private static readonly ALLERGEN_ATC: Record<string, string[]> = {
+    DRUG_PENICILLIN: ['J01C', 'J01CR'], // penicillins (+ combinations)
+    DRUG_CEPHALOSPORIN: ['J01D'],
+    DRUG_NSAID: ['M01A', 'N02BA'], // NSAIDs + acetylsalicylic acid
+    DRUG_SULFA: ['J01E'],
+    DRUG_MACROLIDE: ['J01F'],
+  };
+  // Known cross-reactivity worth surfacing (beta-lactams).
+  private static readonly CROSS: Record<string, string[]> = {
+    DRUG_PENICILLIN: ['J01D'], // penicillin allergy → caution with cephalosporins
+    DRUG_CEPHALOSPORIN: ['J01C', 'J01CR'],
+  };
+
+  checkDrugAllergy(allergenCodes: string[], atc: string): { code: string; cross: boolean }[] {
+    const a = (atc ?? '').toUpperCase();
+    if (!a) return [];
+    const hits: { code: string; cross: boolean }[] = [];
+    for (const code of allergenCodes ?? []) {
+      const direct = CatalogService.ALLERGEN_ATC[code] ?? [];
+      if (direct.some((p) => a.startsWith(p))) {
+        hits.push({ code, cross: false });
+        continue;
+      }
+      const cross = CatalogService.CROSS[code] ?? [];
+      if (cross.some((p) => a.startsWith(p))) hits.push({ code, cross: true });
+    }
+    return hits;
+  }
+
   /** Vaccines whose scheduled age has been reached for a child of `ageMonths`. */
   dueVaccines(ageMonths: number): { abbr: string; name: string; ageMonths: number }[] {
     if (!Number.isFinite(ageMonths) || ageMonths < 0) return [];
@@ -127,6 +162,12 @@ class CatalogController {
   @Get('dose')
   dose(@Query('atc') atc: string, @Query('weightKg') weightKg: string) {
     return this.service.doseForWeight(atc ?? '', parseFloat(weightKg ?? ''));
+  }
+
+  @Get('drug-allergy')
+  drugAllergy(@Query('atc') atc: string, @Query('codes') codes?: string) {
+    const list = (codes ?? '').split(',').map((c) => c.trim()).filter(Boolean);
+    return this.service.checkDrugAllergy(list, atc ?? '');
   }
 }
 
