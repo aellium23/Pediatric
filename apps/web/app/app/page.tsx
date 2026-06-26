@@ -225,6 +225,33 @@ function WhoGrowthChart({
   );
 }
 
+/**
+ * Faltering-growth flag from WHO weight-for-age z-scores: latest below P3
+ * (z ≤ -2) or a downward crossing of ~one centile band from a previous peak
+ * (Δz ≤ -0.67). A prompt to review, never a diagnosis.
+ */
+function GrowthAlert({ growth }: { growth: HealthOverview['growth'] }) {
+  const zs = growth
+    .filter((g) => g.weightZ != null && g.ageDays != null)
+    .map((g) => g.weightZ as number);
+  if (zs.length === 0) return null;
+  const latest = zs[zs.length - 1];
+  const prevPeak = zs.length >= 2 ? Math.max(...zs.slice(0, -1)) : latest;
+  const lowNow = latest <= -2;
+  const crossedDown = zs.length >= 2 && latest - prevPeak <= -0.67;
+  if (!lowNow && !crossedDown) return null;
+  return (
+    <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
+      <strong>⚠️ Possível crescimento insuficiente</strong>
+      <div className="muted" style={{ marginTop: 4 }}>
+        {lowNow ? `Peso-para-idade no z ${latest} (≤ P3). ` : ''}
+        {crossedDown ? 'Queda de percentil entre medições. ' : ''}
+        Avaliar (alimentação, doença, medição) — não é um diagnóstico.
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="empty">
@@ -1313,6 +1340,7 @@ function ChildHealth({
       ) : (
         <>
           {/* Growth */}
+          <GrowthAlert growth={d.growth} />
           <h3 style={{ marginTop: 16 }}>Crescimento</h3>
           {d.whoBands && d.who ? (
             <>
@@ -2760,6 +2788,7 @@ function ChildChart({
               </ul>
             </div>
           ) : null}
+          {health ? <GrowthAlert growth={health.growth} /> : null}
           <div className="card">
             <strong>Problemas ativos</strong>
             {openProblems.length === 0 ? (
