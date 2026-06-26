@@ -135,6 +135,13 @@ automaticamente os **próximos horários livres** (`GET
 agendada para hoje** (Tomás ↔ Dra. Inês, com `VideoSession`) — basta entrar
 como `ines@demo.pedia` para simular a chamada.
 
+✅ **biblioteca "Saber+" (conteúdos validados)**: ~30 artigos pediátricos em
+português, com estrutura útil (o que é → em casa → sinais de alarme → quando
+procurar ajuda), **segmentados** em 8 temas (Urgências, Sintomas, Bebé,
+Alimentação, Doenças comuns, Desenvolvimento, Prevenção, Pele). A página passa a
+ter pesquisa, filtros por tema (chips) e agrupamento por secção; os conteúdos de
+**Urgências** têm destaque visual + reforço dos contactos 112 / SNS 24.
+
 ---
 
 ## Prioridades sugeridas (próximos passos sem bloqueios externos)

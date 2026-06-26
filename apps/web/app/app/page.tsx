@@ -4397,10 +4397,29 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
 }
 
 // ───────────────────────── Content library (read) ─────────────────────────
+// Segments for the "Saber+" library — order + emoji. Unknown categories fall
+// through to a default bucket so new content never disappears.
+const CONTENT_SEGMENTS: { key: string; emoji: string }[] = [
+  { key: 'Urgências', emoji: '🚨' },
+  { key: 'Sintomas', emoji: '🌡️' },
+  { key: 'Bebé', emoji: '🍼' },
+  { key: 'Alimentação', emoji: '🥣' },
+  { key: 'Doenças comuns', emoji: '🤒' },
+  { key: 'Desenvolvimento', emoji: '🧩' },
+  { key: 'Prevenção', emoji: '🛡️' },
+  { key: 'Pele', emoji: '🧴' },
+];
+function segEmoji(category: string): string {
+  return CONTENT_SEGMENTS.find((s) => s.key === category)?.emoji ?? '📄';
+}
+
 function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [items, setItems] = useState<ArticleCard[]>([]);
   const [open, setOpen] = useState<ArticleCard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState<string>(''); // '' = todas
+
   useEffect(() => {
     Api.articles()
       .then(setItems)
@@ -4410,45 +4429,138 @@ function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
   }, []);
 
   if (open) {
+    const urgent = open.category === 'Urgências';
     return (
       <div className="section">
         <button className="btn secondary small" onClick={() => setOpen(null)} style={{ marginBottom: 12 }}>
           ← Voltar
         </button>
-        <span className="pill muted">{open.category}</span>
+        <span className="pill muted">
+          {segEmoji(open.category)} {open.category}
+        </span>
         <h2>{open.title}</h2>
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{open.body}</p>
-        <p className="muted" style={{ fontSize: 12 }}>
-          Conteúdo informativo · não substitui avaliação médica.
+        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{open.body}</p>
+        {urgent ? (
+          <p className="notice" style={{ marginTop: 12 }}>
+            🚑 Em emergência ligue <strong>112</strong>. Aconselhamento: SNS 24 ·{' '}
+            <strong>808 24 24 24</strong>.
+          </p>
+        ) : null}
+        <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          Conteúdo informativo validado · não substitui a avaliação do seu médico.
         </p>
       </div>
+    );
+  }
+
+  // Categories actually present, in the curated order (plus any extras).
+  const present = items.reduce<Record<string, boolean>>((m, a) => ((m[a.category] = true), m), {});
+  const ordered = [
+    ...CONTENT_SEGMENTS.map((s) => s.key).filter((k) => present[k]),
+    ...Object.keys(present).filter((k) => !CONTENT_SEGMENTS.some((s) => s.key === k)),
+  ];
+  const needle = q.trim().toLowerCase();
+  const matches = (a: ArticleCard) =>
+    (!cat || a.category === cat) &&
+    (!needle || `${a.title} ${a.body}`.toLowerCase().includes(needle));
+  const filtered = items.filter(matches);
+
+  function Card({ a }: { a: ArticleCard }) {
+    const urgent = a.category === 'Urgências';
+    return (
+      <button
+        key={a.id}
+        className="card"
+        onClick={() => setOpen(a)}
+        style={{
+          textAlign: 'left',
+          cursor: 'pointer',
+          ...(urgent ? { borderLeft: '3px solid #d7263d' } : {}),
+        }}
+      >
+        <span className="pill muted">
+          {segEmoji(a.category)} {a.category}
+        </span>
+        <h3 style={{ margin: '6px 0 4px' }}>{a.title}</h3>
+        <div className="muted" style={{ fontSize: 13 }}>
+          {a.body.replace(/\n+/g, ' ').slice(0, 96)}…
+        </div>
+      </button>
     );
   }
 
   return (
     <div className="section">
       <h2>Saber+ · conteúdos validados</h2>
+      <p className="muted" style={{ marginTop: -4 }}>
+        Informação de saúde infantil revista por pediatras, organizada por temas. Em emergência,
+        ligue 112.
+      </p>
+
+      <input
+        className="search"
+        placeholder="Pesquisar (ex.: febre, sono, vacinas)…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+
+      {/* Segment chips */}
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0 4px' }}>
+        <button
+          className={`chip${cat === '' ? ' active' : ''}`}
+          onClick={() => setCat('')}
+        >
+          Todos
+        </button>
+        {ordered.map((k) => (
+          <button
+            key={k}
+            className={`chip${cat === k ? ' active' : ''}`}
+            onClick={() => setCat((c) => (c === k ? '' : k))}
+          >
+            {segEmoji(k)} {k}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <Skeleton rows={3} />
       ) : items.length === 0 ? (
         <EmptyState title="Ainda sem artigos" hint="Os pediatras publicam aqui conteúdos validados." />
+      ) : needle || cat ? (
+        // Filtered / searched → flat list
+        filtered.length === 0 ? (
+          <EmptyState title="Sem resultados" hint="Tenta outra pesquisa ou tema." />
+        ) : (
+          <div className="grid">
+            {filtered.map((a) => (
+              <Card key={a.id} a={a} />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="grid">
-          {items.map((a) => (
-            <button
-              key={a.id}
-              className="card"
-              onClick={() => setOpen(a)}
-              style={{ textAlign: 'left', cursor: 'pointer' }}
-            >
-              <span className="pill muted">{a.category}</span>
-              <h3 style={{ margin: '6px 0 4px' }}>{a.title}</h3>
-              <div className="muted" style={{ fontSize: 13 }}>
-                {a.body.slice(0, 90)}…
+        // Default → grouped by segment
+        <>
+          {ordered.map((k) => {
+            const group = items.filter((a) => a.category === k);
+            if (!group.length) return null;
+            return (
+              <div key={k} style={{ marginTop: 16 }}>
+                <h3 style={{ margin: '0 0 8px' }}>
+                  {segEmoji(k)} {k}{' '}
+                  <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>
+                    · {group.length}
+                  </span>
+                </h3>
+                <div className="grid">
+                  {group.map((a) => (
+                    <Card key={a.id} a={a} />
+                  ))}
+                </div>
               </div>
-            </button>
-          ))}
-        </div>
+            );
+          })}
+        </>
       )}
     </div>
   );

@@ -517,6 +517,30 @@ button.card:active {
   margin: 8px 0 4px;
 }
 
+/* Filter chips (segment selectors). */
+.chip {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.chip.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
 /* Chat bubbles. */
 .chat {
   display: flex;
