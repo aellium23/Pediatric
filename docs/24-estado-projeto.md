@@ -40,6 +40,14 @@ sugerida** [sempre "rever"], **PNV/CVX** para vacinas; códigos guardados em cla
 para listas de problemas/alertas, texto livre cifrado) — reduz cliques e
 uniformiza termos.
 
+**Feito recentemente (cont.):** ✅ **sinais vitais estruturados** (Tª/FC/FR/SpO₂,
+modelo `Vital`) · ✅ **alergias estruturadas** (modelo `Allergy`, código do
+catálogo + label cifrada) · ✅ **alertas clínicos** (todos *prompt, não
+diagnóstico*): **vacinas em atraso** (PNV vs registado por idade),
+**crescimento insuficiente** (z-score peso-idade WHO < P3 ou queda de percentil)
+e **conflito alergia↔fármaco** (alergénio→prefixo ATC, com reatividade cruzada
+beta-lactâmicos) · ✅ **sidebar da criança dentro da consulta**.
+
 **Feito recentemente (cont.):** ✅ **resumo pós-consulta** com **dois caminhos** —
 (1) rascunho SOAP determinístico a partir da triagem (`genDraft`, sem IA) e
 (2) **estruturação por LLM** (Claude, botão "Estruturar com IA", atrás de
