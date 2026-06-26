@@ -20,16 +20,17 @@ describe('WHO growth evaluation', () => {
     expect(sexCode(undefined)).toBeNull();
   });
 
-  it('uses the genuine WHO coefficients (boys birth median weight ≈ 3.35 kg)', () => {
-    expect(p50At('wfa', 1, 0)).toBeCloseTo(3.3464, 3);
+  it('uses the genuine WHO coefficients (boys birth median weight ≈ 3.346 kg)', () => {
+    // Band values are rounded to 2 decimals, so 3.3464 → 3.35 (precision 2).
+    expect(p50At('wfa', 1, 0)).toBeCloseTo(3.3464, 2);
   });
 
   it('evaluating the median value yields ~z0 / ~P50', () => {
-    const median = p50At('wfa', 1, 0);
+    const median = p50At('wfa', 1, 0); // 2-dp-rounded median → tiny residual z
     const e = evaluate('wfa', 1, 0, median)!;
-    expect(Math.abs(e.z)).toBeLessThan(0.01);
-    expect(e.percentile).toBeGreaterThan(49);
-    expect(e.percentile).toBeLessThan(51);
+    expect(Math.abs(e.z)).toBeLessThanOrEqual(0.02);
+    expect(e.percentile).toBeGreaterThan(48);
+    expect(e.percentile).toBeLessThan(52);
   });
 
   it('places a clearly low weight well below P50 and a high one above', () => {
