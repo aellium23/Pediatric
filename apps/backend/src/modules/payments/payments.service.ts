@@ -31,6 +31,24 @@ export class PaymentsService {
     });
     if (!member) throw new ForbiddenException('Not authorized');
 
+    // Demo mode (no STRIPE_SECRET_KEY): record a placeholder payment so the
+    // booking completes without a real charge, instead of failing with a 503.
+    if (!this.stripe.enabled) {
+      await this.prisma.payment.upsert({
+        where: { consultationId },
+        create: {
+          consultationId,
+          amountCents: consultation.priceCents,
+          currency: consultation.currency,
+          psp: 'demo',
+          pspRef: `demo_${consultationId}`,
+          status: PaymentStatus.CREATED,
+        },
+        update: { status: PaymentStatus.CREATED },
+      });
+      return { clientSecret: null as string | null };
+    }
+
     const intent = await this.stripe.createPaymentIntent({
       amountCents: consultation.priceCents,
       currency: consultation.currency,
