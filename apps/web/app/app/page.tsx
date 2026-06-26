@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import {
   Api,
   hasApi,
+  wakeBackend,
   setToken,
   setRefreshToken,
   clearToken,
@@ -436,6 +437,9 @@ export default function MultiProfileApp() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Kick the (free-tier) backend awake as early as possible so the first real
+    // request doesn't hit a cold, sleeping server.
+    wakeBackend();
     const saved = localStorage.getItem('pedia_profile');
     if (saved && localStorage.getItem('pedia_token')) {
       const p = PROFILES.find((x) => x.email === saved);
@@ -448,17 +452,18 @@ export default function MultiProfileApp() {
 
   async function enter(p: Profile) {
     setBusy(true);
-    setMsg('');
     if (!hasApi) {
       setMsg('Backend não configurado (NEXT_PUBLIC_API_BASE).');
       setBusy(false);
       return;
     }
+    setMsg('A ligar ao servidor… (pode demorar até ~1 min na primeira utilização)');
     try {
       const r = await Api.devLogin(p.email);
       setToken(r.accessToken);
       setRefreshToken(r.refreshToken);
       localStorage.setItem('pedia_profile', p.email);
+      setMsg('');
       setProfile(p);
       setTab(tabsFor(p.role)[0].key);
       if (p.role === 'PARENT' && !localStorage.getItem('pedia_onboarded')) {

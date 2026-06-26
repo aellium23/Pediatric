@@ -66,20 +66,68 @@ export function currentUserId(): string | null {
   }
 }
 
-function doFetch(path: string, init: RequestInit): Promise<Response> {
+const ATTEMPT_TIMEOUT_MS = 28000; // per attempt — generous for a cold backend
+const COLD_RETRIES = 4; // attempts when the backend is waking up
+const BOOT_STATUSES = new Set([502, 503, 504]); // platform/proxy while booting
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function doFetch(path: string, init: RequestInit, timeoutMs = ATTEMPT_TIMEOUT_MS): Promise<Response> {
   const token = getToken();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch(`${BASE}${path}`, {
     ...init,
+    signal: ctrl.signal,
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },
-  });
+  }).finally(() => clearTimeout(timer));
 }
 
+/**
+ * Wakes the (free-tier) backend, which sleeps after ~15 min idle and needs
+ * 30–60 s to cold-start. Fire-and-forget: kicking off the boot so the user's
+ * next real request lands on a warming server. Health lives at the origin root,
+ * outside the `/api` prefix.
+ */
+export function wakeBackend(): void {
+  if (!hasApi) return;
+  const healthUrl = BASE.replace(/\/api\/?$/, '') + '/health';
+  fetch(healthUrl, { method: 'GET', cache: 'no-store' }).catch(() => {});
+}
+
+/**
+ * Resilient request. A sleeping backend makes the first call fail with a network
+ * error ("Load failed") or a 502/503/504 while it boots — so safe/idempotent
+ * calls (GET + auth) are retried with backoff for up to ~60 s, giving the server
+ * time to wake. Non-idempotent mutations are not auto-retried (avoids
+ * double-submit); by then a warm-up ping has usually woken the backend anyway.
+ */
 async function request(path: string, init: RequestInit = {}, retry = true): Promise<any> {
-  let res = await doFetch(path, init);
+  const method = (init.method ?? 'GET').toUpperCase();
+  const idempotent =
+    method === 'GET' || path === '/auth/dev-login' || path === '/auth/refresh';
+
+  let res: Response | null = null;
+  const maxAttempts = idempotent ? COLD_RETRIES : 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      res = await doFetch(path, init);
+    } catch {
+      res = null; // network error or timeout (abort) — backend likely waking
+    }
+    if (res && !BOOT_STATUSES.has(res.status)) break;
+    if (attempt === 0) wakeBackend(); // nudge the boot on the first miss
+    if (attempt < maxAttempts - 1) await sleep(2000 * (attempt + 1)); // 2s,4s,6s
+  }
+
+  if (!res) {
+    throw new Error('Sem ligação ao servidor. Pode estar a iniciar — tenta novamente em instantes.');
+  }
+
   // Access token likely expired → refresh once and retry transparently.
   if (res.status === 401 && retry && getRefreshToken() && path !== '/auth/refresh') {
     if (await refreshAccessToken()) res = await doFetch(path, init);
