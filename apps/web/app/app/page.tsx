@@ -606,6 +606,28 @@ function Thread({
     }
   }
 
+  // Structured SOAP skeleton (a template helper, not external AI) pre-filled
+  // from the intake triage. The pediatrician completes and edits before saving.
+  function genDraft() {
+    const triage = (consultation.triage ?? {}) as { redFlags?: unknown; severe?: unknown };
+    const keys = Array.isArray(triage.redFlags) ? (triage.redFlags as string[]) : [];
+    const flagLabels = keys
+      .map((k) => RED_FLAGS.find((f) => f.key === k)?.label ?? k)
+      .filter(Boolean);
+    const motivo = flagLabels.length
+      ? `Triagem assinalou: ${flagLabels.join('; ')}.`
+      : 'Sem sinais de alarme assinalados na triagem.';
+    const urgencia = triage.severe ? '\n⚠️ Triagem indicou sinais graves — avaliar prioridade.' : '';
+    const tpl =
+      `Motivo / queixa:\n${motivo}${urgencia}\n\n` +
+      `Avaliação:\n- \n\n` +
+      `Orientação / plano:\n- \n\n` +
+      `Sinais de alarme a vigiar:\n- Recorrer a urgência se agravamento, febre persistente, recusa alimentar ou prostração.\n\n` +
+      `Seguimento:\n- `;
+    setSumDraft((prev) => (prev.trim() ? prev : tpl));
+    setEditSum(true);
+  }
+
   async function load() {
     try {
       setMessages(await Api.messages(consultation.id));
@@ -702,11 +724,16 @@ function Thread({
             placeholder="Resumo da consulta para a família…"
             value={sumDraft}
             onChange={(e) => setSumDraft(e.target.value)}
-            rows={3}
+            rows={6}
           />
-          <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
-            Guardar resumo
-          </button>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn small secondary" onClick={genDraft} disabled={busy} title="Pré-preenche um esqueleto a partir da triagem">
+              Gerar rascunho
+            </button>
+            <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
+              Guardar resumo
+            </button>
+          </div>
         </div>
       ) : null}
 
