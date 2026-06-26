@@ -270,36 +270,11 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
  */
 const HOC_GOLD = '#b89460';
 /**
- * Renders the real raster logo when present in /public, falling back to the
- * inline SVG recreation if the file hasn't been committed yet. Drop the files at
- * apps/web/public/logo.png (full lockup) and apps/web/public/logo-mark.png
- * (compact mark) and they show automatically — no code change needed.
+ * HOC — Healthcare on Call brand logo (company DES). Inline SVG so the navy
+ * wordmark follows the theme (currentColor) while the heartbeat/accent stay
+ * gold — readable in both light and dark mode.
  */
 function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const src = full ? '/logo.png' : '/logo-mark.png';
-  if (!imgFailed) {
-    const h = height ?? (full ? 150 : 28);
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt="HOC — Healthcare on Call"
-        height={h}
-        style={
-          full
-            ? // Full lockup may carry a white background; sit it on a white card
-              // so it reads cleanly in both light and dark themes.
-              { height: h, width: 'auto', maxWidth: '100%', display: 'inline-block', background: '#fff', padding: 12, borderRadius: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
-            : { height: h, width: 'auto', maxWidth: '100%', display: 'block' }
-        }
-        onError={() => setImgFailed(true)}
-      />
-    );
-  }
-  return <BrandLogoSvg full={full} height={height} />;
-}
-function BrandLogoSvg({ full = false, height }: { full?: boolean; height?: number }) {
   if (full) {
     return (
       <svg viewBox="0 0 360 210" height={height ?? 150} style={{ color: 'var(--text)', maxWidth: '100%' }} role="img" aria-label="HOC — Healthcare on Call">
