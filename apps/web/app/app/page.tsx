@@ -2009,6 +2009,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
                 </div>
                 <h3 style={{ margin: '6px 0' }}>{p.specialties[0] ?? 'Pediatria geral'}</h3>
                 <p className="muted" style={{ margin: 0 }}>
+                  {p.region ? `📍 ${p.region} · ` : ''}
                   {p.languages.join(' · ')} · ⭐ {p.ratingAvg.toFixed(1)}
                 </p>
                 <button
@@ -2085,7 +2086,8 @@ function PedDetail({
         </span>
       </div>
       <p className="muted">
-        ⭐ {ped.ratingAvg.toFixed(1)} · {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
+        {ped.region ? `📍 ${ped.region} · ` : ''}⭐ {ped.ratingAvg.toFixed(1)} ·{' '}
+        {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
       </p>
       {ped.bio ? <p>{ped.bio}</p> : null}
 

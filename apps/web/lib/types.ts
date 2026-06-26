@@ -12,6 +12,7 @@ export interface PediatricianCard {
   experienceYears: number | null;
   languages: string[];
   specialties: string[];
+  region?: string | null;
   ratingAvg: number;
   services: PediatricianService[];
 }
