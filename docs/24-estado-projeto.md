@@ -79,8 +79,9 @@ scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
 (catálogo por perfil + rejeição de plano incompatível), **health-records**
 (controlo de acesso pai/pediatra + cálculo de IMC), **referrals** (2ª opinião:
 autorização + ciclo de vida), **pediatricians-documents** (submissão/listagem),
-**privacy/RGPD** (exportação com scope por perfil + anonimização). ⏳ **cobertura
-ampla** dos restantes módulos (admin, clinics, content), integração e E2E.
+**privacy/RGPD** (exportação com scope por perfil + anonimização), **clinics**
+(autorização CLINIC_ADMIN/platform + revenue-share), **growth-lms** (motor de
+percentis WHO). ⏳ restantes módulos (admin, content), integração e E2E.
 
 ---
 
