@@ -5,10 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ConsultationStatus, Prisma, ServiceType } from '@prisma/client';
+import { ConsultationStatus, Prisma, Role, ServiceType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
+import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsService } from '../payments/payments.service';
 import { AiService } from '../ai/ai.module';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
@@ -78,6 +79,97 @@ export class ConsultationsService {
       await this.persistMessage(consultation.id, userId, dto.question);
     }
     return consultation;
+  }
+
+  /**
+   * Pediatrician caseload as a patient chart: the children this pediatrician has
+   * consulted, grouped by family (so siblings sit together), each with a
+   * consultation count and the last-seen date. Powers the "Doentes" view.
+   */
+  async patientsForPediatrician(userId: string) {
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    const consults = await this.prisma.consultation.findMany({
+      where: { pediatricianId: ped.id },
+      select: { childId: true, openedAt: true },
+      orderBy: { openedAt: 'desc' },
+    });
+    const childIds = [...new Set(consults.map((c) => c.childId).filter(Boolean) as string[])];
+    if (!childIds.length) return [];
+
+    const children = await this.prisma.child.findMany({ where: { id: { in: childIds } } });
+    const families = await this.prisma.family.findMany({
+      where: { id: { in: [...new Set(children.map((c) => c.familyId))] } },
+    });
+
+    const stat = new Map<string, { count: number; last: Date | null }>();
+    for (const c of consults) {
+      if (!c.childId) continue;
+      const s = stat.get(c.childId) ?? { count: 0, last: null };
+      s.count += 1;
+      if (!s.last || c.openedAt > s.last) s.last = c.openedAt;
+      stat.set(c.childId, s);
+    }
+
+    const byFamily = new Map<string, { id: string; name: string; children: unknown[] }>();
+    for (const fam of families) {
+      byFamily.set(fam.id, { id: fam.id, name: fam.name, children: [] });
+    }
+    for (const child of children) {
+      const s = stat.get(child.id) ?? { count: 0, last: null };
+      byFamily.get(child.familyId)?.children.push({
+        id: child.id,
+        name: child.name,
+        birthDate: child.birthDate,
+        sex: child.sex,
+        consultationCount: s.count,
+        lastConsultAt: s.last,
+      });
+    }
+    return [...byFamily.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Longitudinal consultation history for one child. A pediatrician sees only
+   * their own consultations with the child; a family member sees all of them.
+   */
+  async historyForChild(user: AuthenticatedUser, childId: string) {
+    const child = await this.prisma.child.findUnique({ where: { id: childId } });
+    if (!child) throw new NotFoundException('Child not found');
+
+    let where: Prisma.ConsultationWhereInput;
+    if (user.role === Role.PEDIATRICIAN) {
+      const ped = await this.prisma.pediatrician.findUnique({ where: { userId: user.userId } });
+      const link = ped
+        ? await this.prisma.consultation.findFirst({ where: { childId, pediatricianId: ped.id } })
+        : null;
+      if (!link) throw new ForbiddenException('No consultation with this child');
+      where = { childId, pediatricianId: ped!.id };
+    } else {
+      const member = await this.prisma.familyMember.findFirst({
+        where: { userId: user.userId, familyId: child.familyId },
+      });
+      if (!member) throw new ForbiddenException('Not authorized for this child');
+      where = { childId };
+    }
+
+    const consultations = await this.prisma.consultation.findMany({
+      where,
+      orderBy: { openedAt: 'desc' },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        priceCents: true,
+        openedAt: true,
+        answeredAt: true,
+        closedAt: true,
+        slaDueAt: true,
+      },
+    });
+    return {
+      child: { id: child.id, name: child.name, birthDate: child.birthDate, sex: child.sex },
+      consultations,
+    };
   }
 
   async listForParent(userId: string) {

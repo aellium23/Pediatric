@@ -35,6 +35,21 @@ class ConsultationsController {
     return this.service.listForPediatrician(user.userId);
   }
 
+  @Get('patients')
+  @Roles(Role.PEDIATRICIAN)
+  patients(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.patientsForPediatrician(user.userId);
+  }
+
+  @Get('child/:childId/history')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  childHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+  ) {
+    return this.service.historyForChild(user, childId);
+  }
+
   @Get('all')
   @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
   all() {
