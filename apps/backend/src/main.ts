@@ -48,7 +48,7 @@ async function bootstrap(): Promise<void> {
 
   // ── OpenAPI ──
   const swagger = new DocumentBuilder()
-    .setTitle('Pédia API')
+    .setTitle('HOC API')
     .setDescription('Telepediatrics platform API (MVP)')
     .setVersion('0.1.0')
     .addBearerAuth()
@@ -58,7 +58,7 @@ async function bootstrap(): Promise<void> {
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`Pédia API listening on :${port} (OpenAPI at /docs)`);
+  console.log(`HOC API listening on :${port} (OpenAPI at /docs)`);
 }
 
 void bootstrap();

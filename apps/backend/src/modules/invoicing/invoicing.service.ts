@@ -66,7 +66,7 @@ export class InvoicingService {
       amountCents: event.platformFeeCents,
       vatCents: commissionVat,
       vatRegime: 'standard',
-      description: 'Comissão de intermediação Pédia',
+      description: 'Comissão de intermediação HOC',
     });
 
     await this.prisma.commissionInvoice.create({

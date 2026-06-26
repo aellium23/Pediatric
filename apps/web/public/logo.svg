@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="HOC — Healthcare on Call">
+  <title>HOC — Healthcare on Call · DES</title>
+  <g fill="none" stroke="none">
+    <!-- HOC wordmark -->
+    <text x="320" y="170" text-anchor="middle"
+          font-family="'Helvetica Neue', Arial, sans-serif" font-weight="300"
+          font-size="200" letter-spacing="14" fill="#16233b">HOC</text>
+    <!-- ECG heartbeat across the midline (gold) -->
+    <polyline
+      points="232,150 300,150 312,150 320,118 330,196 340,132 348,150 360,150 410,150"
+      stroke="#b89460" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+    <!-- Tagline -->
+    <text x="320" y="248" text-anchor="middle"
+          font-family="'Helvetica Neue', Arial, sans-serif" font-weight="400"
+          font-size="30" letter-spacing="9" fill="#16233b">HEALTHCARE <tspan fill="#b89460">ON</tspan> CALL</text>
+    <!-- Divider -->
+    <line x1="285" y1="282" x2="355" y2="282" stroke="#16233b" stroke-width="1.5"/>
+    <!-- Company -->
+    <text x="320" y="320" text-anchor="middle"
+          font-family="'Helvetica Neue', Arial, sans-serif" font-weight="400"
+          font-size="26" letter-spacing="12" fill="#b89460">DES</text>
+  </g>
+</svg>

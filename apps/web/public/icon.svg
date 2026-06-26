@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0e7c74"/>
-  <path d="M256 150c-30 0-54 24-54 54v158h44v-58h10c52 0 86-30 86-78s-34-76-86-76zm0 110h-10v-68h10c24 0 38 12 38 34s-14 34-38 34z" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="HOC">
+  <rect width="512" height="512" rx="112" fill="#16233b"/>
+  <text x="256" y="300" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="300" font-size="170" letter-spacing="6" fill="#ffffff">HOC</text>
+  <polyline points="150,250 214,250 226,250 236,212 248,300 260,224 270,250 286,250 362,250" stroke="#b89460" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
 </svg>

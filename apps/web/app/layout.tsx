@@ -6,11 +6,11 @@ import { ThemeProvider } from '@/lib/theme';
 import { RegisterSW } from '@/lib/sw-register';
 
 export const metadata: Metadata = {
-  title: 'Pédia — Telepediatria',
+  title: 'HOC — Healthcare on Call',
   description:
-    'O pediatra de confiança, à distância de uma mensagem. Seguro, privado e compliant.',
-  applicationName: 'Pédia',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Pédia' },
+    'O pediatra de confiança, à distância de uma mensagem. Seguro, privado e compliant. Uma solução DES.',
+  applicationName: 'HOC',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HOC' },
 };
 
 export const viewport: Viewport = {

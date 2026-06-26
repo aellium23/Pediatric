@@ -553,7 +553,7 @@ export default function Tour() {
           <Bar />
           <div className="scr-top"><h2>Finanças</h2><span className="sub">Junho 2026</span></div>
           <div className="scr-body">
-            <div className="tcard"><div className="tprice"><span>Receita bruta</span><b>1.240€</b></div><div className="tprice"><span>Comissão Pédia (20%)</span><b style={{ color: '#d7263d' }}>-248€</b></div><div className="tprice"><span><b>Líquido</b></span><b style={{ color: '#2e8b57' }}>992€</b></div></div>
+            <div className="tcard"><div className="tprice"><span>Receita bruta</span><b>1.240€</b></div><div className="tprice"><span>Comissão HOC (20%)</span><b style={{ color: '#d7263d' }}>-248€</b></div><div className="tprice"><span><b>Líquido</b></span><b style={{ color: '#2e8b57' }}>992€</b></div></div>
             <div className="tcard surface" style={{ fontSize: 12 }}>Pendente de payout: <b>310€</b> · próximo: 21 Jun</div>
             <div className="tbtn alt">Exportar faturas (SAF-T)</div>
           </div>
@@ -641,7 +641,7 @@ export default function Tour() {
           <Bar />
           <div className="scr-top"><h2>Finanças</h2><span className="sub">Junho</span></div>
           <div className="scr-body">
-            <div className="tcard"><div className="tprice"><span>GMV clínica</span><b>30.600€</b></div><div className="tprice"><span>Comissão Pédia</span><b style={{ color: '#d7263d' }}>-5.508€</b></div><div className="tprice"><span><b>Líquido</b></span><b style={{ color: '#2e8b57' }}>25.092€</b></div></div>
+            <div className="tcard"><div className="tprice"><span>GMV clínica</span><b>30.600€</b></div><div className="tprice"><span>Comissão HOC</span><b style={{ color: '#d7263d' }}>-5.508€</b></div><div className="tprice"><span><b>Líquido</b></span><b style={{ color: '#2e8b57' }}>25.092€</b></div></div>
             <div className="tbtn alt">Exportar SAF-T</div>
           </div>
         </div>

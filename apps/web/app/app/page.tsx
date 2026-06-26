@@ -264,6 +264,32 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
 }
 
 /**
+ * HOC — Healthcare on Call brand logo (company DES). Inline SVG so the navy
+ * wordmark follows the theme (currentColor) while the heartbeat/accent stay
+ * gold — readable in both light and dark mode.
+ */
+const HOC_GOLD = '#b89460';
+function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
+  if (full) {
+    return (
+      <svg viewBox="0 0 360 210" height={height ?? 150} style={{ color: 'var(--text)', maxWidth: '100%' }} role="img" aria-label="HOC — Healthcare on Call">
+        <text x="180" y="100" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={300} fontSize="112" letterSpacing="8" fill="currentColor">HOC</text>
+        <polyline points="130,86 168,86 176,86 182,64 189,118 196,72 202,86 214,86 242,86" stroke={HOC_GOLD} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+        <text x="180" y="148" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="16.5" letterSpacing="5" fill="currentColor">HEALTHCARE <tspan fill={HOC_GOLD}>ON</tspan> CALL</text>
+        <line x1="158" y1="168" x2="202" y2="168" stroke="currentColor" strokeWidth="1" />
+        <text x="180" y="194" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="15" letterSpacing="7" fill={HOC_GOLD}>DES</text>
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 168 64" height={height ?? 28} style={{ color: 'var(--text)', display: 'block' }} role="img" aria-label="HOC — Healthcare on Call">
+      <text x="4" y="50" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={300} fontSize="58" letterSpacing="4" fill="currentColor">HOC</text>
+      <polyline points="64,36 88,36 94,36 99,22 104,54 109,26 113,36 124,36 146,36" stroke={HOC_GOLD} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+/**
  * Debounced autocomplete: the user types, picks from the catalog, and we keep
  * both the free text (so anything is still allowed) and the coded selection.
  * Less typing, consistent terms — the core of "minimum effort".
@@ -423,8 +449,11 @@ export default function MultiProfileApp() {
   if (!profile) {
     return (
       <main>
-        <h1>Entrar na app</h1>
-        <p className="muted">
+        <div style={{ textAlign: 'center', margin: '10px 0 18px' }}>
+          <BrandLogo full height={150} />
+        </div>
+        <h1 style={{ textAlign: 'center', fontSize: 22 }}>Entrar na app</h1>
+        <p className="muted" style={{ textAlign: 'center' }}>
           Escolhe um perfil de demonstração. Cada um tem o seu painel, com dados reais do backend.
         </p>
         {!hasApi ? (
@@ -470,6 +499,7 @@ export default function MultiProfileApp() {
     <main>
       <div className="apphead">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <BrandLogo height={22} />
           <span className="avatar sm">
             <TabIcon name={roleIcon(profile.role)} />
           </span>
@@ -4405,7 +4435,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   const all = terms && privacy && health;
   return (
     <div className="section">
-      <span className="badge">Bem-vindo à Pédia</span>
+      <span className="badge">Bem-vindo à HOC — Healthcare on Call</span>
       <h1 style={{ fontSize: 28, margin: '10px 0 6px', letterSpacing: '-0.02em' }}>
         Cuidar do seu filho, com confiança.
       </h1>
@@ -4632,7 +4662,7 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
       </div>
 
       <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-        Pédia · ambiente de demonstração
+        HOC · Healthcare on Call · uma solução DES · ambiente de demonstração
       </p>
     </div>
   );
