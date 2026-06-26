@@ -167,6 +167,7 @@ model Pediatrician {
   specialties      String[]             @default([])
   status           PediatricianStatus   @default(PENDING)
   ratingAvg        Float                @default(0)
+  region           String? // service region (e.g. Lisboa, Madeira, Açores) — for coverage
   stripeAccountId  String?
   createdAt        DateTime             @default(now())
 

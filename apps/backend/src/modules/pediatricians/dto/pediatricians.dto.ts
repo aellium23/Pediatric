@@ -29,6 +29,7 @@ export class ConnectOnboardingDto {
 export class MarketplaceQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() language?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() specialty?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() region?: string;
   @ApiPropertyOptional({ enum: ServiceType })
   @IsOptional()
   type?: ServiceType;
@@ -59,6 +60,7 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsArray()
   specialties?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) region?: string;
 }
 
 export class CreateServiceDto {

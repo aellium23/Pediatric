@@ -1,0 +1,28 @@
+name: Keep backend warm
+
+# Pings the backend health endpoint so the Render free-tier service does not
+# spin down (which causes a 30–60s cold start on the first request).
+# NOTE: GitHub Actions `schedule` only runs from the repository's DEFAULT
+# branch, so this becomes active once merged there. Until then, trigger it
+# manually (workflow_dispatch) or use an external uptime pinger.
+on:
+  schedule:
+    - cron: '*/12 * * * *' # every 12 minutes (Render sleeps after ~15 min idle)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: |
+          for i in 1 2 3; do
+            if curl -fsS --max-time 90 https://pedia-backend.onrender.com/health; then
+              echo "ok"; exit 0
+            fi
+            echo "retry $i…"; sleep 15
+          done
+          echo "backend did not respond (it may have been asleep); not failing the job"

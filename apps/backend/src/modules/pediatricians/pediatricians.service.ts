@@ -32,6 +32,7 @@ export class PediatriciansService {
         status: PediatricianStatus.ACTIVE,
         ...(q.language ? { languages: { has: q.language } } : {}),
         ...(q.specialty ? { specialties: { has: q.specialty } } : {}),
+        ...(q.region ? { region: q.region } : {}),
         ...(q.minRating != null ? { ratingAvg: { gte: q.minRating } } : {}),
         services: { some: serviceFilter },
       },
@@ -41,6 +42,7 @@ export class PediatriciansService {
         experienceYears: true,
         languages: true,
         specialties: true,
+        region: true,
         ratingAvg: true,
         services: {
           where: { active: true },
@@ -76,6 +78,7 @@ export class PediatriciansService {
         experienceYears: dto.experienceYears,
         languages: dto.languages,
         specialties: dto.specialties,
+        region: dto.region,
       },
     });
   }
