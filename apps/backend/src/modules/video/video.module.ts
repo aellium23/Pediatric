@@ -33,7 +33,7 @@ export const VIDEO_PORT = Symbol('VIDEO_PORT');
  * credentials it falls back to a signed demo grant so the flow still works.
  */
 @Injectable()
-class LiveKitAdapter extends VideoPort {
+export class LiveKitAdapter extends VideoPort {
   private b64url(obj: unknown): string {
     return Buffer.from(JSON.stringify(obj)).toString('base64url');
   }
