@@ -7,12 +7,24 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import { ServiceType } from '@prisma/client';
+
+export class ConnectOnboardingDto {
+  // Where Stripe sends the pediatrician back after onboarding. Validate it as an
+  // https URL so a caller can't turn the onboarding link into an open redirect
+  // to an arbitrary scheme/host.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @MaxLength(2048)
+  returnUrl?: string;
+}
 
 export class MarketplaceQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() language?: string;

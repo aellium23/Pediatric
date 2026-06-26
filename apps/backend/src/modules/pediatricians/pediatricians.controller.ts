@@ -16,6 +16,7 @@ import { FavoritesService } from './favorites.service';
 import { CurrentUser, Public, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import {
+  ConnectOnboardingDto,
   CreateReviewDto,
   CreateServiceDto,
   MarketplaceQueryDto,
@@ -105,9 +106,9 @@ export class PediatriciansController {
   @Roles(Role.PEDIATRICIAN)
   connect(
     @CurrentUser() user: AuthenticatedUser,
-    @Body('returnUrl') returnUrl: string,
+    @Body() dto: ConnectOnboardingDto,
   ) {
-    return this.service.createConnectOnboarding(user.userId, returnUrl ?? 'https://pedia.app');
+    return this.service.createConnectOnboarding(user.userId, dto.returnUrl ?? 'https://pedia.app');
   }
 
   // ── Credential documents (compliance verification) ──

@@ -7,6 +7,20 @@ import {
   Logger,
 } from '@nestjs/common';
 
+// Map the Prisma error codes we surface to clients to sane HTTP statuses, so a
+// missing record reads as 404 (not 500) and a unique clash as 409. Matched by
+// code string to stay decoupled from the generated client's class identity.
+const PRISMA_STATUS: Record<string, { status: number; error: string }> = {
+  P2025: { status: HttpStatus.NOT_FOUND, error: 'Not found' },
+  P2002: { status: HttpStatus.CONFLICT, error: 'Already exists' },
+  P2003: { status: HttpStatus.BAD_REQUEST, error: 'Invalid reference' },
+};
+
+function prismaCode(exception: unknown): string | undefined {
+  const code = (exception as { code?: unknown })?.code;
+  return typeof code === 'string' && /^P\d{4}$/.test(code) ? code : undefined;
+}
+
 /** Uniform error envelope; never leaks internals or PII. */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,15 +31,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const res = ctx.getResponse();
     const req = ctx.getRequest();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const prisma = !(exception instanceof HttpException)
+      ? PRISMA_STATUS[prismaCode(exception) ?? '']
+      : undefined;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+    const status = exception instanceof HttpException
+      ? exception.getStatus()
+      : prisma?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const message = exception instanceof HttpException
+      ? exception.getResponse()
+      : prisma?.error ?? 'Internal server error';
 
     if (status >= 500) {
       this.logger.error(`${req.method} ${req.url}`, exception as Error);
