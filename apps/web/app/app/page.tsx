@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Api,
@@ -558,6 +558,26 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
 }
 
 // ───────────────────────── Thread (shared) ─────────────────────────
+// Minimal typing for the browser Web Speech API (not in every lib.dom target).
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+}
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
 function Thread({
   consultation,
   canClose,
@@ -580,6 +600,8 @@ function Thread({
   const [summary, setSummary] = useState<string | null>(null);
   const [sumDraft, setSumDraft] = useState('');
   const [editSum, setEditSum] = useState(false);
+  const [dictating, setDictating] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const myId = currentUserId();
 
   async function loadSummary() {
@@ -631,6 +653,53 @@ function Thread({
     setSumDraft((prev) => (prev.trim() ? prev : tpl));
     setEditSum(true);
   }
+
+  // Voice dictation of the clinical note (Web Speech API). The pediatrician
+  // dictates their own note — speech-to-text via the browser — and appends it
+  // to the editable summary draft. Stays in the browser until the pediatrician
+  // saves the (encrypted) summary. Full ambient transcription is a separate,
+  // consented feature (see docs/26).
+  const speechSupported = getSpeechRecognition() !== null;
+  function toggleDictation() {
+    if (dictating) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SR = getSpeechRecognition();
+    if (!SR) {
+      onMsg('Este browser não suporta ditado por voz (tenta o Chrome).');
+      return;
+    }
+    const rec = new SR();
+    rec.lang = 'pt-PT';
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      }
+      finalText = finalText.trim();
+      if (finalText) setSumDraft((prev) => (prev.trim() ? `${prev} ${finalText}` : finalText));
+    };
+    rec.onerror = (e) => {
+      onMsg(`Ditado: ${e.error}`);
+      setDictating(false);
+    };
+    rec.onend = () => {
+      setDictating(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = rec;
+    rec.start();
+    setDictating(true);
+    setEditSum(true);
+  }
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   async function load() {
     try {
@@ -736,10 +805,25 @@ function Thread({
             <button className="btn small secondary" onClick={genDraft} disabled={busy} title="Pré-preenche um esqueleto a partir da triagem">
               Gerar rascunho
             </button>
+            {speechSupported ? (
+              <button
+                className={dictating ? 'btn small danger' : 'btn small secondary'}
+                onClick={toggleDictation}
+                disabled={busy}
+                title="Dita a nota clínica por voz (transcrição no browser)"
+              >
+                {dictating ? '⏹ Parar ditado' : '🎙️ Ditar nota'}
+              </button>
+            ) : null}
             <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
               Guardar resumo
             </button>
           </div>
+          {dictating ? (
+            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              🎙️ A ouvir… fala a tua nota. (A transcrição é feita pelo serviço de voz do browser.)
+            </p>
+          ) : null}
         </div>
       ) : null}
 

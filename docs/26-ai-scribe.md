@@ -1,8 +1,21 @@
 # 26 · AI Scribe — resumo automático da consulta de vídeo (funcionalidade planeada)
 
-> **Estado: planeado (não implementado).** Documento de arquitetura e requisitos.
-> Não ativa nada. Depende de credenciais (LLM/STT) e de processo legal
-> (consentimento, DPA, DPIA). Ver legenda em `docs/24`.
+> **Estado:** Via A (ditado de voz da nota) **implementada** ✅. Via B
+> (transcrição ambiente da consulta) **planeada** — depende de credenciais
+> (LLM/STT) e de processo legal (consentimento, DPA, DPIA). Ver legenda em `docs/24`.
+
+## 0. Via A — ditado de voz da nota (implementado)
+No editor de resumo da consulta, o pediatra carrega em **"🎙️ Ditar nota"** e
+fala; o texto é transcrito pela **Web Speech API do browser** e acrescentado ao
+rascunho editável, que o pediatra revê e **guarda no campo cifrado** já
+existente. É voz-para-texto da nota do próprio médico (equivalente a escrever) —
+barreira legal baixa, sem chave de API. Limitações honestas: a transcrição usa o
+serviço de voz do browser (ex.: Chrome → Google), pelo que o **texto ditado é
+processado por esse serviço**; para produção, trocar por um STT europeu com DPA.
+Frontend-only; degrada com elegância se o browser não suportar.
+
+A secção seguinte descreve a **Via B** (transcrição ambiente de toda a consulta
++ LLM), ainda planeada.
 
 ## 1. Objetivo
 Durante uma consulta de vídeo, captar o áudio, transcrever e gerar um **rascunho
