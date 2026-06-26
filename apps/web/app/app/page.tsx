@@ -701,6 +701,26 @@ function Thread({
     };
   }, []);
 
+  // Clean/structure the dictated note into SOAP via the AI assistant (server-side
+  // Claude). Replaces the draft with the structured text for review; never auto-saves.
+  async function structureWithAi() {
+    if (!sumDraft.trim()) {
+      onMsg('Escreve ou dita a nota primeiro.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await Api.structureSummary(consultation.id, sumDraft);
+      setSumDraft(r.text);
+      setEditSum(true);
+      onMsg('Nota estruturada com IA — revê antes de guardar.');
+    } catch (e) {
+      onMsg(`IA indisponível: ${String(e)} (precisa de ANTHROPIC_API_KEY no backend)`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function load() {
     try {
       setMessages(await Api.messages(consultation.id));
@@ -815,6 +835,14 @@ function Thread({
                 {dictating ? '⏹ Parar ditado' : '🎙️ Ditar nota'}
               </button>
             ) : null}
+            <button
+              className="btn small secondary"
+              onClick={structureWithAi}
+              disabled={busy || !sumDraft.trim()}
+              title="Corrige e organiza a nota em SOAP com IA (revê antes de guardar)"
+            >
+              ✨ Estruturar com IA
+            </button>
             <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
               Guardar resumo
             </button>

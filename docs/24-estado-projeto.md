@@ -34,9 +34,10 @@ SOAP pré-preenchido a partir da triagem; helper de template, não IA externa).
 **Por fazer (produto):** **percentis WHO** — ◑ motor LMS (z-score, percentil,
 classificação WHO, interpolação) **implementado e testado** (`common/growth/lms.ts`);
 falta só integrar as **tabelas LMS oficiais** como dados versionados (ver
-**doc 25**) · **AI administrativa real** (resumo gerado por LLM — atrás de chave
-🔑; já há o rascunho determinístico como base) · **AI scribe** de vídeo (resumo
-automático da consulta — planeado, ver **doc 26**; 🔑 LLM/STT + ⚖️ consentimento/DPA/DPIA).
+**doc 25**) · **AI administrativa** ◑ — **estruturação SOAP por LLM** (Claude) implementada
+(endpoint `POST /consultations/:id/summary/structure` + botão "Estruturar com IA";
+ativa com `ANTHROPIC_API_KEY`, degrada com 503 sem ela) · **AI scribe** de vídeo
+(transcrição ambiente — planeado, ver **doc 26**; 🔑 STT + ⚖️ consentimento/DPA/DPIA).
 
 ## 3. Integrações reais 🔑 (código pronto, falta credenciais — ver doc 21)
 - **Pagamentos**: Stripe live + **MB WAY** + Apple/Google Pay + Connect payouts.

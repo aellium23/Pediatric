@@ -9,6 +9,7 @@ import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsModule } from '../payments/payments.module';
+import { AiModule } from '../ai/ai.module';
 
 @ApiTags('consultations')
 @ApiBearerAuth()
@@ -72,6 +73,16 @@ class ConsultationsController {
     return this.service.setSummary(user.userId, id, text ?? '');
   }
 
+  @Post(':id/summary/structure')
+  @Roles(Role.PEDIATRICIAN)
+  structureSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('text') text: string,
+  ) {
+    return this.service.structureSummary(user.userId, id, text ?? '');
+  }
+
   @Post(':id/close')
   @Roles(Role.PEDIATRICIAN)
   close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
@@ -92,7 +103,7 @@ class ConsultationsController {
 }
 
 @Module({
-  imports: [PaymentsModule, JwtModule.register({})],
+  imports: [PaymentsModule, AiModule, JwtModule.register({})],
   controllers: [ConsultationsController],
   providers: [ConsultationsService, ConsultationsGateway, SlaScheduler],
   exports: [ConsultationsService],

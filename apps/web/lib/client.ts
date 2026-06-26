@@ -199,6 +199,11 @@ export const Api = {
     request(`/consultations/${id}/summary`) as Promise<{ summary: string | null }>,
   setSummary: (id: string, text: string) =>
     request(`/consultations/${id}/summary`, { method: 'POST', body: JSON.stringify({ text }) }),
+  structureSummary: (id: string, text: string) =>
+    request(`/consultations/${id}/summary/structure`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }) as Promise<{ text: string }>,
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,

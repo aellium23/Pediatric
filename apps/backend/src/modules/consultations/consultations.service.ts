@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
+import { AiService } from '../ai/ai.module';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
 import {
   ConsultationClosedEvent,
@@ -26,7 +27,19 @@ export class ConsultationsService {
     private readonly consent: ConsentService,
     private readonly payments: PaymentsService,
     private readonly events: EventEmitter2,
+    private readonly ai: AiService,
   ) {}
+
+  /** Pediatrician-only: clean/structure a dictated note into SOAP via the AI
+   *  assistant. Returns the structured text for review; does NOT save it. */
+  async structureSummary(userId: string, consultationId: string, text: string) {
+    const consultation = await this.assertParticipant(userId, consultationId);
+    if (consultation.pediatrician.userId !== userId) {
+      throw new ForbiddenException('Only the pediatrician can use the assistant');
+    }
+    const structured = await this.ai.structureClinicalNote(text);
+    return { text: structured };
+  }
 
   /** Parent starts a paid message consultation (consent-gated). */
   async start(userId: string, dto: StartConsultationDto) {

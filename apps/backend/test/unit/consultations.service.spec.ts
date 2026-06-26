@@ -30,8 +30,9 @@ function build(overrides: Record<string, any> = {}) {
     refundForConsultation: jest.fn().mockResolvedValue(undefined),
   };
   const events: any = { emit: jest.fn() };
+  const ai: any = { structureClinicalNote: jest.fn().mockResolvedValue('soap') };
 
-  const service = new ConsultationsService(prisma, crypto, consent, payments, events);
+  const service = new ConsultationsService(prisma, crypto, consent, payments, events, ai);
   return { service, prisma, payments, events };
 }
 

@@ -43,6 +43,12 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Optional — AI clinical-note assistant (Anthropic). Without a key the
+      # "Estruturar com IA" action degrades to a clear 503.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
       # Optional — real LiveKit video (see docs/21-integracoes.md). Without
       # these, video tokens are issued in demo mode.
       - key: LIVEKIT_URL
