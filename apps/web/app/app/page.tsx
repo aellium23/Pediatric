@@ -27,6 +27,7 @@ import {
   type InvoicesDto,
   type ArticleCard,
   type ReferralDto,
+  type VerificationDoc,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 import { useT, type Lang } from '@/lib/i18n';
@@ -2290,12 +2291,116 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
         </button>
       </div>
 
+      <DocumentsSection onMsg={onMsg} />
+
       <ContentAuthor onMsg={onMsg} />
 
       <h3 style={{ marginTop: 20 }}>Subscrição</h3>
       <SubscriptionSection onMsg={onMsg} />
       <InvoicesSection onMsg={onMsg} />
       <PrivacySection onMsg={onMsg} onLeave={onLeave} />
+    </div>
+  );
+}
+
+// ───────────────────────── Credential documents (pediatrician) ─────────────────────────
+const DOC_KINDS: { value: string; label: string }[] = [
+  { value: 'cedula', label: 'Cédula profissional' },
+  { value: 'diploma', label: 'Diploma / especialidade' },
+  { value: 'id_document', label: 'Documento de identificação' },
+  { value: 'insurance', label: 'Seguro de responsabilidade' },
+  { value: 'other', label: 'Outro' },
+];
+
+function docStatusPill(s: string): string {
+  if (s === 'approved') return 'pill ok';
+  if (s === 'rejected') return 'pill warn';
+  return 'pill muted';
+}
+function docStatusLabel(s: string): string {
+  return ({ approved: 'Aprovado', rejected: 'Recusado', pending: 'Em análise' } as Record<string, string>)[s] ?? s;
+}
+
+function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const [docs, setDocs] = useState<VerificationDoc[]>([]);
+  const [kind, setKind] = useState('cedula');
+  const [fileName, setFileName] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      setDocs(await Api.myDocuments());
+    } catch (e) {
+      onMsg(`Erro a carregar documentos: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function submit() {
+    if (fileName.trim().length < 2) {
+      onMsg('Indica o nome do ficheiro.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await Api.submitDocument({ kind, fileName: fileName.trim() });
+      onMsg('Documento submetido para verificação ✓');
+      setFileName('');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card section">
+      <h3>Documentos de verificação</h3>
+      <p className="muted">
+        Submete a cédula profissional e outros comprovativos. A equipa de compliance analisa e
+        aprova. (O upload do ficheiro em si fica disponível quando o armazenamento seguro estiver
+        ativo.)
+      </p>
+      {docs.length > 0 ? (
+        <div className="grid" style={{ marginBottom: 12 }}>
+          {docs.map((d) => (
+            <div key={d.id} className="card">
+              <span className={docStatusPill(d.status)}>{docStatusLabel(d.status)}</span>
+              <div>
+                <strong>{DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</strong>
+              </div>
+              <div className="muted">{d.fileName}</div>
+              {d.note ? <div className="muted">Nota: {d.note}</div> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">Ainda não submeteste documentos.</p>
+      )}
+      <label className="muted">
+        Tipo
+        <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ marginLeft: 8 }}>
+          {DOC_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>
+              {k.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <input
+        className="search"
+        placeholder="Nome do ficheiro (ex.: cedula-12345.pdf)"
+        value={fileName}
+        onChange={(e) => setFileName(e.target.value)}
+        style={{ marginTop: 8 }}
+      />
+      <button className="btn" onClick={submit} disabled={busy} style={{ marginTop: 8 }}>
+        Submeter documento
+      </button>
     </div>
   );
 }
@@ -2797,6 +2902,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
 function VerifyTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<AdminPedRow[]>([]);
   const [busy, setBusy] = useState('');
+  const [openDocs, setOpenDocs] = useState('');
 
   async function load() {
     try {
@@ -2855,10 +2961,84 @@ function VerifyTab({ onMsg }: { onMsg: (m: string) => void }) {
                     Suspender
                   </button>
                 ) : null}
+                <button
+                  className="btn small secondary"
+                  onClick={() => setOpenDocs(openDocs === p.id ? '' : p.id)}
+                >
+                  {openDocs === p.id ? 'Fechar documentos' : 'Documentos'}
+                </button>
               </div>
+              {openDocs === p.id ? <PedDocsReview pediatricianId={p.id} onMsg={onMsg} /> : null}
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Compliance reviews a pediatrician's credential documents inline.
+function PedDocsReview({
+  pediatricianId,
+  onMsg,
+}: {
+  pediatricianId: string;
+  onMsg: (m: string) => void;
+}) {
+  const [docs, setDocs] = useState<VerificationDoc[]>([]);
+  const [busy, setBusy] = useState('');
+
+  async function load() {
+    try {
+      setDocs(await Api.adminDocuments(pediatricianId));
+    } catch (e) {
+      onMsg(`Erro a carregar documentos: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pediatricianId]);
+
+  async function review(id: string, status: 'approved' | 'rejected') {
+    setBusy(id);
+    try {
+      await Api.reviewDocument(id, status);
+      onMsg(status === 'approved' ? 'Documento aprovado ✓' : 'Documento recusado.');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+      {docs.length === 0 ? (
+        <p className="muted">Sem documentos submetidos.</p>
+      ) : (
+        docs.map((d) => (
+          <div key={d.id} style={{ marginBottom: 8 }}>
+            <span className={docStatusPill(d.status)}>{docStatusLabel(d.status)}</span>{' '}
+            <strong>{DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</strong>
+            <div className="muted">{d.fileName}</div>
+            {d.status === 'pending' ? (
+              <div className="row" style={{ marginTop: 4 }}>
+                <button className="btn small" onClick={() => review(d.id, 'approved')} disabled={busy === d.id}>
+                  Aprovar
+                </button>
+                <button
+                  className="btn small danger"
+                  onClick={() => review(d.id, 'rejected')}
+                  disabled={busy === d.id}
+                >
+                  Recusar
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ))
       )}
     </div>
   );

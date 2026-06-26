@@ -9,6 +9,7 @@ import { StripeService } from '../payments/stripe.service';
 import {
   CreateServiceDto,
   MarketplaceQueryDto,
+  SubmitDocumentDto,
   UpdateProfileDto,
   UpdateServiceDto,
 } from './dto/pediatricians.dto';
@@ -145,6 +146,28 @@ export class PediatriciansService {
       commissionInvoices: invoices,
       currency: 'EUR',
     };
+  }
+
+  /** Pediatrician submits a credential document for compliance review. */
+  async submitDocument(userId: string, dto: SubmitDocumentDto) {
+    const ped = await this.getMe(userId);
+    return this.prisma.verificationDocument.create({
+      data: {
+        pediatricianId: ped.id,
+        kind: dto.kind,
+        fileName: dto.fileName,
+        storageKey: dto.storageKey,
+      },
+    });
+  }
+
+  /** Pediatrician lists their own credential documents and review status. */
+  async listMyDocuments(userId: string) {
+    const ped = await this.getMe(userId);
+    return this.prisma.verificationDocument.findMany({
+      where: { pediatricianId: ped.id },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   private async assertServiceOwner(userId: string, serviceId: string) {

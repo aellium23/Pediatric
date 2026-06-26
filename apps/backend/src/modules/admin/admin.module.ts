@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { PediatricianStatus, PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Roles } from '../../common/security/decorators';
@@ -19,6 +19,17 @@ class ChangeRoleDto {
   @ApiProperty({ enum: Role })
   @IsEnum(Role)
   role!: Role;
+}
+
+class ReviewDocDto {
+  @ApiProperty({ enum: ['approved', 'rejected'] })
+  @IsIn(['approved', 'rejected'])
+  status!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 @Injectable()
@@ -111,6 +122,22 @@ export class AdminService {
       include: { actor: { select: { email: true, role: true } } },
     });
   }
+
+  /** Credential documents submitted by a given pediatrician. */
+  async listDocuments(pediatricianId: string) {
+    return this.prisma.verificationDocument.findMany({
+      where: { pediatricianId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Compliance approves/rejects a credential document. */
+  async reviewDocument(id: string, status: string, note?: string) {
+    return this.prisma.verificationDocument.update({
+      where: { id },
+      data: { status, note, reviewedAt: new Date() },
+    });
+  }
 }
 
 @ApiTags('admin')
@@ -159,6 +186,18 @@ class AdminController {
   @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE)
   audit() {
     return this.service.audit();
+  }
+
+  @Get('pediatricians/:id/documents')
+  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE, Role.SUPPORT)
+  documents(@Param('id') id: string) {
+    return this.service.listDocuments(id);
+  }
+
+  @Post('documents/:docId/review')
+  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE)
+  reviewDocument(@Param('docId') docId: string, @Body() dto: ReviewDocDto) {
+    return this.service.reviewDocument(docId, dto.status, dto.note);
   }
 }
 

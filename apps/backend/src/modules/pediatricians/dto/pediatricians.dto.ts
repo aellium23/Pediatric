@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -59,6 +60,30 @@ export class UpdateServiceDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(100) priceCents?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) slaHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) scopeText?: string;
+}
+
+const DOCUMENT_KINDS = ['cedula', 'diploma', 'id_document', 'insurance', 'other'] as const;
+
+export class SubmitDocumentDto {
+  @ApiProperty({ enum: DOCUMENT_KINDS })
+  @IsIn(DOCUMENT_KINDS as unknown as string[])
+  kind!: string;
+
+  @ApiProperty() @IsString() @MaxLength(255) fileName!: string;
+
+  @ApiPropertyOptional({ description: 'Storage key once uploaded via files presign' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  storageKey?: string;
+}
+
+export class ReviewDocumentDto {
+  @ApiProperty({ enum: ['approved', 'rejected'] })
+  @IsIn(['approved', 'rejected'])
+  status!: string;
+
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) note?: string;
 }
 
 export class CreateReviewDto {

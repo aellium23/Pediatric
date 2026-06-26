@@ -174,8 +174,28 @@ model Pediatrician {
   consultations Consultation[]
   referralsSent     Referral[] @relation("ReferralsSent")
   referralsReceived Referral[] @relation("ReferralsReceived")
+  verificationDocs  VerificationDocument[]
 
   @@index([status])
+}
+
+// Credential documents (cédula profissional, diploma, …) reviewed by
+// compliance during pediatrician verification. The binary lives in the
+// SSE-KMS bucket (storageKey, uploaded via the files presign); this row
+// carries the review workflow and audit trail.
+model VerificationDocument {
+  id             String       @id @default(uuid())
+  pediatricianId String
+  pediatrician   Pediatrician @relation(fields: [pediatricianId], references: [id], onDelete: Cascade)
+  kind           String       // cedula | diploma | id_document | insurance | other
+  fileName       String
+  storageKey     String?
+  status         String       @default("pending") // pending | approved | rejected
+  note           String?      // reviewer note
+  createdAt      DateTime     @default(now())
+  reviewedAt     DateTime?
+
+  @@index([pediatricianId])
 }
 
 enum ServiceType {

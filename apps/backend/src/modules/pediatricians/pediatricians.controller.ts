@@ -19,6 +19,7 @@ import {
   CreateReviewDto,
   CreateServiceDto,
   MarketplaceQueryDto,
+  SubmitDocumentDto,
   UpdateProfileDto,
   UpdateServiceDto,
 } from './dto/pediatricians.dto';
@@ -107,6 +108,19 @@ export class PediatriciansController {
     @Body('returnUrl') returnUrl: string,
   ) {
     return this.service.createConnectOnboarding(user.userId, returnUrl ?? 'https://pedia.app');
+  }
+
+  // ── Credential documents (compliance verification) ──
+  @Get('me/documents')
+  @Roles(Role.PEDIATRICIAN)
+  listMyDocuments(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listMyDocuments(user.userId);
+  }
+
+  @Post('me/documents')
+  @Roles(Role.PEDIATRICIAN)
+  submitDocument(@CurrentUser() user: AuthenticatedUser, @Body() dto: SubmitDocumentDto) {
+    return this.service.submitDocument(user.userId, dto);
   }
 
   // ── Reviews ──

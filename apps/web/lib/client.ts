@@ -208,6 +208,18 @@ export const Api = {
     request('/pediatricians/me/services', { method: 'POST', body: JSON.stringify(data) }),
   deleteService: (id: string) =>
     request(`/pediatricians/me/services/${id}`, { method: 'DELETE' }),
+  // Credential documents (pediatrician verification)
+  myDocuments: () => request('/pediatricians/me/documents') as Promise<VerificationDoc[]>,
+  submitDocument: (data: { kind: string; fileName: string; storageKey?: string }) =>
+    request('/pediatricians/me/documents', { method: 'POST', body: JSON.stringify(data) }),
+  adminDocuments: (pedId: string) =>
+    request(`/admin/pediatricians/${pedId}/documents`) as Promise<VerificationDoc[]>,
+  reviewDocument: (docId: string, status: 'approved' | 'rejected', note?: string) =>
+    request(`/admin/documents/${docId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ status, note }),
+    }),
+
   // Doctor-to-doctor second opinion (referrals)
   referralsIncoming: () => request('/referrals/incoming') as Promise<ReferralDto[]>,
   referralsOutgoing: () => request('/referrals/outgoing') as Promise<ReferralDto[]>,
@@ -378,6 +390,18 @@ export interface HealthOverview {
     createdAt: string;
     closedAt: string | null;
   }[];
+}
+
+export interface VerificationDoc {
+  id: string;
+  pediatricianId: string;
+  kind: string;
+  fileName: string;
+  storageKey: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  note: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
 }
 
 export interface ReferralDto {

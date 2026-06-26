@@ -24,12 +24,13 @@ admin (backoffice), observability.
 crescimento** (altura/peso ao longo do tempo).
 
 **Feito recentemente (cont.):** ✅ **2ª opinião médico-médico** (referrals
-cifrados: pedido + aceitar/recusar + parecer; backend + UI do pediatra).
+cifrados: pedido + aceitar/recusar + parecer; backend + UI do pediatra) ·
+✅ **gestão documental de verificação** (pediatra submete cédula/diploma/seguro;
+compliance aprova/recusa com nota; o binário usa o presign S3 quando ativo 🔑).
 
 **Por fazer (produto):** **percentis WHO** (requer o dataset oficial LMS — não
 estimar de memória; carregar tabelas e aplicar o método LMS sobre o gráfico atual) ·
-AI administrativa · gestão documental de verificação de cédula (upload de
-documentos do pediatra).
+AI administrativa.
 
 ## 3. Integrações reais 🔑 (código pronto, falta credenciais — ver doc 21)
 - **Pagamentos**: Stripe live + **MB WAY** + Apple/Google Pay + Connect payouts.
