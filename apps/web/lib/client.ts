@@ -208,6 +208,16 @@ export const Api = {
     request('/pediatricians/me/services', { method: 'POST', body: JSON.stringify(data) }),
   deleteService: (id: string) =>
     request(`/pediatricians/me/services/${id}`, { method: 'DELETE' }),
+  // Doctor-to-doctor second opinion (referrals)
+  referralsIncoming: () => request('/referrals/incoming') as Promise<ReferralDto[]>,
+  referralsOutgoing: () => request('/referrals/outgoing') as Promise<ReferralDto[]>,
+  createReferral: (data: { consultationId: string; toPediatricianId: string; reason: string }) =>
+    request('/referrals', { method: 'POST', body: JSON.stringify(data) }),
+  acceptReferral: (id: string) => request(`/referrals/${id}/accept`, { method: 'POST' }),
+  declineReferral: (id: string) => request(`/referrals/${id}/decline`, { method: 'POST' }),
+  submitReferralOpinion: (id: string, opinion: string) =>
+    request(`/referrals/${id}/opinion`, { method: 'POST', body: JSON.stringify({ opinion }) }),
+
   availability: () => request('/scheduling/availability/me') as Promise<AvailabilityDto[]>,
   addAvailability: (data: { weekday: number; startMinute: number; endMinute: number; slotMinutes?: number }) =>
     request('/scheduling/availability', { method: 'POST', body: JSON.stringify(data) }),
@@ -368,6 +378,19 @@ export interface HealthOverview {
     createdAt: string;
     closedAt: string | null;
   }[];
+}
+
+export interface ReferralDto {
+  id: string;
+  consultationId: string;
+  fromPediatricianId: string;
+  toPediatricianId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'COMPLETED';
+  reason: string | null;
+  opinion: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  completedAt: string | null;
 }
 
 export interface ClinicDashboard {

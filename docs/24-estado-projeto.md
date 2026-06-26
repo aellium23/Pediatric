@@ -10,7 +10,7 @@ enterprise. Legenda: ✅ feito · ◑ parcial / a degradar até config · ⏳ po
 | **0 · Discovery** | ◑ | Tech (ADRs, CI/CD, auth, ambientes) ✅. Legal/fiscal/regulatório (DPIA, DPO, parecer ERS/Ordem, fiscalista) ⚖️ por fechar. |
 | **1 · MVP Portugal** | ✅ | Auth, perfis, consentimentos, arquivo da criança, uploads, marketplace + verificação, consulta por mensagem + SLA + triagem, pagamentos (hold/capture/split), faturação por eventos, reembolsos, dashboard financeiro, notificações. Falta **pentest/hardening final** e **beta fechado** (processo). |
 | **2 · Vídeo + Agenda** | ◑ | Agenda ✅, vídeo (token + sessão) ✅, reembolsos/cancelamentos ✅, episódios ✅. Falta **media de vídeo real** 🔑(LiveKit), **lembretes push** 🔑, **Apple/Google Pay** 🔑(Stripe), **notas/resumo pós-consulta**. |
-| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n PT/EN/ES ✅. Falta **AI administrativa** (resumos), **percentis WHO** (temos IMC), **partilha entre médicos**, **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
+| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n PT/EN/ES ✅, **partilha médico-médico** ✅. Falta **AI administrativa** (resumos), **percentis WHO** (temos IMC), **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
 
 ## 2. Produto / funcional (backend = 19 módulos, 33 modelos)
 Tudo o que não precisa de serviços externos está **implementado e em produção**:
@@ -23,10 +23,13 @@ admin (backoffice), observability.
 **Feito recentemente:** ✅ **notas/resumo pós-consulta** (cifrado) · ✅ **gráfico de
 crescimento** (altura/peso ao longo do tempo).
 
+**Feito recentemente (cont.):** ✅ **2ª opinião médico-médico** (referrals
+cifrados: pedido + aceitar/recusar + parecer; backend + UI do pediatra).
+
 **Por fazer (produto):** **percentis WHO** (requer o dataset oficial LMS — não
 estimar de memória; carregar tabelas e aplicar o método LMS sobre o gráfico atual) ·
-AI administrativa · partilha médico-médico · gestão documental de verificação de
-cédula (upload de documentos do pediatra).
+AI administrativa · gestão documental de verificação de cédula (upload de
+documentos do pediatra).
 
 ## 3. Integrações reais 🔑 (código pronto, falta credenciais — ver doc 21)
 - **Pagamentos**: Stripe live + **MB WAY** + Apple/Google Pay + Connect payouts.

@@ -26,6 +26,7 @@ import {
   type ConsentRow,
   type InvoicesDto,
   type ArticleCard,
+  type ReferralDto,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 import { useT, type Lang } from '@/lib/i18n';
@@ -325,6 +326,7 @@ export default function MultiProfileApp() {
           </div>
         ) : null}
         {tab === 'inbox' ? <InboxTab onMsg={setMsg} /> : null}
+        {tab === 'referrals' ? <ReferralsTab onMsg={setMsg} /> : null}
         {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
         {tab === 'profile' ? <PedProfileTab onMsg={setMsg} onLeave={leave} /> : null}
         {tab === 'finance' ? <FinanceTab onMsg={setMsg} /> : null}
@@ -468,6 +470,13 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
         <path d="M9.5 21v-4.5h5V21M12 9.5v3M10.5 11h3" />
       </>
     ),
+    referrals: (
+      <>
+        <path d="M3 8h11l-2.5-2.5M21 16H10l2.5 2.5" />
+        <circle cx="17.5" cy="8" r="2.2" />
+        <circle cx="6.5" cy="16" r="2.2" />
+      </>
+    ),
   };
   return (
     <svg
@@ -514,6 +523,7 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
   if (role === 'PEDIATRICIAN')
     return [
       { key: 'inbox', label: 'Caixa', ico: '📥' },
+      { key: 'referrals', label: '2ª opinião', ico: '🤝' },
       { key: 'agenda', label: 'Agenda', ico: '📅' },
       { key: 'profile', label: 'Perfil', ico: '⚙️' },
       { key: 'finance', label: 'Ganhos', ico: '💶' },
@@ -1758,6 +1768,230 @@ function ReviewForm({
       <button className="btn" onClick={submit} disabled={busy}>
         Enviar avaliação
       </button>
+    </div>
+  );
+}
+
+// ──────────────── Pediatrician: doctor-to-doctor 2nd opinion ────────────────
+type Colleague = { id: string; bio?: string | null; specialties?: string[] };
+
+function refStatusLabel(s: ReferralDto['status']): string {
+  return (
+    { PENDING: 'Pendente', ACCEPTED: 'Aceite', DECLINED: 'Recusada', COMPLETED: 'Concluída' } as Record<
+      string,
+      string
+    >
+  )[s] ?? s;
+}
+
+function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [view, setView] = useState<'incoming' | 'outgoing' | 'new'>('incoming');
+  const [incoming, setIncoming] = useState<ReferralDto[]>([]);
+  const [outgoing, setOutgoing] = useState<ReferralDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [opinions, setOpinions] = useState<Record<string, string>>({});
+
+  // "New referral" form state
+  const [myConsults, setMyConsults] = useState<ConsultationDto[]>([]);
+  const [colleagues, setColleagues] = useState<Colleague[]>([]);
+  const [consultId, setConsultId] = useState('');
+  const [toId, setToId] = useState('');
+  const [reason, setReason] = useState('');
+  const myPedId = outgoing[0]?.fromPediatricianId; // known once we've sent one
+
+  async function load() {
+    try {
+      const [inc, out] = await Promise.all([Api.referralsIncoming(), Api.referralsOutgoing()]);
+      setIncoming(inc);
+      setOutgoing(out);
+    } catch (e) {
+      onMsg(`Erro a carregar: ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function openNew() {
+    setView('new');
+    try {
+      const [cons, peds] = await Promise.all([Api.inbox(), Api.pediatricians()]);
+      setMyConsults(cons);
+      setColleagues((peds as Colleague[]).filter((p) => p.id !== myPedId));
+    } catch (e) {
+      onMsg(`Erro a carregar dados: ${String(e)}`);
+    }
+  }
+
+  async function send() {
+    if (!consultId || !toId || reason.trim().length < 3) {
+      onMsg('Escolhe a consulta, o colega e descreve o contexto.');
+      return;
+    }
+    try {
+      await Api.createReferral({ consultationId: consultId, toPediatricianId: toId, reason: reason.trim() });
+      onMsg('Pedido de 2ª opinião enviado.');
+      setReason('');
+      setConsultId('');
+      setToId('');
+      setView('outgoing');
+      await load();
+    } catch (e) {
+      onMsg(`Erro a enviar: ${String(e)}`);
+    }
+  }
+
+  async function respond(id: string, accept: boolean) {
+    try {
+      if (accept) await Api.acceptReferral(id);
+      else await Api.declineReferral(id);
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function submitOpinion(id: string) {
+    const text = (opinions[id] ?? '').trim();
+    if (text.length < 3) {
+      onMsg('Escreve a tua opinião.');
+      return;
+    }
+    try {
+      await Api.submitReferralOpinion(id, text);
+      onMsg('Opinião enviada ao colega.');
+      await load();
+    } catch (e) {
+      onMsg(`Erro a enviar: ${String(e)}`);
+    }
+  }
+
+  return (
+    <div className="section">
+      <h2>Segunda opinião</h2>
+      <div className="seg" role="tablist">
+        <button className={view === 'incoming' ? 'active' : ''} onClick={() => setView('incoming')}>
+          Recebidos{incoming.length ? ` (${incoming.length})` : ''}
+        </button>
+        <button className={view === 'outgoing' ? 'active' : ''} onClick={() => setView('outgoing')}>
+          Enviados{outgoing.length ? ` (${outgoing.length})` : ''}
+        </button>
+        <button className={view === 'new' ? 'active' : ''} onClick={() => void openNew()}>
+          Pedir
+        </button>
+      </div>
+
+      {loading ? <Skeleton rows={2} /> : null}
+
+      {!loading && view === 'incoming' ? (
+        incoming.length === 0 ? (
+          <EmptyState title="Sem pedidos" hint="Quando um colega te pedir uma opinião aparece aqui." />
+        ) : (
+          <div className="grid">
+            {incoming.map((r) => (
+              <div key={r.id} className="card">
+                <span className={statusPill(r.status === 'COMPLETED' ? 'CLOSED' : 'OPEN')}>
+                  {refStatusLabel(r.status)}
+                </span>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{r.reason}</p>
+                {r.status === 'PENDING' ? (
+                  <div className="row">
+                    <button className="btn" onClick={() => void respond(r.id, true)}>
+                      Aceitar
+                    </button>
+                    <button className="btn secondary" onClick={() => void respond(r.id, false)}>
+                      Recusar
+                    </button>
+                  </div>
+                ) : null}
+                {r.status === 'ACCEPTED' ? (
+                  <div>
+                    <textarea
+                      className="search"
+                      rows={4}
+                      placeholder="A tua opinião clínica…"
+                      value={opinions[r.id] ?? ''}
+                      onChange={(e) => setOpinions((o) => ({ ...o, [r.id]: e.target.value }))}
+                    />
+                    <button className="btn" onClick={() => void submitOpinion(r.id)}>
+                      Enviar opinião
+                    </button>
+                  </div>
+                ) : null}
+                {r.status === 'COMPLETED' && r.opinion ? (
+                  <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>
+                    <strong>A tua opinião:</strong> {r.opinion}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+
+      {!loading && view === 'outgoing' ? (
+        outgoing.length === 0 ? (
+          <EmptyState title="Nada enviado" hint="Pede uma 2ª opinião a um colega no separador “Pedir”." />
+        ) : (
+          <div className="grid">
+            {outgoing.map((r) => (
+              <div key={r.id} className="card">
+                <span className={statusPill(r.status === 'COMPLETED' ? 'CLOSED' : 'OPEN')}>
+                  {refStatusLabel(r.status)}
+                </span>
+                <p style={{ whiteSpace: 'pre-wrap' }} className="muted">
+                  {r.reason}
+                </p>
+                {r.opinion ? (
+                  <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>
+                    <strong>Opinião do colega:</strong> {r.opinion}
+                  </div>
+                ) : (
+                  <div className="muted">A aguardar resposta…</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+
+      {view === 'new' ? (
+        <div className="card">
+          <label className="muted">Consulta</label>
+          <select className="search" value={consultId} onChange={(e) => setConsultId(e.target.value)}>
+            <option value="">Escolhe uma consulta…</option>
+            {myConsults.map((c) => (
+              <option key={c.id} value={c.id}>
+                {svcLabel(c.type)} · {statusLabel(c.status)}
+              </option>
+            ))}
+          </select>
+          <label className="muted">Colega</label>
+          <select className="search" value={toId} onChange={(e) => setToId(e.target.value)}>
+            <option value="">Escolhe um pediatra…</option>
+            {colleagues.map((p) => (
+              <option key={p.id} value={p.id}>
+                {(p.specialties && p.specialties.length ? p.specialties.join(', ') : 'Pediatra')} ·{' '}
+                {p.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+          <label className="muted">Contexto clínico (cifrado)</label>
+          <textarea
+            className="search"
+            rows={5}
+            placeholder="Descreve o caso e a questão para o colega…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <button className="btn" onClick={() => void send()}>
+            Enviar pedido
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
