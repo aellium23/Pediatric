@@ -279,13 +279,20 @@ function BrandLogo({ full = false, height }: { full?: boolean; height?: number }
   const [imgFailed, setImgFailed] = useState(false);
   const src = full ? '/logo.png' : '/logo-mark.png';
   if (!imgFailed) {
+    const h = height ?? (full ? 150 : 28);
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt="HOC — Healthcare on Call"
-        height={height ?? (full ? 150 : 28)}
-        style={{ height: height ?? (full ? 150 : 28), width: 'auto', maxWidth: '100%', display: 'block' }}
+        height={h}
+        style={
+          full
+            ? // Full lockup may carry a white background; sit it on a white card
+              // so it reads cleanly in both light and dark themes.
+              { height: h, width: 'auto', maxWidth: '100%', display: 'inline-block', background: '#fff', padding: 12, borderRadius: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
+            : { height: h, width: 'auto', maxWidth: '100%', display: 'block' }
+        }
         onError={() => setImgFailed(true)}
       />
     );
