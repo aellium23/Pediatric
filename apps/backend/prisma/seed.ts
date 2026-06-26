@@ -1,4 +1,10 @@
-import { PrismaClient, Role, PediatricianStatus, ServiceType } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  PediatricianStatus,
+  ServiceType,
+  ConsentSubject,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -57,6 +63,38 @@ async function main(): Promise<void> {
       update: { role: u.role },
       create: { email: u.email, emailVerified: true, role: u.role },
     });
+  }
+
+  // Give the demo parent (Marta) a family + child + health-data consent so the
+  // message/video consultation flows work out of the box (idempotent re-seeds).
+  const marta = await prisma.user.findUnique({ where: { email: 'marta@demo.pedia' } });
+  if (marta) {
+    let family = await prisma.family.findFirst({ where: { primaryUserId: marta.id } });
+    family ??= await prisma.family.create({
+      data: { name: 'Família Silva', primaryUserId: marta.id },
+    });
+    await prisma.familyMember.upsert({
+      where: { familyId_userId: { familyId: family.id, userId: marta.id } },
+      create: { familyId: family.id, userId: marta.id, relationship: 'guardian' },
+      update: {},
+    });
+    let child = await prisma.child.findFirst({ where: { familyId: family.id, name: 'Tomás' } });
+    child ??= await prisma.child.create({
+      data: { familyId: family.id, name: 'Tomás', birthDate: new Date('2021-05-10'), sex: 'M' },
+    });
+    const consent = await prisma.consent.findFirst({
+      where: { childId: child.id, subject: ConsentSubject.HEALTH_DATA, revokedAt: null },
+    });
+    if (!consent) {
+      await prisma.consent.create({
+        data: {
+          userId: marta.id,
+          childId: child.id,
+          subject: ConsentSubject.HEALTH_DATA,
+          version: '1.0',
+        },
+      });
+    }
   }
 
   // A demo clinic linking the clinic users + the demo pediatrician (idempotent).
