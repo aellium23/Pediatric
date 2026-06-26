@@ -6,6 +6,7 @@ import {
   Api,
   hasApi,
   setToken,
+  setRefreshToken,
   clearToken,
   currentUserId,
   type ChildDto,
@@ -397,6 +398,7 @@ export default function MultiProfileApp() {
     try {
       const r = await Api.devLogin(p.email);
       setToken(r.accessToken);
+      setRefreshToken(r.refreshToken);
       localStorage.setItem('pedia_profile', p.email);
       setProfile(p);
       setTab(tabsFor(p.role)[0].key);

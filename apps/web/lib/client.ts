@@ -4,6 +4,7 @@ const BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
 export const hasApi = BASE.length > 0;
 
 const TOKEN_KEY = 'pedia_token';
+const REFRESH_KEY = 'pedia_refresh';
 
 export function getToken(): string | null {
   return typeof window === 'undefined' ? null : localStorage.getItem(TOKEN_KEY);
@@ -11,8 +12,45 @@ export function getToken(): string | null {
 export function setToken(t: string): void {
   localStorage.setItem(TOKEN_KEY, t);
 }
+export function getRefreshToken(): string | null {
+  return typeof window === 'undefined' ? null : localStorage.getItem(REFRESH_KEY);
+}
+export function setRefreshToken(t?: string | null): void {
+  if (t) localStorage.setItem(REFRESH_KEY, t);
+}
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+/**
+ * Exchange the stored refresh token for a fresh access token (rotating).
+ * Returns true on success. Guarded so concurrent 401s trigger a single refresh.
+ */
+let refreshing: Promise<boolean> | null = null;
+function refreshAccessToken(): Promise<boolean> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const rt = getRefreshToken();
+    if (!rt) return false;
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { accessToken: string; refreshToken?: string };
+      setToken(data.accessToken);
+      setRefreshToken(data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
 }
 
 /** Decode the current user id (sub) from the stored JWT, for chat alignment. */
@@ -28,9 +66,9 @@ export function currentUserId(): string | null {
   }
 }
 
-async function request(path: string, init: RequestInit = {}): Promise<any> {
+function doFetch(path: string, init: RequestInit): Promise<Response> {
   const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -38,6 +76,14 @@ async function request(path: string, init: RequestInit = {}): Promise<any> {
       ...(init.headers ?? {}),
     },
   });
+}
+
+async function request(path: string, init: RequestInit = {}, retry = true): Promise<any> {
+  let res = await doFetch(path, init);
+  // Access token likely expired → refresh once and retry transparently.
+  if (res.status === 401 && retry && getRefreshToken() && path !== '/auth/refresh') {
+    if (await refreshAccessToken()) res = await doFetch(path, init);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(text || `${res.status} ${res.statusText}`);

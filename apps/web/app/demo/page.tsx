@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Api, hasApi, setToken, clearToken, type ChildDto } from '@/lib/client';
+import { Api, hasApi, setToken, setRefreshToken, clearToken, type ChildDto } from '@/lib/client';
 import { DEMO_PEDIATRICIANS } from '@/lib/demo';
 import type { PediatricianCard } from '@/lib/types';
 
@@ -87,6 +87,7 @@ export default function DemoApp() {
     try {
       const r = await Api.devLogin();
       setToken(r.accessToken);
+      setRefreshToken(r.refreshToken);
       setAuthed(true);
       await load();
       setMsg('Sessão iniciada como marta@demo.pedia');
