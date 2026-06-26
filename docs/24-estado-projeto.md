@@ -29,6 +29,17 @@ cifrados: pedido + aceitar/recusar + parecer; backend + UI do pediatra) ·
 ✅ **gestão documental de verificação** (pediatra submete cédula/diploma/seguro;
 compliance aprova/recusa com nota; o binário usa o presign S3 quando ativo 🔑).
 
+**Feito recentemente (cont.):** ✅ **ficha do doente para o pediatra** (separador
+"Doentes": caseload agrupado por **família** com irmãos juntos + **histórico
+longitudinal por criança** — problemas ativos, medicação, curva de peso, vacinas
+e histórico de consultas; endpoints `GET /consultations/patients` e
+`/consultations/child/:id/history`, com acesso restrito ao pediatra que tratou) ·
+✅ **entrada clínica codificada com autocomplete** (catálogos `/catalog`:
+**ICPC-2** para diagnósticos, **ATC** para medicação com **dose por peso
+sugerida** [sempre "rever"], **PNV/CVX** para vacinas; códigos guardados em claro
+para listas de problemas/alertas, texto livre cifrado) — reduz cliques e
+uniformiza termos.
+
 **Feito recentemente (cont.):** ✅ **resumo pós-consulta** com **dois caminhos** —
 (1) rascunho SOAP determinístico a partir da triagem (`genDraft`, sem IA) e
 (2) **estruturação por LLM** (Claude, botão "Estruturar com IA", atrás de
