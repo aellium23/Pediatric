@@ -38,6 +38,8 @@ jobs:
       - run: npm run lint
       # Schema is materialized via db push until versioned migrations land.
       - run: npx prisma db push --skip-generate
+      # Run the demo seed so a seed bug is caught here (it runs on every boot).
+      - run: npm run seed
       - run: npm test -- --coverage
       - run: npm run test:e2e
       - run: npm run build
