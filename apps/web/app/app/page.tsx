@@ -771,13 +771,19 @@ function Thread({
     }
   }
   async function joinVideo() {
+    if (busy) return; // guard against double-click spawning two token requests
+    setBusy(true);
     try {
       const r = await Api.videoToken(consultation.id);
       setVideo({ url: r.url, token: r.token });
     } catch (e) {
       onMsg(`Erro no vídeo: ${String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
+  // Tear down the LiveKit room if the thread is closed while still connected.
+  useEffect(() => () => setVideo(null), []);
 
   return (
     <div className="section">
@@ -791,7 +797,7 @@ function Thread({
           {euro(consultation.priceCents)} · aberta {when(consultation.openedAt)}
         </div>
         {consultation.type === 'VIDEO' && consultation.status !== 'CLOSED' ? (
-          <button className="btn small" onClick={joinVideo} style={{ marginTop: 8 }}>
+          <button className="btn small" onClick={joinVideo} disabled={busy} style={{ marginTop: 8 }}>
             Entrar na videochamada
           </button>
         ) : null}
@@ -1329,7 +1335,7 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
         onCancel={() => setTriageFor(null)}
         onDone={() => {
           setTriageFor(null);
-          onMsg('Consulta por mensagem criada ✓ (vê em "Consultas")');
+          onMsg('Consulta criada ✓ (vê em "Consultas")');
         }}
         onMsg={onMsg}
       />
@@ -1714,6 +1720,7 @@ function BookVideo({
 }) {
   const [date, setDate] = useState('');
   const [slots, setSlots] = useState<string[]>([]);
+  const [searched, setSearched] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
@@ -1723,6 +1730,7 @@ function BookVideo({
     setBusy(true);
     try {
       setSlots(await Api.slots(ped.id, date));
+      setSearched(true);
     } catch (e) {
       onMsg(`Erro a procurar horários: ${String(e)}`);
     } finally {
@@ -1752,7 +1760,15 @@ function BookVideo({
       <p className="muted">
         {ped.specialties[0] ?? 'Pediatria geral'} · {vidSvc ? euro(vidSvc.priceCents) : ''}
       </p>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => {
+          setDate(e.target.value);
+          setSearched(false);
+          setSlots([]);
+        }}
+      />
       <label className="muted" style={{ display: 'block', margin: '8px 0' }}>
         <input
           type="checkbox"
@@ -1773,12 +1789,12 @@ function BookVideo({
             </button>
           ))}
         </div>
-      ) : (
+      ) : searched ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
           Sem horários para esta data. A pediatra define disponibilidade no perfil dela (separador
           "Agenda").
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1943,7 +1959,6 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [consultId, setConsultId] = useState('');
   const [toId, setToId] = useState('');
   const [reason, setReason] = useState('');
-  const myPedId = outgoing[0]?.fromPediatricianId; // known once we've sent one
 
   async function load() {
     try {
@@ -1964,9 +1979,10 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   async function openNew() {
     setView('new');
     try {
-      const [cons, peds] = await Promise.all([Api.inbox(), Api.pediatricians()]);
+      const [cons, peds, me] = await Promise.all([Api.inbox(), Api.pediatricians(), Api.me()]);
       setMyConsults(cons);
-      setColleagues((peds as Colleague[]).filter((p) => p.id !== myPedId));
+      // Exclude myself from the colleague list (can't refer to oneself).
+      setColleagues((peds as Colleague[]).filter((p) => p.id !== me.id));
     } catch (e) {
       onMsg(`Erro a carregar dados: ${String(e)}`);
     }

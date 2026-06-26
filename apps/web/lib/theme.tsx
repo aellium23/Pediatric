@@ -46,7 +46,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // React to OS theme changes while on "system".
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = () => {
-      if ((localStorage.getItem('pedia_theme') as Theme) === 'system') apply('system', s);
+      // Re-read both values from storage — the closure's `s` may be stale.
+      if ((localStorage.getItem('pedia_theme') as Theme) === 'system') {
+        apply('system', (localStorage.getItem('pedia_text') as TextSize) || 'normal');
+      }
     };
     mq.addEventListener?.('change', onChange);
     return () => mq.removeEventListener?.('change', onChange);
