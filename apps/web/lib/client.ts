@@ -420,14 +420,29 @@ export interface MySubscription {
   catalog: { name: string; priceCents: number; perks: string[] };
 }
 
+export interface CentileBand {
+  p: number;
+  points: { ageDays: number; value: number }[];
+}
+
 export interface HealthOverview {
+  who?: { sex: string; source: string } | null;
+  whoBands?: { wfa: CentileBand[]; lhfa: CentileBand[]; bfa: CentileBand[] } | null;
   growth: {
     id: string;
     measuredAt: string;
+    ageDays?: number;
     heightCm: number | null;
     weightKg: number | null;
     headCm: number | null;
     bmi: number | null;
+    weightP?: number | null;
+    weightZ?: number | null;
+    heightP?: number | null;
+    heightZ?: number | null;
+    bmiP?: number | null;
+    bmiZ?: number | null;
+    bmiClass?: string | null;
   }[];
   vaccines: {
     id: string;

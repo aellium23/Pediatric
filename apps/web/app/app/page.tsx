@@ -163,6 +163,68 @@ function GrowthChart({
   );
 }
 
+/** Growth chart with WHO P3–P97 reference bands (x = age in months). */
+function WhoGrowthChart({
+  label,
+  unit,
+  bands,
+  child,
+}: {
+  label: string;
+  unit: string;
+  bands: { p: number; points: { ageDays: number; value: number }[] }[];
+  child: { ageDays: number; value: number }[];
+}) {
+  if (!bands.length || child.length === 0) return null;
+  const w = 320;
+  const h = 150;
+  const pad = 16;
+  const allPts = [...bands.flatMap((b) => b.points), ...child];
+  const xs = allPts.map((p) => p.ageDays);
+  const ys = allPts.map((p) => p.value);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const sx = (x: number) => pad + (maxX === minX ? 0 : (x - minX) / (maxX - minX)) * (w - 2 * pad);
+  const sy = (y: number) =>
+    h - pad - (maxY === minY ? 0.5 : (y - minY) / (maxY - minY)) * (h - 2 * pad);
+  const pathOf = (pts: { ageDays: number; value: number }[]) =>
+    pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.ageDays).toFixed(1)} ${sy(p.value).toFixed(1)}`).join(' ');
+  const childPath = pathOf(child);
+  return (
+    <div className="card" style={{ marginBottom: 8 }}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>
+        {label} — percentis WHO (P3·P15·P50·P85·P97)
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
+        {bands.map((b) => (
+          <path
+            key={b.p}
+            d={pathOf(b.points)}
+            fill="none"
+            stroke="var(--border, #ccc)"
+            strokeWidth={b.p === 50 ? 1.3 : 0.8}
+            strokeDasharray={b.p === 50 ? '' : '3 3'}
+          />
+        ))}
+        <path d={childPath} fill="none" stroke="var(--brand)" strokeWidth="2" />
+        {child.map((p, i) => (
+          <circle key={i} cx={sx(p.ageDays)} cy={sy(p.value)} r="2.8" fill="var(--brand)" />
+        ))}
+      </svg>
+      <div className="muted" style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+        <span>{Math.round((minX / 30.4375) * 10) / 10} m</span>
+        <span>
+          {minY}–{maxY}
+          {unit}
+        </span>
+        <span>{Math.round((maxX / 30.4375) * 10) / 10} m</span>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="empty">
@@ -1245,20 +1307,48 @@ function ChildHealth({
         <>
           {/* Growth */}
           <h3 style={{ marginTop: 16 }}>Crescimento</h3>
-          <GrowthChart
-            label="Altura (cm)"
-            unit=" cm"
-            points={d.growth
-              .filter((g) => g.heightCm != null)
-              .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.heightCm as number }))}
-          />
-          <GrowthChart
-            label="Peso (kg)"
-            unit=" kg"
-            points={d.growth
-              .filter((g) => g.weightKg != null)
-              .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.weightKg as number }))}
-          />
+          {d.whoBands && d.who ? (
+            <>
+              <WhoGrowthChart
+                label="Peso (kg)"
+                unit=" kg"
+                bands={d.whoBands.wfa}
+                child={d.growth
+                  .filter((g) => g.weightKg != null && g.ageDays != null)
+                  .map((g) => ({ ageDays: g.ageDays as number, value: g.weightKg as number }))}
+              />
+              <WhoGrowthChart
+                label="Comprimento/Estatura (cm)"
+                unit=" cm"
+                bands={d.whoBands.lhfa}
+                child={d.growth
+                  .filter((g) => g.heightCm != null && g.ageDays != null)
+                  .map((g) => ({ ageDays: g.ageDays as number, value: g.heightCm as number }))}
+              />
+            </>
+          ) : (
+            <>
+              <GrowthChart
+                label="Altura (cm)"
+                unit=" cm"
+                points={d.growth
+                  .filter((g) => g.heightCm != null)
+                  .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.heightCm as number }))}
+              />
+              <GrowthChart
+                label="Peso (kg)"
+                unit=" kg"
+                points={d.growth
+                  .filter((g) => g.weightKg != null)
+                  .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.weightKg as number }))}
+              />
+            </>
+          )}
+          {!d.who ? (
+            <p className="muted" style={{ fontSize: 12 }}>
+              Define o sexo da criança para ver os percentis WHO (0–5 anos).
+            </p>
+          ) : null}
           {d.growth.length === 0 ? (
             <p className="muted">Sem medições.</p>
           ) : (
@@ -1270,6 +1360,14 @@ function ChildHealth({
                     {g.heightCm ? `${g.heightCm} cm` : ''} {g.weightKg ? `· ${g.weightKg} kg` : ''}
                     {g.bmi ? ` · IMC ${g.bmi}` : ''}
                   </div>
+                  {g.weightP != null || g.heightP != null || g.bmiP != null ? (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {g.weightP != null ? `Peso P${g.weightP}` : ''}
+                      {g.heightP != null ? ` · Estatura P${g.heightP}` : ''}
+                      {g.bmiP != null ? ` · IMC P${g.bmiP}` : ''}
+                      {g.bmiClass ? ` (${g.bmiClass})` : ''}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
