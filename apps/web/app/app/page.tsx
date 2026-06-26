@@ -269,22 +269,47 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
  * gold — readable in both light and dark mode.
  */
 const HOC_GOLD = '#b89460';
+/**
+ * Renders the real raster logo when present in /public, falling back to the
+ * inline SVG recreation if the file hasn't been committed yet. Drop the files at
+ * apps/web/public/logo.png (full lockup) and apps/web/public/logo-mark.png
+ * (compact mark) and they show automatically — no code change needed.
+ */
 function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const src = full ? '/logo.png' : '/logo-mark.png';
+  if (!imgFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt="HOC — Healthcare on Call"
+        height={height ?? (full ? 150 : 28)}
+        style={{ height: height ?? (full ? 150 : 28), width: 'auto', maxWidth: '100%', display: 'block' }}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+  return <BrandLogoSvg full={full} height={height} />;
+}
+function BrandLogoSvg({ full = false, height }: { full?: boolean; height?: number }) {
   if (full) {
     return (
       <svg viewBox="0 0 360 210" height={height ?? 150} style={{ color: 'var(--text)', maxWidth: '100%' }} role="img" aria-label="HOC — Healthcare on Call">
-        <text x="180" y="100" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={300} fontSize="112" letterSpacing="8" fill="currentColor">HOC</text>
-        <polyline points="130,86 168,86 176,86 182,64 189,118 196,72 202,86 214,86 242,86" stroke={HOC_GOLD} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round" fill="none" />
-        <text x="180" y="148" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="16.5" letterSpacing="5" fill="currentColor">HEALTHCARE <tspan fill={HOC_GOLD}>ON</tspan> CALL</text>
-        <line x1="158" y1="168" x2="202" y2="168" stroke="currentColor" strokeWidth="1" />
-        <text x="180" y="194" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="15" letterSpacing="7" fill={HOC_GOLD}>DES</text>
+        <text x="180" y="100" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={200} fontSize="108" letterSpacing="10" fill="currentColor">HOC</text>
+        {/* ECG trace through the centre of the O only */}
+        <polyline points="150,60 170,60 175,52 180,74 185,30 190,70 195,60 213,60" stroke={HOC_GOLD} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+        <text x="180" y="150" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="16" letterSpacing="6" fill="currentColor">HEALTHCARE <tspan fill={HOC_GOLD}>ON</tspan> CALL</text>
+        <line x1="150" y1="176" x2="210" y2="176" stroke={HOC_GOLD} strokeWidth="0.8" opacity="0.7" />
+        <text x="180" y="198" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="13" letterSpacing="8" fill={HOC_GOLD}>DES</text>
       </svg>
     );
   }
   return (
-    <svg viewBox="0 0 168 64" height={height ?? 28} style={{ color: 'var(--text)', display: 'block' }} role="img" aria-label="HOC — Healthcare on Call">
-      <text x="4" y="50" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={300} fontSize="58" letterSpacing="4" fill="currentColor">HOC</text>
-      <polyline points="64,36 88,36 94,36 99,22 104,54 109,26 113,36 124,36 146,36" stroke={HOC_GOLD} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" fill="none" />
+    <svg viewBox="0 0 150 60" height={height ?? 28} style={{ color: 'var(--text)', display: 'block' }} role="img" aria-label="HOC — Healthcare on Call">
+      <text x="2" y="46" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={200} fontSize="52" letterSpacing="5" fill="currentColor">HOC</text>
+      {/* ECG trace through the centre of the O only */}
+      <polyline points="56,28 65,28 68,23 71,35 74,17 77,33 80,28 89,28" stroke={HOC_GOLD} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" fill="none" />
     </svg>
   );
 }
