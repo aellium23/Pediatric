@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Api,
   hasApi,
@@ -32,6 +33,9 @@ import {
 import type { PediatricianCard } from '@/lib/types';
 import { useT, type Lang } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
+
+// LiveKit room is browser-only — load it without SSR.
+const VideoRoom = dynamic(() => import('./VideoRoom'), { ssr: false });
 
 interface Profile {
   email: string;
@@ -572,7 +576,7 @@ function Thread({
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [video, setVideo] = useState<string>('');
+  const [video, setVideo] = useState<{ url: string; token: string } | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [sumDraft, setSumDraft] = useState('');
   const [editSum, setEditSum] = useState(false);
@@ -680,7 +684,7 @@ function Thread({
   async function joinVideo() {
     try {
       const r = await Api.videoToken(consultation.id);
-      setVideo(`Sala ${r.roomId} · token emitido ✓ (o vídeo real precisa de credenciais LiveKit)`);
+      setVideo({ url: r.url, token: r.token });
     } catch (e) {
       onMsg(`Erro no vídeo: ${String(e)}`);
     }
@@ -702,8 +706,10 @@ function Thread({
             Entrar na videochamada
           </button>
         ) : null}
-        {video ? <p className="muted" style={{ fontSize: 12 }}>{video}</p> : null}
       </div>
+      {video ? (
+        <VideoRoom url={video.url} token={video.token} onLeave={() => setVideo(null)} />
+      ) : null}
 
       {/* Post-consultation summary (pediatrician writes; both read). */}
       {summary && !editSum ? (

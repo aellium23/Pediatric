@@ -190,7 +190,11 @@ export const Api = {
   sendMessage: (id: string, body: string) =>
     request(`/consultations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   videoToken: (consultationId: string) =>
-    request(`/video/${consultationId}/token`) as Promise<{ token: string; roomId: string }>,
+    request(`/video/${consultationId}/token`) as Promise<{
+      token: string;
+      url: string;
+      roomId: string;
+    }>,
   consultationSummary: (id: string) =>
     request(`/consultations/${id}/summary`) as Promise<{ summary: string | null }>,
   setSummary: (id: string, text: string) =>
