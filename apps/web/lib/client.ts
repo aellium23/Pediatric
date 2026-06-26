@@ -363,6 +363,16 @@ export const Api = {
     ) as Promise<CatalogVaccine[]>,
   catDose: (atc: string, weightKg: number) =>
     request(`/catalog/dose?atc=${encodeURIComponent(atc)}&weightKg=${weightKg}`) as Promise<DoseSuggestion>,
+  catDrugAllergy: (atc: string, codes: string[]) =>
+    request(
+      `/catalog/drug-allergy?atc=${encodeURIComponent(atc)}&codes=${encodeURIComponent(codes.join(','))}`,
+    ) as Promise<{ code: string; cross: boolean }[]>,
+
+  // Allergies (structured)
+  addAllergy: (childId: string, data: { label: string; code?: string; category?: string }) =>
+    request(`/health-records/${childId}/allergies`, { method: 'POST', body: JSON.stringify(data) }),
+  removeAllergy: (childId: string, id: string) =>
+    request(`/health-records/${childId}/allergies/${id}/remove`, { method: 'POST' }),
 
   // Clinics (B2B)
   myClinic: () => request('/clinics/me') as Promise<ClinicDashboard | null>,
@@ -483,6 +493,7 @@ export interface HealthOverview {
     systolicMmHg: number | null;
     diastolicMmHg: number | null;
   }[];
+  allergies?: { id: string; label: string | null; code: string | null; category: string | null }[];
 }
 
 export interface CatalogCondition {

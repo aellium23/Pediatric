@@ -813,8 +813,13 @@ function ChildSummary({ childId }: { childId: string }) {
                 : '—'}
             </div>
             <div>
-              <strong>Alergias / vacinas:</strong> {vaccines.length} vacina
-              {vaccines.length === 1 ? '' : 's'} registada{vaccines.length === 1 ? '' : 's'}
+              <strong>Alergias:</strong>{' '}
+              {(d.allergies ?? []).length
+                ? (d.allergies ?? []).map((a) => a.label ?? '—').join(', ')
+                : 'nenhuma registada'}
+            </div>
+            <div>
+              <strong>Vacinas:</strong> {vaccines.length} registada{vaccines.length === 1 ? '' : 's'}
             </div>
             <div>
               <strong>Peso recente:</strong> {lastWeight != null ? `${lastWeight} kg` : '—'}
@@ -1290,6 +1295,11 @@ function ChildHealth({
   const [mDose, setMDose] = useState('');
   const [mAtc, setMAtc] = useState('');
   const [doseHint, setDoseHint] = useState('');
+  const [drugWarn, setDrugWarn] = useState('');
+  // allergy form
+  const [alName, setAlName] = useState('');
+  const [alCode, setAlCode] = useState('');
+  const [alCat, setAlCat] = useState('');
   // episode form
   const [eTitle, setETitle] = useState('');
   const [eSummary, setESummary] = useState('');
@@ -1553,6 +1563,70 @@ function ChildHealth({
             </button>
           </div>
 
+          {/* Allergies */}
+          <h3 style={{ marginTop: 16 }}>Alergias</h3>
+          {(d.allergies ?? []).length === 0 ? (
+            <p className="muted">Sem alergias registadas.</p>
+          ) : (
+            <div className="grid">
+              {(d.allergies ?? []).map((a) => (
+                <div key={a.id} className="card">
+                  <strong>{a.label}</strong>
+                  {a.category ? <span className="muted"> · {a.category}</span> : null}
+                  <div>
+                    <button
+                      className="btn small secondary"
+                      disabled={busy}
+                      onClick={() => run(() => Api.removeAllergy(child.id, a.id), 'Removida ✓')}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="card section">
+            <Autocomplete
+              placeholder="Alergia (ex.: penicilina, ovo)"
+              value={alName}
+              onText={(s) => {
+                setAlName(s);
+                setAlCode('');
+                setAlCat('');
+              }}
+              fetcher={(q) => Api.catAllergens(q)}
+              onPick={(a) => {
+                setAlName(a.term);
+                setAlCode(a.code);
+                setAlCat(a.category);
+              }}
+              render={(a) => `${a.term} (${a.category})`}
+              style={{ flex: 'unset' }}
+            />
+            <button
+              className="btn small"
+              disabled={busy || !alName}
+              onClick={() =>
+                run(
+                  () =>
+                    Api.addAllergy(child.id, {
+                      label: alName,
+                      code: alCode || undefined,
+                      category: alCat || undefined,
+                    }).then(() => {
+                      setAlName('');
+                      setAlCode('');
+                      setAlCat('');
+                    }),
+                  'Alergia adicionada ✓',
+                )
+              }
+            >
+              Adicionar alergia
+            </button>
+          </div>
+
           {/* Medications */}
           <h3 style={{ marginTop: 16 }}>Medicação</h3>
           {d.medications.length === 0 ? (
@@ -1591,18 +1665,34 @@ function ChildHealth({
                   setMName(s);
                   setMAtc('');
                   setDoseHint('');
+                  setDrugWarn('');
                 }}
                 fetcher={(q) => Api.catMedications(q)}
                 onPick={async (m) => {
                   setMName(m.dci);
                   setMAtc(m.atc);
                   setDoseHint('');
+                  setDrugWarn('');
                   if (m.dosing && latestWeightKg) {
                     try {
                       const dose = await Api.catDose(m.atc, latestWeightKg);
                       if (dose.found && dose.perDoseMg) {
                         setMDose(`${dose.perDoseMg} mg${dose.everyHours ? ` ${dose.everyHours}/${dose.everyHours}h` : ''}`);
                         setDoseHint(`Sugerido p/ ${latestWeightKg} kg: ${dose.note ?? ''} — rever`);
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  // Cross-check against the child's recorded allergies.
+                  const codes = (d?.allergies ?? []).map((a) => a.code).filter(Boolean) as string[];
+                  if (codes.length) {
+                    try {
+                      const hits = await Api.catDrugAllergy(m.atc, codes);
+                      if (hits.length) {
+                        setDrugWarn(
+                          `⚠️ Alergia registada pode contraindicar este fármaco${hits.some((h) => h.cross) ? ' (reatividade cruzada)' : ''} — confirmar antes de prescrever.`,
+                        );
                       }
                     } catch {
                       /* ignore */
@@ -1615,6 +1705,11 @@ function ChildHealth({
             </div>
             {mAtc ? <div className="muted">ATC: {mAtc}</div> : null}
             {doseHint ? <div className="muted" style={{ color: 'var(--warn, #b26a00)' }}>{doseHint}</div> : null}
+            {drugWarn ? (
+              <div className="card" style={{ borderColor: 'var(--warn, #b26a00)', marginTop: 6 }}>
+                <strong>{drugWarn}</strong>
+              </div>
+            ) : null}
             <button
               className="btn small"
               disabled={busy || !mName}
