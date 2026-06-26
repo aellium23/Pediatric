@@ -62,6 +62,7 @@ export interface ConsultationDto {
   answeredAt: string | null;
   closedAt: string | null;
   episodeId?: string | null;
+  childId?: string | null;
   triage?: Record<string, unknown> | null;
 }
 

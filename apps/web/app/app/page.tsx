@@ -673,6 +673,70 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/**
+ * Compact child record shown inside the consultation, so the pediatrician reads
+ * the relevant history (active problems, medication, recent weight, vaccines)
+ * without leaving the thread. Collapsible; fails silent if unreachable.
+ */
+function ChildSummary({ childId }: { childId: string }) {
+  const [d, setD] = useState<HealthOverview | null>(null);
+  const [open, setOpen] = useState(true);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    Api.childHealth(childId)
+      .then((r) => live && setD(r))
+      .catch(() => live && setErr(true));
+    return () => {
+      live = false;
+    };
+  }, [childId]);
+
+  if (err) return null;
+  const problems = (d?.episodes ?? []).filter((e) => e.status !== 'CLOSED');
+  const meds = (d?.medications ?? []).filter((m) => m.active);
+  const lastWeight = [...(d?.growth ?? [])].reverse().find((g) => g.weightKg != null)?.weightKg ?? null;
+  const vaccines = d?.vaccines ?? [];
+
+  return (
+    <div className="card" style={{ marginTop: 12, borderColor: 'var(--brand)' }}>
+      <button
+        className="link"
+        onClick={() => setOpen(!open)}
+        style={{ display: 'block', width: '100%', textAlign: 'left', fontWeight: 600 }}
+      >
+        {open ? '▾' : '▸'} 🧒 Ficha da criança
+      </button>
+      {open ? (
+        !d ? (
+          <span className="muted">A carregar…</span>
+        ) : (
+          <div style={{ fontSize: 14, marginTop: 6, display: 'grid', gap: 4 }}>
+            <div>
+              <strong>Problemas ativos:</strong>{' '}
+              {problems.length ? problems.map((p) => p.title ?? '—').join(', ') : '—'}
+            </div>
+            <div>
+              <strong>Medicação:</strong>{' '}
+              {meds.length
+                ? meds.map((m) => `${m.name ?? '—'}${m.dose ? ` (${m.dose})` : ''}`).join(', ')
+                : '—'}
+            </div>
+            <div>
+              <strong>Alergias / vacinas:</strong> {vaccines.length} vacina
+              {vaccines.length === 1 ? '' : 's'} registada{vaccines.length === 1 ? '' : 's'}
+            </div>
+            <div>
+              <strong>Peso recente:</strong> {lastWeight != null ? `${lastWeight} kg` : '—'}
+            </div>
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 function Thread({
   consultation,
   canClose,
@@ -897,6 +961,9 @@ function Thread({
           </button>
         ) : null}
       </div>
+      {canClose && consultation.childId ? (
+        <ChildSummary childId={consultation.childId} />
+      ) : null}
       {video ? (
         <VideoRoom url={video.url} token={video.token} onLeave={() => setVideo(null)} />
       ) : null}
