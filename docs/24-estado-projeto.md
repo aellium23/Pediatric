@@ -76,9 +76,10 @@ pipeline de **deploy automatizado para produção** (ECS) + ambiente de **stagin
 ◑ e2e (health) + unit em crescimento. ✅ unit: encryption, roles.guard, reviews,
 scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
 (catálogo por perfil + rejeição de plano incompatível), **health-records**
-(controlo de acesso pai/pediatra + cálculo de IMC). ⏳ **cobertura ampla**
-dos restantes módulos novos (admin, clinics, content, privacy),
-testes de integração e E2E dos fluxos principais.
+(controlo de acesso pai/pediatra + cálculo de IMC), **referrals** (2ª opinião:
+autorização + ciclo de vida), **pediatricians-documents** (submissão/listagem),
+**privacy/RGPD** (exportação com scope por perfil + anonimização). ⏳ **cobertura
+ampla** dos restantes módulos (admin, clinics, content), integração e E2E.
 
 ---
 
