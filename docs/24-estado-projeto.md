@@ -86,7 +86,15 @@ scheduling, consultations (close/SLA/**resumo cifrado**), **subscriptions**
 autorização + ciclo de vida), **pediatricians-documents** (submissão/listagem),
 **privacy/RGPD** (exportação com scope por perfil + anonimização), **clinics**
 (autorização CLINIC_ADMIN/platform + revenue-share), **growth-lms** (motor de
-percentis WHO), **content** (slug único + autorização autor/admin). ⏳ admin,
+percentis WHO), **content** (slug único + autorização autor/admin).
+✅ **caminho do dinheiro e de auth** (lacuna nº1 da revisão E2E): **payments**
+(intent família-só + demo + real; capture/split idempotente; reembolsos;
+webhooks), **stripe** (503 sem chave; cálculo da comissão com arredondamento ao
+cêntimo; reembolso total/parcial), **invoicing** (fatura do ato isenta de IVA +
+comissão a 23%; idempotência; **valor segue o split capturado**), **token**
+(rotação de refresh + deteção de reutilização → revoga sessões), **video**
+(token só a participantes + JWT LiveKit HS256 verificável), **auth** (upsert
+OIDC + *account-linking* por email + dev-login). ⏳ admin, notifications,
 testes de integração e E2E dos fluxos principais.
 
 ---
