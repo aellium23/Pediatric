@@ -173,6 +173,97 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
+/**
+ * Debounced autocomplete: the user types, picks from the catalog, and we keep
+ * both the free text (so anything is still allowed) and the coded selection.
+ * Less typing, consistent terms — the core of "minimum effort".
+ */
+function Autocomplete<T>({
+  value,
+  onText,
+  onPick,
+  fetcher,
+  render,
+  placeholder,
+  style,
+}: {
+  value: string;
+  onText: (s: string) => void;
+  onPick: (item: T) => void;
+  fetcher: (q: string) => Promise<T[]>;
+  render: (item: T) => string;
+  placeholder: string;
+  style?: React.CSSProperties;
+}) {
+  const [opts, setOpts] = useState<T[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!value.trim()) {
+      setOpts([]);
+      return;
+    }
+    let live = true;
+    const id = setTimeout(() => {
+      fetcher(value)
+        .then((r) => live && setOpts(r))
+        .catch(() => undefined);
+    }, 180);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return (
+    <div style={{ position: 'relative', flex: 1, ...style }}>
+      <input
+        placeholder={placeholder}
+        value={value}
+        style={{ width: '100%' }}
+        onChange={(e) => {
+          onText(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && opts.length > 0 ? (
+        <div
+          className="card"
+          style={{
+            position: 'absolute',
+            zIndex: 30,
+            top: '100%',
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: 'auto',
+            padding: 4,
+          }}
+        >
+          {opts.map((o, i) => (
+            <button
+              key={i}
+              type="button"
+              className="link"
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 6px' }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(o);
+                setOpen(false);
+              }}
+            >
+              {render(o)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function svcFullLabel(t: string): string {
   const m: Record<string, string> = {
     MESSAGE: 'Mensagem',
@@ -1013,12 +1104,21 @@ function ChildHealth({
   // vaccine form
   const [vName, setVName] = useState('');
   const [vDate, setVDate] = useState('');
+  const [vCode, setVCode] = useState('');
   // medication form
   const [mName, setMName] = useState('');
   const [mDose, setMDose] = useState('');
+  const [mAtc, setMAtc] = useState('');
+  const [doseHint, setDoseHint] = useState('');
   // episode form
   const [eTitle, setETitle] = useState('');
   const [eSummary, setESummary] = useState('');
+  const [eIcpc, setEIcpc] = useState('');
+  const [eIcd10, setEIcd10] = useState('');
+
+  // Most recent recorded weight, for weight-based dose suggestions.
+  const latestWeightKg =
+    [...(d?.growth ?? [])].reverse().find((g) => g.weightKg != null)?.weightKg ?? null;
 
   async function load() {
     try {
@@ -1133,18 +1233,44 @@ function ChildHealth({
           )}
           <div className="card section">
             <div className="row">
-              <input placeholder="Vacina" value={vName} onChange={(e) => setVName(e.target.value)} />
+              <Autocomplete
+                placeholder="Vacina (ex.: VASPR)"
+                value={vName}
+                onText={(s) => {
+                  setVName(s);
+                  setVCode('');
+                }}
+                fetcher={async (q) => {
+                  const list = await Api.catVaccines();
+                  const n = q.toLowerCase();
+                  return list.filter(
+                    (v) =>
+                      v.name.toLowerCase().includes(n) || v.abbr.toLowerCase().includes(n),
+                  );
+                }}
+                onPick={(v) => {
+                  setVName(v.name);
+                  setVCode(v.abbr);
+                }}
+                render={(v) => `${v.abbr} — ${v.name}`}
+              />
               <input type="date" value={vDate} onChange={(e) => setVDate(e.target.value)} style={{ width: 150 }} />
             </div>
+            {vCode ? <div className="muted">PNV: {vCode}</div> : null}
             <button
               className="btn small"
               disabled={busy || !vName || !vDate}
               onClick={() =>
                 run(
                   () =>
-                    Api.addVaccine(child.id, { name: vName, date: vDate }).then(() => {
+                    Api.addVaccine(child.id, {
+                      name: vName,
+                      date: vDate,
+                      pnvAbbr: vCode || undefined,
+                    }).then(() => {
                       setVName('');
                       setVDate('');
+                      setVCode('');
                     }),
                   'Vacina adicionada ✓',
                 )
@@ -1185,21 +1311,53 @@ function ChildHealth({
           )}
           <div className="card section">
             <div className="row">
-              <input placeholder="Medicamento" value={mName} onChange={(e) => setMName(e.target.value)} />
+              <Autocomplete
+                placeholder="Medicamento (ex.: amox)"
+                value={mName}
+                onText={(s) => {
+                  setMName(s);
+                  setMAtc('');
+                  setDoseHint('');
+                }}
+                fetcher={(q) => Api.catMedications(q)}
+                onPick={async (m) => {
+                  setMName(m.dci);
+                  setMAtc(m.atc);
+                  setDoseHint('');
+                  if (m.dosing && latestWeightKg) {
+                    try {
+                      const dose = await Api.catDose(m.atc, latestWeightKg);
+                      if (dose.found && dose.perDoseMg) {
+                        setMDose(`${dose.perDoseMg} mg${dose.everyHours ? ` ${dose.everyHours}/${dose.everyHours}h` : ''}`);
+                        setDoseHint(`Sugerido p/ ${latestWeightKg} kg: ${dose.note ?? ''} — rever`);
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                }}
+                render={(m) => `${m.dci} (${m.atc})`}
+              />
               <input placeholder="Dose" value={mDose} onChange={(e) => setMDose(e.target.value)} style={{ width: 120 }} />
             </div>
+            {mAtc ? <div className="muted">ATC: {mAtc}</div> : null}
+            {doseHint ? <div className="muted" style={{ color: 'var(--warn, #b26a00)' }}>{doseHint}</div> : null}
             <button
               className="btn small"
               disabled={busy || !mName}
               onClick={() =>
                 run(
                   () =>
-                    Api.addMedication(child.id, { name: mName, dose: mDose || undefined }).then(
-                      () => {
-                        setMName('');
-                        setMDose('');
-                      },
-                    ),
+                    Api.addMedication(child.id, {
+                      name: mName,
+                      dose: mDose || undefined,
+                      atcCode: mAtc || undefined,
+                    }).then(() => {
+                      setMName('');
+                      setMDose('');
+                      setMAtc('');
+                      setDoseHint('');
+                    }),
                   'Medicação adicionada ✓',
                 )
               }
@@ -1233,20 +1391,42 @@ function ChildHealth({
             ))
           )}
           <div className="card section">
-            <input placeholder="Título do episódio" value={eTitle} onChange={(e) => setETitle(e.target.value)} />
+            <Autocomplete
+              placeholder="Diagnóstico / episódio (ex.: otite)"
+              value={eTitle}
+              onText={(s) => {
+                setETitle(s);
+                setEIcpc('');
+                setEIcd10('');
+              }}
+              fetcher={(q) => Api.catConditions(q)}
+              onPick={(c) => {
+                setETitle(c.term);
+                setEIcpc(c.icpc2);
+                setEIcd10(c.icd10 ?? '');
+              }}
+              render={(c) => `${c.icpc2} — ${c.term}`}
+              style={{ flex: 'unset' }}
+            />
             <textarea placeholder="Resumo (opcional)" value={eSummary} onChange={(e) => setESummary(e.target.value)} rows={2} />
+            {eIcpc ? <div className="muted">ICPC-2: {eIcpc}{eIcd10 ? ` · ICD-10: ${eIcd10}` : ''}</div> : null}
             <button
               className="btn small"
               disabled={busy || !eTitle}
               onClick={() =>
                 run(
                   () =>
-                    Api.addEpisode(child.id, { title: eTitle, summary: eSummary || undefined }).then(
-                      () => {
-                        setETitle('');
-                        setESummary('');
-                      },
-                    ),
+                    Api.addEpisode(child.id, {
+                      title: eTitle,
+                      summary: eSummary || undefined,
+                      icpc2Code: eIcpc || undefined,
+                      icd10Code: eIcd10 || undefined,
+                    }).then(() => {
+                      setETitle('');
+                      setESummary('');
+                      setEIcpc('');
+                      setEIcd10('');
+                    }),
                   'Episódio criado ✓',
                 )
               }
