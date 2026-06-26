@@ -31,10 +31,11 @@ compliance aprova/recusa com nota; o binário usa o presign S3 quando ativo 🔑
 **Feito recentemente (cont.):** ✅ **rascunho estruturado do resumo** (esqueleto
 SOAP pré-preenchido a partir da triagem; helper de template, não IA externa).
 
-**Por fazer (produto):** **percentis WHO** (requer o dataset oficial LMS — não
-estimar de memória; carregar tabelas e aplicar o método LMS sobre o gráfico atual) ·
-**AI administrativa real** (resumo gerado por LLM — atrás de chave 🔑; já há o
-rascunho determinístico como base).
+**Por fazer (produto):** **percentis WHO** — ◑ motor LMS (z-score, percentil,
+classificação WHO, interpolação) **implementado e testado** (`common/growth/lms.ts`);
+falta só integrar as **tabelas LMS oficiais** como dados versionados (ver
+**doc 25**) · **AI administrativa real** (resumo gerado por LLM — atrás de chave
+🔑; já há o rascunho determinístico como base).
 
 ## 3. Integrações reais 🔑 (código pronto, falta credenciais — ver doc 21)
 - **Pagamentos**: Stripe live + **MB WAY** + Apple/Google Pay + Connect payouts.
