@@ -272,9 +272,10 @@ function GrowthAlert({ growth }: { growth: HealthOverview['growth'] }) {
     <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
       <strong>⚠️ Possível crescimento insuficiente</strong>
       <div className="muted" style={{ marginTop: 4 }}>
-        {lowNow ? `Peso-para-idade no z ${latest} (≤ P3). ` : ''}
-        {crossedDown ? 'Queda de percentil entre medições. ' : ''}
-        Avaliar (alimentação, doença, medição) — não é um diagnóstico.
+        {lowNow ? 'Peso para a idade abaixo do percentil 3 (P3). ' : ''}
+        {crossedDown ? 'Descida de percentil entre medições. ' : ''}
+        Vale a pena avaliar (alimentação, alguma doença, ou a própria medição) — isto é um sinal,
+        não um diagnóstico. Fala com o pediatra.
       </div>
     </div>
   );
@@ -2130,13 +2131,15 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
               <article key={p.id} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span className="pill ok">✓ Verificado</span>
-                  <span
-                    style={{ cursor: 'pointer', fontSize: 18 }}
+                  <button
+                    type="button"
+                    aria-label={favIds.has(p.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    aria-pressed={favIds.has(p.id)}
+                    style={{ cursor: 'pointer', fontSize: 18, background: 'none', border: 'none', padding: 0, width: 'auto' }}
                     onClick={() => toggleFav(p)}
-                    title="Favorito"
                   >
                     {favIds.has(p.id) ? '❤️' : '🤍'}
-                  </span>
+                  </button>
                 </div>
                 <h3 style={{ margin: '6px 0 2px' }}>{p.displayName ?? specLabel(p.specialties[0])}</h3>
                 <p className="muted" style={{ margin: 0 }}>
@@ -2220,9 +2223,15 @@ function PedDetail({
       </button>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>{ped.displayName ?? specLabel(ped.specialties[0])}</h2>
-        <span style={{ cursor: 'pointer', fontSize: 22 }} onClick={onToggleFav}>
+        <button
+          type="button"
+          aria-label={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+          aria-pressed={isFav}
+          style={{ cursor: 'pointer', fontSize: 22, background: 'none', border: 'none', padding: 0, width: 'auto' }}
+          onClick={onToggleFav}
+        >
           {isFav ? '❤️' : '🤍'}
-        </span>
+        </button>
       </div>
       <p className="muted" style={{ marginBottom: 2 }}>{specLabel(ped.specialties[0])}</p>
       <p className="muted">
@@ -2645,11 +2654,19 @@ function ReviewForm({
         ← Voltar
       </button>
       <h2>Avaliar consulta</h2>
-      <div className="row" style={{ fontSize: 28 }}>
+      <div className="row" role="radiogroup" aria-label="Classificação" style={{ fontSize: 28 }}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <span key={n} style={{ cursor: 'pointer' }} onClick={() => setRating(n)}>
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={n === rating}
+            aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
+            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, width: 'auto', fontSize: 28 }}
+            onClick={() => setRating(n)}
+          >
             {n <= rating ? '⭐' : '☆'}
-          </span>
+          </button>
         ))}
       </div>
       <textarea
