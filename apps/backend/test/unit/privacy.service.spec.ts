@@ -8,13 +8,18 @@ function build() {
       findUnique: jest.fn().mockResolvedValue({ id: 'u1', email: 'a@b.c', role: Role.PARENT }),
       update: jest.fn().mockReturnValue({ op: 'user.update' }),
     },
+    family: { findMany: jest.fn().mockResolvedValue([{ id: 'fam1' }]) },
     familyMember: { findMany: jest.fn().mockResolvedValue([{ familyId: 'fam1' }]) },
-    child: { findMany: jest.fn().mockResolvedValue([{ id: 'ch1' }]) },
+    child: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'ch1' }]),
+      updateMany: jest.fn().mockReturnValue({ op: 'child.updateMany' }),
+    },
     consultation: { findMany: jest.fn().mockResolvedValue([]) },
     consent: {
       findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockReturnValue({ op: 'consent.updateMany' }),
     },
+    refreshToken: { updateMany: jest.fn().mockReturnValue({ op: 'refreshToken.updateMany' }) },
     subscription: { findMany: jest.fn().mockResolvedValue([]) },
     favorite: { findMany: jest.fn().mockResolvedValue([]) },
     notification: { findMany: jest.fn().mockResolvedValue([]) },
@@ -63,6 +68,14 @@ describe('PrivacyService (GDPR)', () => {
       // Active consents are revoked as part of the same transaction.
       expect(prisma.consent.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),
+      );
+      // All sessions revoked so the deleted account cannot mint new access tokens.
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'u1', revoked: false } }),
+      );
+      // Children of families this user primarily holds are de-identified.
+      expect(prisma.child.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { familyId: { in: ['fam1'] } } }),
       );
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });

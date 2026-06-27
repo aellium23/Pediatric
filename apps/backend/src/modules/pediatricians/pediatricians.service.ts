@@ -77,10 +77,26 @@ export class PediatriciansService {
   }
 
   async getPublic(id: string) {
-    const ped = await this.prisma.pediatrician.findFirstOrThrow({
+    // Public, unauthenticated endpoint → explicit projection only. Never expose
+    // userId, licenseNumber, stripeAccountId or other internal fields.
+    const ped = await this.prisma.pediatrician.findFirst({
       where: { id, status: PediatricianStatus.ACTIVE },
-      include: { services: { where: { active: true } } },
+      select: {
+        id: true,
+        displayName: true,
+        bio: true,
+        experienceYears: true,
+        languages: true,
+        specialties: true,
+        region: true,
+        ratingAvg: true,
+        services: {
+          where: { active: true },
+          select: { id: true, type: true, priceCents: true, currency: true, slaHours: true },
+        },
+      },
     });
+    if (!ped) throw new NotFoundException('Pediatrician not found');
     const weekdays = await this.availableWeekdaysByPediatrician([ped.id]);
     return { ...ped, availableWeekdays: weekdays.get(ped.id) ?? [] };
   }

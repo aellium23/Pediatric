@@ -348,6 +348,12 @@ export class ConsultationsService {
       where: { id: consultationId },
     });
     if (!consultation) throw new NotFoundException('Consultation not found');
+    if (consultation.status === ConsultationStatus.REFUNDED) {
+      throw new BadRequestException('Consultation already refunded');
+    }
+    if (consultation.status === ConsultationStatus.EXPIRED) {
+      throw new BadRequestException('Cannot refund an expired consultation');
+    }
     await this.payments.refundForConsultation(consultationId, reason ?? 'admin_refund');
     return this.prisma.consultation.update({
       where: { id: consultationId },

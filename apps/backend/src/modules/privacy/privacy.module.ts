@@ -54,11 +54,13 @@ export class PrivacyService {
               ? { pediatrician: { userId: user.userId } }
               : { familyId: { in: familyIds } },
           select: { id: true, type: true, status: true, priceCents: true, openedAt: true },
+          orderBy: { openedAt: 'desc' },
+          take: 1000,
         }),
-        this.prisma.consent.findMany({ where: { userId: user.userId } }),
-        this.prisma.subscription.findMany({ where: { userId: user.userId } }),
-        this.prisma.favorite.findMany({ where: { userId: user.userId } }),
-        this.prisma.notification.findMany({ where: { userId: user.userId } }),
+        this.prisma.consent.findMany({ where: { userId: user.userId }, take: 1000 }),
+        this.prisma.subscription.findMany({ where: { userId: user.userId }, take: 1000 }),
+        this.prisma.favorite.findMany({ where: { userId: user.userId }, take: 1000 }),
+        this.prisma.notification.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'desc' }, take: 1000 }),
       ]);
     return {
       exportedAt: new Date().toISOString(),
@@ -74,14 +76,38 @@ export class PrivacyService {
 
   /** Right to erasure: anonymise the account (legal/audit records are retained). */
   async deleteAccount(userId: string) {
+    // Families this user is the primary holder of → erase the children's
+    // identifying data (special category). Encrypted clinical records are kept
+    // under the legal/retention basis; the link is anonymised.
+    const ownFamilies = await this.prisma.family.findMany({
+      where: { primaryUserId: userId },
+      select: { id: true },
+    });
+    const famIds = ownFamilies.map((f) => f.id);
+
     await this.prisma.$transaction([
       this.prisma.consent.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
       }),
+      // Revoke all sessions so the deleted account cannot mint new access
+      // tokens; the current access token (≤15 min TTL) expires shortly after.
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revoked: false },
+        data: { revoked: true },
+      }),
+      ...(famIds.length
+        ? [
+            this.prisma.child.updateMany({
+              where: { familyId: { in: famIds } },
+              data: { name: 'Criança removida' },
+            }),
+          ]
+        : []),
       this.prisma.user.update({
         where: { id: userId },
         data: {
+          name: null,
           email: null,
           phone: null,
           appleSub: null,
