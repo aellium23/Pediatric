@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Module, Param, Post, Query } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -52,8 +52,8 @@ class ConsultationsController {
 
   @Get('all')
   @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
-  all() {
-    return this.service.listAll();
+  all(@Query('skip') skip?: string, @Query('take') take?: string) {
+    return this.service.listAll(skip ? Number(skip) : 0, take ? Number(take) : 50);
   }
 
   @Get(':id/messages')

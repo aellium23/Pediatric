@@ -115,10 +115,11 @@ export class AdminService {
     });
   }
 
-  async audit() {
+  async audit(skip = 0, take = 100) {
     return this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      skip: Math.max(0, skip),
+      take: Math.min(Math.max(take, 1), 200),
       include: { actor: { select: { email: true, role: true } } },
     });
   }
@@ -184,8 +185,8 @@ class AdminController {
 
   @Get('audit')
   @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE)
-  audit() {
-    return this.service.audit();
+  audit(@Query('skip') skip?: string, @Query('take') take?: string) {
+    return this.service.audit(skip ? Number(skip) : 0, take ? Number(take) : 100);
   }
 
   @Get('pediatricians/:id/documents')

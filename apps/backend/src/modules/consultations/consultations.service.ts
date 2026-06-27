@@ -221,10 +221,15 @@ export class ConsultationsService {
   }
 
   /** Admin/Finance: the most recent consultations across the platform. */
-  async listAll() {
+  async listAll(skip = 0, take = 50) {
     return this.prisma.consultation.findMany({
       orderBy: { openedAt: 'desc' },
-      take: 50,
+      skip: Math.max(0, skip),
+      take: Math.min(Math.max(take, 1), 100),
+      include: {
+        child: { select: { id: true, name: true } },
+        pediatrician: { select: { displayName: true, specialties: true } },
+      },
     });
   }
 

@@ -4370,18 +4370,36 @@ function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Compliance: Audit log (filterable) ─────────────────────────
+const AUDIT_PAGE = 100;
 function AuditTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [q, setQ] = useState('');
   const [act, setAct] = useState('');
   useEffect(() => {
-    Api.adminAudit()
-      .then(setRows)
+    Api.adminAudit(0)
+      .then((page) => {
+        setRows(page);
+        setMore(page.length >= AUDIT_PAGE);
+      })
       .catch((e) => onMsg(`Erro: ${String(e)}`))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const page = await Api.adminAudit(rows.length);
+      setRows((r) => [...r, ...page]);
+      setMore(page.length >= AUDIT_PAGE);
+    } catch (e) {
+      onMsg(`Erro a carregar mais: ${String(e)}`);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const actions = Array.from(new Set(rows.map((a) => a.action))).sort();
   const needle = q.trim().toLowerCase();
@@ -4438,6 +4456,11 @@ function AuditTab({ onMsg }: { onMsg: (m: string) => void }) {
           </div>
         ))
       )}
+      {more && !loading && !needle && !act ? (
+        <button className="btn secondary" onClick={() => void loadMore()} disabled={loadingMore} style={{ marginTop: 8 }}>
+          {loadingMore ? 'A carregar…' : 'Ver mais'}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -4529,20 +4552,38 @@ function FinTreasuryTab({ onMsg }: { onMsg: (m: string) => void }) {
   );
 }
 
+const FIN_PAGE = 50;
 function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState('');
   const [filter, setFilter] = useState<'all' | 'paid' | 'REFUNDED' | 'DISPUTED'>('all');
 
   async function load() {
+    setLoading(true);
     try {
-      setRows(await Api.allConsultations());
+      const page = await Api.allConsultations(0);
+      setRows(page);
+      setMore(page.length >= FIN_PAGE);
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
     } finally {
       setLoading(false);
+    }
+  }
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const page = await Api.allConsultations(rows.length);
+      setRows((r) => [...r, ...page]);
+      setMore(page.length >= FIN_PAGE);
+    } catch (e) {
+      onMsg(`Erro a carregar mais: ${String(e)}`);
+    } finally {
+      setLoadingMore(false);
     }
   }
   useEffect(() => {
@@ -4579,10 +4620,14 @@ function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>Movimentos</h2>
+      <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
+        Lista de atividade recente. Os <strong>totais completos</strong> da plataforma estão na
+        Tesouraria.
+      </p>
       <div className="grid">
-        <Kpi label="Volume listado" value={euro(volume)} hint="Consultas pagáveis" />
-        <Kpi label="Reembolsado (nesta lista)" value={euro(refunded)} />
-        <Kpi label="Nº de movimentos" value={String(rows.length)} />
+        <Kpi label="Volume carregado" value={euro(volume)} hint={`${rows.length} movimento(s)${more ? '+' : ''}`} />
+        <Kpi label="Reembolsado (carregado)" value={euro(refunded)} />
+        <Kpi label="Movimentos carregados" value={`${rows.length}${more ? '+' : ''}`} />
       </div>
       <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
         {([
@@ -4626,6 +4671,11 @@ function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
           ))}
         </div>
       )}
+      {more && !loading ? (
+        <button className="btn secondary" onClick={() => void loadMore()} disabled={loadingMore} style={{ marginTop: 12 }}>
+          {loadingMore ? 'A carregar…' : 'Ver mais'}
+        </button>
+      ) : null}
     </div>
   );
 }

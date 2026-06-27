@@ -390,7 +390,8 @@ export const Api = {
   markRead: (id: string) => request(`/notifications/${id}/read`, { method: 'POST' }),
 
   // Admin / Finance
-  allConsultations: () => request('/consultations/all') as Promise<ConsultationDto[]>,
+  allConsultations: (skip = 0) =>
+    request(`/consultations/all?skip=${skip}`) as Promise<ConsultationDto[]>,
   refund: (id: string, reason?: string) =>
     request(`/consultations/${id}/refund`, {
       method: 'POST',
@@ -408,7 +409,7 @@ export const Api = {
   adminUsers: () => request('/admin/users') as Promise<AdminUserRow[]>,
   changeUserRole: (id: string, role: string) =>
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-  adminAudit: () => request('/admin/audit') as Promise<AuditRow[]>,
+  adminAudit: (skip = 0) => request(`/admin/audit?skip=${skip}`) as Promise<AuditRow[]>,
 
   // Content library
   articles: (category?: string) =>
