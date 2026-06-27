@@ -142,6 +142,28 @@ Alimentação, Doenças comuns, Desenvolvimento, Prevenção, Pele). A página p
 ter pesquisa, filtros por tema (chips) e agrupamento por secção; os conteúdos de
 **Urgências** têm destaque visual + reforço dos contactos 112 / SNS 24.
 
+✅ **backoffice por papel + demo robusta**: painéis dedicados e amigáveis para
+Finanças (Tesouraria/Movimentos), Conformidade (verificação/credenciais/auditoria),
+Suporte (procurar utilizador/pediatras) e Clínica — só com dados/endpoints que já
+existem e respeitando os papéis (sem botões mortos). Demo alargada: famílias com
+**mãe + pai nomeados**, 6 famílias/7 crianças com históricos clínicos variados, e
+**2 casos de 2ª opinião** (uma recebida pendente, uma enviada concluída). 2ª
+opinião passou a poder iniciar-se a partir da consulta do doente.
+
+✅ **verificação E2E + endurecimento (pós-auditoria de código)**:
+- **resiliência**: tratamento de cold-start do backend (retries + warm-up +
+  keep-alive em sessão), desserialização defensiva (sem `SyntaxError` cru),
+  recuperação ao retomar de segundo plano.
+- **segurança/RGPD**: perfil público do pediatra sem fuga de PII/Stripe;
+  *apagar conta* revoga sessões + de-identifica crianças; reembolso com guarda
+  de estado; export limitado.
+- **correção**: marcação de vídeo valida o slot (sem dupla-marcação); listas de
+  Finanças/Conformidade paginadas (totais honestos, "Ver mais").
+- **UX/i18n/a11y**: app assumidamente **PT** (EN/ES escondidos até tradução
+  completa); mensagens de erro amigáveis (sem JSON/Prisma cru, P2023→400);
+  favoritos/estrelas como botões com `aria-label`; alerta de crescimento em
+  linguagem de percentil para os pais.
+
 ---
 
 ## Prioridades sugeridas (próximos passos sem bloqueios externos)
