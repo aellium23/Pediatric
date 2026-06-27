@@ -72,6 +72,29 @@ const BOOT_STATUSES = new Set([502, 503, 504]); // platform/proxy while booting
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * Turns a backend error response into a clean, human message. NestJS errors are
+ * `{ statusCode, message, error }` (message may be a string or a validation
+ * array). We surface that when present, otherwise a friendly status-based line —
+ * never a raw JSON blob or a Prisma error string.
+ */
+function friendlyError(status: number, body: string): string {
+  let serverMsg = '';
+  try {
+    const j = JSON.parse(body) as { message?: string | string[]; error?: string };
+    serverMsg = Array.isArray(j.message) ? j.message.join('; ') : j.message || j.error || '';
+  } catch {
+    serverMsg = body && body.length < 160 && !body.includes('<') ? body : '';
+  }
+  if (status === 401) return 'A sessão expirou. Entra novamente.';
+  if (status === 403) return serverMsg || 'Não tens permissão para esta ação.';
+  if (status === 404) return serverMsg || 'Não encontrado.';
+  if (status === 409) return serverMsg || 'Este pedido entra em conflito com o estado atual.';
+  if (status === 400 || status === 422) return serverMsg || 'Pedido inválido. Verifica os dados.';
+  if (status >= 500) return 'Erro no servidor. Tenta novamente em instantes.';
+  return serverMsg || `Erro (${status}).`;
+}
+
 function doFetch(path: string, init: RequestInit, timeoutMs = ATTEMPT_TIMEOUT_MS): Promise<Response> {
   const token = getToken();
   const ctrl = new AbortController();
@@ -134,7 +157,7 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || `${res.status} ${res.statusText}`);
+    throw new Error(friendlyError(res.status, text));
   }
   if (res.status === 204) return null;
   // Parse defensively: a sleeping/booting backend (or a proxy) can answer 200

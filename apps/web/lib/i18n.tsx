@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 
 export type Lang = 'pt' | 'en' | 'es';
 
@@ -96,28 +96,18 @@ const Ctx = createContext<I18n>({
   t: (k, f) => f ?? k,
 });
 
+// The app is Portuguese-only for now. The EN/ES dictionaries only ever covered
+// the bottom-nav labels, so exposing a switcher promised a translation that
+// didn't exist. We keep the i18n plumbing (and the dictionaries) for when full
+// localization lands, but force pt and hide the switcher until then.
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>('pt');
-
-  useEffect(() => {
-    const saved = (typeof window !== 'undefined' && localStorage.getItem('pedia_lang')) as Lang | null;
-    if (saved && ['pt', 'en', 'es'].includes(saved)) {
-      setLangState(saved);
-      return;
-    }
-    const nav = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2) : 'pt';
-    if (nav === 'en' || nav === 'es') setLangState(nav);
-  }, []);
-
-  function setLang(l: Lang) {
-    setLangState(l);
-    if (typeof window !== 'undefined') localStorage.setItem('pedia_lang', l);
-  }
-
+  const lang: Lang = 'pt';
+  const setLang = (_l: Lang) => {
+    /* single-language for now */
+  };
   function t(key: string, fallback?: string): string {
-    return DICTS[lang][key] ?? DICTS.pt[key] ?? fallback ?? key;
+    return DICTS.pt[key] ?? fallback ?? key;
   }
-
   return <Ctx.Provider value={{ lang, setLang, t }}>{children}</Ctx.Provider>;
 }
 
@@ -125,21 +115,7 @@ export function useT(): I18n {
   return useContext(Ctx);
 }
 
+// Hidden while the app is Portuguese-only (see LanguageProvider).
 export function LanguageSwitcher() {
-  const { lang, setLang } = useT();
-  const langs: Lang[] = ['pt', 'en', 'es'];
-  return (
-    <span style={{ display: 'inline-flex', gap: 4 }}>
-      {langs.map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          className={l === lang ? 'pill ok' : 'pill muted'}
-          style={{ border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}
-        >
-          {l}
-        </button>
-      ))}
-    </span>
-  );
+  return null;
 }

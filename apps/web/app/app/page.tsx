@@ -35,7 +35,7 @@ import {
   type ChildHistory,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
-import { useT, type Lang } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
 
 // LiveKit room is browser-only — load it without SSR.
@@ -5589,7 +5589,6 @@ function Seg<T extends string>({
 
 function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () => void }) {
   const { theme, setTheme, textSize, setTextSize } = useTheme();
-  const { lang, setLang } = useT();
   const [notif, setNotif] = useState(false);
   useEffect(() => {
     setNotif(typeof window !== 'undefined' && localStorage.getItem('pedia_notif') === '1');
@@ -5644,18 +5643,9 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
 
       <div className="card section">
         <strong>Idioma</strong>
-        <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
-          Língua da aplicação
+        <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
+          🇵🇹 Português. Mais idiomas em breve.
         </p>
-        <Seg<Lang>
-          value={lang}
-          onChange={setLang}
-          options={[
-            { v: 'pt', label: 'Português' },
-            { v: 'en', label: 'English' },
-            { v: 'es', label: 'Español' },
-          ]}
-        />
       </div>
 
       <div className="card section">

@@ -14,6 +14,10 @@ const PRISMA_STATUS: Record<string, { status: number; error: string }> = {
   P2025: { status: HttpStatus.NOT_FOUND, error: 'Not found' },
   P2002: { status: HttpStatus.CONFLICT, error: 'Already exists' },
   P2003: { status: HttpStatus.BAD_REQUEST, error: 'Invalid reference' },
+  // Malformed id / value for the column type (e.g. a non-UUID id in the URL):
+  // a client mistake → 400, not a 500 with a raw Prisma string.
+  P2023: { status: HttpStatus.BAD_REQUEST, error: 'Invalid identifier' },
+  P2014: { status: HttpStatus.BAD_REQUEST, error: 'Invalid relation' },
 };
 
 function prismaCode(exception: unknown): string | undefined {

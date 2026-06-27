@@ -137,8 +137,15 @@ export class SchedulingService {
       where: { id: dto.serviceId, active: true, type: ServiceType.VIDEO },
     });
     const scheduledAt = new Date(dto.scheduledAt);
-    if (scheduledAt.getTime() <= Date.now()) {
-      throw new BadRequestException('scheduledAt must be in the future');
+    if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+      throw new BadRequestException('scheduledAt must be a valid future time');
+    }
+    // The slot must still be free and inside the pediatrician's availability.
+    // slots() already excludes times taken by an existing video session, so this
+    // also prevents two families booking the same slot.
+    const free = await this.slots(service.pediatricianId, scheduledAt.toISOString().slice(0, 10));
+    if (!free.includes(scheduledAt.toISOString())) {
+      throw new BadRequestException('Esse horário já não está disponível. Escolhe outro.');
     }
 
     const consultation = await this.prisma.consultation.create({

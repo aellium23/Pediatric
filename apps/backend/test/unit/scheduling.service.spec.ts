@@ -65,7 +65,13 @@ describe('SchedulingService.nextSlots', () => {
 });
 
 describe('SchedulingService.book — health-data consent', () => {
-  function bookService(existingHealthConsent: unknown) {
+  // A future timestamp aligned to a 20-minute slot boundary (so it matches a
+  // generated slot when availability covers the whole day).
+  function futureSlot(): string {
+    const day = new Date(Date.now() + 3 * 86_400_000);
+    return new Date(`${day.toISOString().slice(0, 10)}T12:00:00.000Z`).toISOString();
+  }
+  function bookService(existingHealthConsent: unknown, availability: any[] = [{ startMinute: 0, endMinute: 1440, slotMinutes: 20 }]) {
     const prisma: any = {
       child: { findUnique: jest.fn().mockResolvedValue({ id: 'ch1', familyId: 'f1' }) },
       familyMember: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
@@ -75,8 +81,9 @@ describe('SchedulingService.book — health-data consent', () => {
           .fn()
           .mockResolvedValue({ id: 's1', pediatricianId: 'p1', priceCents: 4500, currency: 'EUR', scopeText: null }),
       },
+      availability: { findMany: jest.fn().mockResolvedValue(availability) },
       consultation: { create: jest.fn().mockResolvedValue({ id: 'c1' }) },
-      videoSession: { create: jest.fn().mockResolvedValue({ roomId: 'r1' }) },
+      videoSession: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ roomId: 'r1' }) },
     };
     const consent: any = { record: jest.fn().mockResolvedValue(undefined) };
     const payments: any = {
@@ -84,8 +91,7 @@ describe('SchedulingService.book — health-data consent', () => {
     };
     return { service: new SchedulingService(prisma, consent, payments), consent };
   }
-  const future = () => new Date(Date.now() + 3600 * 1000).toISOString();
-  const dto = () => ({ childId: 'ch1', serviceId: 's1', scheduledAt: future(), teleconsultConsent: true });
+  const dto = () => ({ childId: 'ch1', serviceId: 's1', scheduledAt: futureSlot(), teleconsultConsent: true });
 
   it('records a health-data consent when missing (self-heal for a verified guardian)', async () => {
     const { service, consent } = bookService(null);
@@ -109,5 +115,10 @@ describe('SchedulingService.book — health-data consent', () => {
     await expect(
       service.book('u1', { ...dto(), teleconsultConsent: false }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a slot outside the pediatrician availability', async () => {
+    const { service } = bookService({ id: 'existing' }, []); // no availability → no slots
+    await expect(service.book('u1', dto())).rejects.toBeInstanceOf(BadRequestException);
   });
 });
