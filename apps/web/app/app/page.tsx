@@ -593,6 +593,13 @@ export default function MultiProfileApp() {
         {tab === 'verify' ? <VerifyTab onMsg={setMsg} /> : null}
         {tab === 'users' ? <UsersTab onMsg={setMsg} /> : null}
         {tab === 'audit' ? <AuditTab onMsg={setMsg} /> : null}
+        {tab === 'fin_treasury' ? <FinTreasuryTab onMsg={setMsg} /> : null}
+        {tab === 'fin_moves' ? <FinMovementsTab onMsg={setMsg} /> : null}
+        {tab === 'comp_overview' ? <ComplianceOverviewTab onMsg={setMsg} onGoCreds={() => setTab('comp_creds')} /> : null}
+        {tab === 'comp_creds' ? <CredentialsTab onMsg={setMsg} /> : null}
+        {tab === 'sup_users' ? <SupportUsersTab onMsg={setMsg} /> : null}
+        {tab === 'sup_peds' ? <SupportPedsTab onMsg={setMsg} /> : null}
+        {tab === 'sup_help' ? <SupportOverviewTab onMsg={setMsg} /> : null}
         {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
@@ -736,6 +743,16 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
       </>
     ),
   };
+  // Backoffice tabs reuse existing glyphs.
+  const alias: Record<string, string> = {
+    fin_treasury: 'finance',
+    fin_moves: 'audit',
+    comp_overview: 'shield',
+    comp_creds: 'audit',
+    sup_users: 'consult',
+    sup_peds: 'cross',
+    sup_help: 'headset',
+  };
   return (
     <svg
       width="23"
@@ -748,9 +765,33 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {icons[name] ?? icons.consult}
+      {icons[alias[name] ?? name] ?? icons.consult}
     </svg>
   );
+}
+
+// Friendly Portuguese labels for roles and pediatrician status, used across the
+// backoffice panels so users never see raw enum values.
+const ROLE_PT: Record<string, string> = {
+  PARENT: 'Família',
+  PEDIATRICIAN: 'Pediatra',
+  CLINIC_ADMIN: 'Clínica · Admin',
+  CLINIC_STAFF: 'Clínica · Staff',
+  PLATFORM_ADMIN: 'Administração',
+  SUPPORT: 'Suporte',
+  FINANCE: 'Finanças',
+  COMPLIANCE: 'Conformidade',
+};
+function roleLabel(r: string): string {
+  return ROLE_PT[r] ?? r;
+}
+const PED_STATUS_PT: Record<string, { label: string; pill: string }> = {
+  ACTIVE: { label: 'Verificado', pill: 'pill ok' },
+  PENDING: { label: 'Pendente', pill: 'pill' },
+  SUSPENDED: { label: 'Suspenso', pill: 'pill warn' },
+};
+function pedStatus(s: string): { label: string; pill: string } {
+  return PED_STATUS_PT[s] ?? { label: s, pill: 'pill muted' };
 }
 
 function roleIcon(role: string): string {
@@ -800,9 +841,25 @@ function tabsFor(role: string): { key: string; label: string; ico: string }[] {
       notif,
     ];
   if (role === 'FINANCE')
-    return [{ key: 'admin', label: 'Consultas', ico: '🗂️' }, overview, notif];
-  if (role === 'COMPLIANCE') return [overview, audit, notif];
-  if (role === 'SUPPORT') return [users, overview, notif];
+    return [
+      { key: 'fin_treasury', label: 'Tesouraria', ico: '💶' },
+      { key: 'fin_moves', label: 'Movimentos', ico: '🧾' },
+      notif,
+    ];
+  if (role === 'COMPLIANCE')
+    return [
+      { key: 'comp_overview', label: 'Conformidade', ico: '🛡️' },
+      { key: 'comp_creds', label: 'Credenciais', ico: '📄' },
+      audit,
+      notif,
+    ];
+  if (role === 'SUPPORT')
+    return [
+      { key: 'sup_users', label: 'Utilizadores', ico: '🔎' },
+      { key: 'sup_peds', label: 'Pediatras', ico: '🩺' },
+      { key: 'sup_help', label: 'Visão', ico: '🎧' },
+      notif,
+    ];
   if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF')
     return [{ key: 'clinic', label: 'Clínica', ico: '🏥' }, notif];
   return [
@@ -3964,7 +4021,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
         <h3>Utilizadores por perfil</h3>
         {Object.entries(m.usersByRole).map(([k, v]) => (
           <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="muted">{k}</span>
+            <span className="muted">{roleLabel(k)}</span>
             <strong>{v}</strong>
           </div>
         ))}
@@ -3985,7 +4042,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
         <h3>Pediatras por estado</h3>
         {Object.entries(m.pediatriciansByStatus).map(([k, v]) => (
           <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="muted">{k}</span>
+            <span className="muted">{pedStatus(k).label}</span>
             <strong>{v}</strong>
           </div>
         ))}
@@ -4199,7 +4256,7 @@ function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
             >
               {ALL_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {roleLabel(r)}
                 </option>
               ))}
             </select>
@@ -4210,33 +4267,704 @@ function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
   );
 }
 
-// ───────────────────────── Compliance: Audit log ─────────────────────────
+// ───────────────────────── Compliance: Audit log (filterable) ─────────────────────────
 function AuditTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<AuditRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [act, setAct] = useState('');
   useEffect(() => {
     Api.adminAudit()
       .then(setRows)
-      .catch((e) => onMsg(`Erro: ${String(e)}`));
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const actions = Array.from(new Set(rows.map((a) => a.action))).sort();
+  const needle = q.trim().toLowerCase();
+  const shown = rows.filter(
+    (a) =>
+      (!act || a.action === act) &&
+      (!needle ||
+        `${a.action} ${a.entityType} ${a.entityId ?? ''} ${a.actor?.email ?? ''}`
+          .toLowerCase()
+          .includes(needle)),
+  );
+
   return (
     <div className="section">
       <h2>Registo de auditoria</h2>
       <p className="muted" style={{ fontSize: 13 }}>
-        Trilho imutável de ações (RGPD / responsabilização).
+        Trilho imutável de ações (RGPD / responsabilização). {rows.length} eventos.
       </p>
-      {rows.length === 0 ? (
-        <p className="muted">Sem registos ainda.</p>
+      <input
+        className="search"
+        placeholder="Procurar (ação, entidade, email)…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {actions.length > 1 ? (
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+          <button className={`chip${act === '' ? ' active' : ''}`} onClick={() => setAct('')}>
+            Todas
+          </button>
+          {actions.map((a) => (
+            <button
+              key={a}
+              className={`chip${act === a ? ' active' : ''}`}
+              onClick={() => setAct((c) => (c === a ? '' : a))}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : shown.length === 0 ? (
+        <EmptyState title="Sem registos" hint={rows.length ? 'Nenhum evento corresponde ao filtro.' : 'Sem ações registadas ainda.'} />
       ) : (
-        rows.map((a) => (
+        shown.map((a) => (
           <div key={a.id} className="card" style={{ marginBottom: 8 }}>
             <strong>{a.action}</strong> · <span className="muted">{a.entityType}</span>
+            {a.entityId ? <span className="muted"> · {a.entityId.slice(0, 8)}</span> : null}
             <div className="muted" style={{ fontSize: 12 }}>
-              {a.actor?.email ?? 'sistema'} · {when(a.createdAt)}
+              {a.actor?.email ?? 'sistema'}
+              {a.actor?.role ? ` · ${roleLabel(a.actor.role)}` : ''} · {when(a.createdAt)}
             </div>
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+// ═════════════════════════ FINANCE ═════════════════════════
+function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="card">
+      <div className="muted">{label}</div>
+      <strong style={{ fontSize: 22 }}>{value}</strong>
+      {hint ? <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{hint}</div> : null}
+    </div>
+  );
+}
+
+function FinTreasuryTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [m, setM] = useState<AdminMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    Api.adminMetrics()
+      .then(setM)
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (loading) return <Skeleton rows={3} />;
+  if (!m) return <EmptyState title="Sem dados" hint="Não foi possível carregar a tesouraria." />;
+
+  const payout = m.grossCents - m.commissionCents;
+  const paidCount = (m.consultationsByStatus.ANSWERED ?? 0) + (m.consultationsByStatus.CLOSED ?? 0);
+  const avgTicket = paidCount > 0 ? m.grossCents / paidCount : null;
+  const effRate = m.grossCents > 0 ? (m.commissionCents / m.grossCents) * 100 : null;
+  const totalConsults = Object.values(m.consultationsByStatus).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="section">
+      <h2>Tesouraria HOC</h2>
+      <p className="muted" style={{ marginTop: -4 }}>Valores acumulados da plataforma · {m.currency}</p>
+      {m.grossCents === 0 ? (
+        <p className="notice">
+          Sem pagamentos liquidados ainda. Os valores ficam a zero até existir{' '}
+          <code>STRIPE_SECRET_KEY</code> no backend e consultas fechadas com pagamento.
+        </p>
+      ) : null}
+
+      <div className="grid">
+        <Kpi label="Receita bruta" value={euro(m.grossCents)} hint="Total cobrado às famílias" />
+        <Kpi label="Comissão da plataforma" value={euro(m.commissionCents)} hint="Receita HOC (intermediação)" />
+        <Kpi label="A pagar aos pediatras" value={euro(payout)} hint="Bruto − comissão (payout estimado)" />
+      </div>
+      <div className="grid" style={{ marginTop: 10 }}>
+        <Kpi label="Reembolsos" value={String(m.refunds)} hint="Pagamentos reembolsados" />
+        <Kpi label="Ticket médio" value={avgTicket != null ? euro(avgTicket) : '—'} hint="Receita ÷ consultas pagas" />
+        <Kpi label="Taxa de comissão" value={effRate != null ? `${effRate.toFixed(1)}%` : '—'} hint="Comissão ÷ bruto" />
+      </div>
+
+      <div className="card section">
+        <h3>Consultas por estado</h3>
+        {Object.entries(m.consultationsByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className={k === 'REFUNDED' || k === 'DISPUTED' ? 'pill warn' : 'muted'}>
+              {statusLabel(k)}
+            </span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+        {totalConsults === 0 ? (
+          <p className="muted">Sem consultas ainda.</p>
+        ) : (
+          <div className="row" style={{ justifyContent: 'space-between', marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+            <span className="muted">Total de consultas</span>
+            <strong>{totalConsults}</strong>
+          </div>
+        )}
+      </div>
+
+      <div className="card section">
+        <h3>Saúde da operação</h3>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span className="muted">Famílias · Crianças</span>
+          <strong>{m.families} · {m.children}</strong>
+        </div>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span className="muted">Pediatras ativos</span>
+          <strong>{m.pediatriciansByStatus.ACTIVE ?? 0}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<ConsultationDto[]>([]);
+  const [open, setOpen] = useState<ConsultationDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [filter, setFilter] = useState<'all' | 'paid' | 'REFUNDED' | 'DISPUTED'>('all');
+
+  async function load() {
+    try {
+      setRows(await Api.allConsultations());
+    } catch (e) {
+      onMsg(`Erro a carregar: ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refund(c: ConsultationDto) {
+    if (!window.confirm(`Confirmar reembolso de ${euro(c.priceCents)}? Esta ação é financeira.`)) return;
+    setBusy(c.id);
+    try {
+      await Api.refund(c.id);
+      onMsg('Reembolso registado ✓');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  if (open)
+    return (
+      <Thread consultation={open} canClose={false} canCancel={false} onChanged={() => setOpen(null)} onBack={() => setOpen(null)} onMsg={onMsg} />
+    );
+
+  const isPaid = (s: string) => s === 'ANSWERED' || s === 'CLOSED';
+  const shown = rows.filter((c) =>
+    filter === 'all' ? true : filter === 'paid' ? isPaid(c.status) : c.status === filter,
+  );
+  const volume = rows.filter((c) => c.status !== 'REFUNDED' && c.status !== 'CANCELLED').reduce((s, c) => s + c.priceCents, 0);
+  const refunded = rows.filter((c) => c.status === 'REFUNDED').reduce((s, c) => s + c.priceCents, 0);
+
+  return (
+    <div className="section">
+      <h2>Movimentos</h2>
+      <div className="grid">
+        <Kpi label="Volume listado" value={euro(volume)} hint="Consultas pagáveis" />
+        <Kpi label="Reembolsado (nesta lista)" value={euro(refunded)} />
+        <Kpi label="Nº de movimentos" value={String(rows.length)} />
+      </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        {([
+          ['all', 'Todos'],
+          ['paid', 'Pagas'],
+          ['REFUNDED', 'Reembolsadas'],
+          ['DISPUTED', 'Em disputa'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : shown.length === 0 ? (
+        <EmptyState title="Sem movimentos" hint={rows.length ? 'Nenhum neste filtro.' : 'Aparecem aqui assim que houver consultas.'} />
+      ) : (
+        <div className="grid">
+          {shown.map((c) => (
+            <div key={c.id} className="card">
+              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+              <div style={{ marginTop: 4 }}>
+                <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {c.pediatrician?.displayName ?? '—'} · {c.child?.name ?? '—'}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>{when(c.scheduledAt ?? c.openedAt)}</div>
+              <div className="row" style={{ marginTop: 8 }}>
+                <button className="btn small secondary" onClick={() => setOpen(c)}>Ver</button>
+                <button
+                  className="btn small danger"
+                  onClick={() => refund(c)}
+                  disabled={busy === c.id || c.status === 'REFUNDED'}
+                >
+                  {c.status === 'REFUNDED' ? 'Reembolsada' : 'Reembolsar'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════ COMPLIANCE ═════════════════════════
+function ComplianceOverviewTab({ onMsg, onGoCreds }: { onMsg: (m: string) => void; onGoCreds: () => void }) {
+  const [m, setM] = useState<AdminMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    Api.adminMetrics()
+      .then(setM)
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (loading) return <Skeleton rows={3} />;
+  if (!m) return <EmptyState title="Sem dados" hint="Não foi possível carregar." />;
+
+  const verified = m.pediatriciansByStatus.ACTIVE ?? 0;
+  const pending = m.pediatriciansByStatus.PENDING ?? 0;
+  const suspended = m.pediatriciansByStatus.SUSPENDED ?? 0;
+  const totalPeds = verified + pending + suspended;
+
+  return (
+    <div className="section">
+      <h2>Conformidade</h2>
+      <p className="notice" style={{ fontSize: 13 }}>
+        ℹ️ Ambiente de demonstração — dados fictícios, sem PII real de menores.
+      </p>
+
+      <div className="card section">
+        <h3>Verificação de profissionais</h3>
+        <div className="grid">
+          <Kpi label="Verificados" value={String(verified)} />
+          <Kpi label="Pendentes" value={String(pending)} />
+          <Kpi label="Suspensos" value={String(suspended)} />
+        </div>
+        <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+          {totalPeds ? `${verified} de ${totalPeds} profissionais verificados.` : 'Sem profissionais registados.'}
+        </p>
+        {pending > 0 ? (
+          <button className="btn small" onClick={onGoCreds} style={{ marginTop: 4 }}>
+            ⚠️ Rever {pending} credencial(is) pendente(s) →
+          </button>
+        ) : null}
+      </div>
+
+      <div className="card section">
+        <h3>Titulares de dados sob tratamento</h3>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span className="muted">Famílias · Crianças</span>
+          <strong>{m.families} · {m.children}</strong>
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          Dados de saúde de menores — categoria especial (art. 9.º RGPD).
+        </p>
+      </div>
+
+      <div className="card section">
+        <h3>Atividade de tratamento (consultas)</h3>
+        {Object.entries(m.consultationsByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{statusLabel(k)}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+        {Object.keys(m.consultationsByStatus).length === 0 ? <p className="muted">Sem dados.</p> : null}
+      </div>
+
+      <div className="card section">
+        <h3>Acessos por perfil</h3>
+        {Object.entries(m.usersByRole).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{roleLabel(k)}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CredentialsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminPedRow[]>([]);
+  const [status, setStatus] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [openDocs, setOpenDocs] = useState('');
+
+  async function load(s = status) {
+    setLoading(true);
+    try {
+      setRows(await Api.adminPediatricians(s || undefined));
+    } catch (e) {
+      onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load(status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  return (
+    <div className="section">
+      <h2>Revisão de credenciais</h2>
+      <p className="muted" style={{ fontSize: 13 }}>
+        Cédula, diploma e demais documentos. Aprovar documentos não ativa o perfil — a ativação é
+        feita pela Administração.
+      </p>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        {([
+          ['PENDING', 'Pendentes'],
+          ['ACTIVE', 'Verificados'],
+          ['SUSPENDED', 'Suspensos'],
+          ['', 'Todos'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${status === k ? ' active' : ''}`} onClick={() => setStatus(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : rows.length === 0 ? (
+        <EmptyState title="Fila vazia" hint="Nenhum profissional neste estado." />
+      ) : (
+        <div className="grid">
+          {rows.map((p) => (
+            <div key={p.id} className="card">
+              <span className={pedStatus(p.status).pill}>{pedStatus(p.status).label}</span>
+              <div style={{ marginTop: 4 }}>
+                <strong>{p.displayName ?? p.user?.email ?? p.specialties[0] ?? 'Pediatra'}</strong>
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                Licença {p.licenseNumber} · ⭐ {p.ratingAvg.toFixed(1)}
+              </div>
+              <button
+                className="btn small secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => setOpenDocs(openDocs === p.id ? '' : p.id)}
+              >
+                {openDocs === p.id ? 'Ocultar documentos' : 'Documentos'}
+              </button>
+              {openDocs === p.id ? <CredDocsReview pediatricianId={p.id} onMsg={onMsg} /> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CredDocsReview({ pediatricianId, onMsg }: { pediatricianId: string; onMsg: (m: string) => void }) {
+  const [docs, setDocs] = useState<VerificationDoc[]>([]);
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState<Record<string, string>>({});
+
+  async function load() {
+    try {
+      setDocs(await Api.adminDocuments(pediatricianId));
+    } catch (e) {
+      onMsg(`Erro a carregar documentos: ${String(e)}`);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pediatricianId]);
+
+  async function review(id: string, status: 'approved' | 'rejected') {
+    if (status === 'rejected' && !note[id]?.trim()) {
+      return onMsg('Indica uma nota a justificar a recusa.');
+    }
+    setBusy(id);
+    try {
+      await Api.reviewDocument(id, status, note[id]?.trim() || undefined);
+      onMsg(status === 'approved' ? 'Documento aprovado ✓' : 'Documento recusado.');
+      await load();
+    } catch (e) {
+      onMsg(isForbidden(e) ? 'Sem permissão para rever.' : `Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+      {docs.length === 0 ? (
+        <p className="muted">Sem documentos submetidos.</p>
+      ) : (
+        docs.map((d) => (
+          <div key={d.id} style={{ marginBottom: 10 }}>
+            <span className={docStatusPill(d.status)}>{docStatusLabel(d.status)}</span>{' '}
+            <strong>{DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</strong>
+            <div className="muted" style={{ fontSize: 13 }}>{d.fileName}</div>
+            {d.status !== 'pending' && d.note ? (
+              <div className="muted" style={{ fontSize: 12 }}>Nota: {d.note}</div>
+            ) : null}
+            {d.status === 'pending' ? (
+              <>
+                <input
+                  placeholder="Nota (obrigatória para recusar)"
+                  value={note[d.id] ?? ''}
+                  onChange={(e) => setNote((n) => ({ ...n, [d.id]: e.target.value }))}
+                  style={{ marginTop: 6 }}
+                />
+                <div className="row" style={{ marginTop: 4 }}>
+                  <button className="btn small" onClick={() => review(d.id, 'approved')} disabled={busy === d.id}>
+                    Aprovar
+                  </button>
+                  <button className="btn small danger" onClick={() => review(d.id, 'rejected')} disabled={busy === d.id}>
+                    Recusar
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════ SUPPORT ═════════════════════════
+const SUPPORT_ESCALATION = '🛡️ Verificar, suspender, alterar perfis ou rever documentos é feito pela Administração / Conformidade. Para escalar, copia o email/ID.';
+
+function copyText(text: string, onMsg: (m: string) => void) {
+  navigator.clipboard?.writeText(text).then(
+    () => onMsg('Copiado ✓'),
+    () => onMsg('Não foi possível copiar.'),
+  );
+}
+
+function SupportUsersTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [role, setRole] = useState('');
+  useEffect(() => {
+    Api.adminUsers()
+      .then(setRows)
+      .catch((e) => onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const roles = Array.from(new Set(rows.map((u) => u.role)));
+  const needle = q.trim().toLowerCase();
+  const shown = rows.filter(
+    (u) => (!role || u.role === role) && (!needle || `${u.email ?? ''} ${u.id}`.toLowerCase().includes(needle)),
+  );
+
+  return (
+    <div className="section">
+      <h2>Procurar utilizador</h2>
+      <input
+        className="search"
+        placeholder="Procurar por email ou ID…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        <button className={`chip${role === '' ? ' active' : ''}`} onClick={() => setRole('')}>Todos</button>
+        {roles.map((r) => (
+          <button key={r} className={`chip${role === r ? ' active' : ''}`} onClick={() => setRole((c) => (c === r ? '' : r))}>
+            {roleLabel(r)}
+          </button>
+        ))}
+      </div>
+      <p className="muted" style={{ fontSize: 12 }}>{SUPPORT_ESCALATION}</p>
+      {loading ? (
+        <Skeleton rows={3} />
+      ) : shown.length === 0 ? (
+        <EmptyState title="Sem resultados" hint="Tenta outro email ou limpa os filtros." />
+      ) : (
+        <div className="grid">
+          {shown.map((u) => (
+            <div key={u.id} className="card">
+              <strong>{u.email ?? u.id.slice(0, 8)}</strong>
+              <div style={{ marginTop: 4 }}>
+                <span className="pill">{roleLabel(u.role)}</span>{' '}
+                <span className={u.status === 'active' ? 'pill ok' : 'pill warn'}>{u.status}</span>
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Conta criada a {new Date(u.createdAt).toLocaleDateString('pt-PT')}
+              </div>
+              <div className="row" style={{ marginTop: 6 }}>
+                {u.email ? (
+                  <button className="btn small secondary" onClick={() => copyText(u.email!, onMsg)}>📋 Email</button>
+                ) : null}
+                <button className="btn small secondary" onClick={() => copyText(u.id, onMsg)}>📋 ID</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupportPedsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminPedRow[]>([]);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [openDocs, setOpenDocs] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    Api.adminPediatricians(status || undefined)
+      .then(setRows)
+      .catch((e) => onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  const needle = q.trim().toLowerCase();
+  const shown = rows.filter(
+    (p) => !needle || `${p.displayName ?? ''} ${p.user?.email ?? ''} ${p.licenseNumber}`.toLowerCase().includes(needle),
+  );
+
+  return (
+    <div className="section">
+      <h2>Estado de pediatras</h2>
+      <input className="search" placeholder="Procurar por nome, email ou licença…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        {([
+          ['', 'Todos'],
+          ['ACTIVE', 'Verificados'],
+          ['PENDING', 'Pendentes'],
+          ['SUSPENDED', 'Suspensos'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${status === k ? ' active' : ''}`} onClick={() => setStatus(k)}>{label}</button>
+        ))}
+      </div>
+      <p className="muted" style={{ fontSize: 12 }}>{SUPPORT_ESCALATION}</p>
+      {loading ? (
+        <Skeleton rows={2} />
+      ) : shown.length === 0 ? (
+        <EmptyState title="Sem pediatras" hint="Nenhum corresponde." />
+      ) : (
+        <div className="grid">
+          {shown.map((p) => (
+            <div key={p.id} className="card">
+              <span className={pedStatus(p.status).pill}>{pedStatus(p.status).label}</span>
+              <div style={{ marginTop: 4 }}>
+                <strong>{p.displayName ?? p.user?.email ?? p.specialties[0] ?? 'Pediatra'}</strong>
+                {p.displayName && p.user?.email ? <span className="muted"> · {p.user.email}</span> : null}
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                Licença {p.licenseNumber} · ⭐ {p.ratingAvg.toFixed(1)} · {specLabel(p.specialties[0])}
+              </div>
+              <button className="btn small secondary" style={{ marginTop: 6 }} onClick={() => setOpenDocs(openDocs === p.id ? '' : p.id)}>
+                {openDocs === p.id ? 'Ocultar documentos' : 'Ver documentos'}
+              </button>
+              {openDocs === p.id ? <SupportPedDocs pediatricianId={p.id} onMsg={onMsg} /> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupportPedDocs({ pediatricianId, onMsg }: { pediatricianId: string; onMsg: (m: string) => void }) {
+  const [docs, setDocs] = useState<VerificationDoc[]>([]);
+  useEffect(() => {
+    Api.adminDocuments(pediatricianId)
+      .then(setDocs)
+      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pediatricianId]);
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+      {docs.length === 0 ? (
+        <p className="muted">Sem documentos submetidos.</p>
+      ) : (
+        docs.map((d) => (
+          <div key={d.id} style={{ marginBottom: 6 }}>
+            <span className={docStatusPill(d.status)}>{docStatusLabel(d.status)}</span>{' '}
+            <strong>{DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</strong>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {d.fileName}{d.reviewedAt ? ` · revisto ${when(d.reviewedAt)}` : ''}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function SupportOverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const [m, setM] = useState<AdminMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    Api.adminMetrics()
+      .then(setM)
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (loading) return <Skeleton rows={3} />;
+  if (!m) return <EmptyState title="Sem dados" hint="Não foi possível carregar." />;
+  const totalUsers = Object.values(m.usersByRole).reduce((a, b) => a + b, 0);
+  return (
+    <div className="section">
+      <h2>Visão de apoio</h2>
+      <div className="grid">
+        <Kpi label="Utilizadores" value={String(totalUsers)} />
+        <Kpi label="Famílias · Crianças" value={`${m.families} · ${m.children}`} />
+        <Kpi label="Reembolsos" value={String(m.refunds)} hint="Contexto p/ cobrança" />
+      </div>
+      <div className="card section">
+        <h3>Utilizadores por perfil</h3>
+        {Object.entries(m.usersByRole).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{roleLabel(k)}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
+      <div className="card section">
+        <h3>Consultas por estado</h3>
+        {Object.entries(m.consultationsByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className={k === 'REFUNDED' || k === 'DISPUTED' ? 'pill warn' : 'muted'}>{statusLabel(k)}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+        {Object.keys(m.consultationsByStatus).length === 0 ? <p className="muted">Sem consultas ainda.</p> : null}
+      </div>
+      <div className="card section">
+        <h3>Pediatras por estado</h3>
+        {Object.entries(m.pediatriciansByStatus).map(([k, v]) => (
+          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">{pedStatus(k).label}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -4314,9 +5042,14 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
   return (
     <div className="section">
       <h2>{data.clinic.name}</h2>
-      <p className="muted">
-        {data.role} · {data.members.length} membros · {data.pediatricians.length} pediatras
+      <p className="muted" style={{ marginTop: -4 }}>
+        {isAdmin ? 'Gestão da clínica' : 'Vista da equipa'} · NIF {data.clinic.taxId ?? '—'}
       </p>
+      <div className="grid">
+        <Kpi label="Pediatras" value={String(data.pediatricians.length)} />
+        <Kpi label="Equipa" value={String(data.members.length)} />
+        <Kpi label="Consultas" value={String(data.consultations.length)} />
+      </div>
 
       <h3 style={{ marginTop: 18 }}>Pediatras</h3>
       {data.pediatricians.length === 0 ? (
@@ -4325,12 +5058,12 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
         <div className="grid">
           {data.pediatricians.map((p) => (
             <div key={p.id} className="card">
-              <span className={p.status === 'ACTIVE' ? 'pill ok' : 'pill warn'}>{p.status}</span>
-              <div>
+              <span className={pedStatus(p.status).pill}>{pedStatus(p.status).label}</span>
+              <div style={{ marginTop: 4 }}>
                 <strong>{p.email ?? p.id.slice(0, 8)}</strong>
               </div>
-              <div className="muted">
-                ⭐ {p.ratingAvg.toFixed(1)} · clínica fica com {p.revenueSharePct}%
+              <div className="muted" style={{ fontSize: 13 }}>
+                ⭐ {p.ratingAvg.toFixed(1)} · partilha p/ a clínica {p.revenueSharePct}%
               </div>
             </div>
           ))}
@@ -4342,7 +5075,7 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
         {data.members.map((m) => (
           <div key={m.id} className="card">
             <strong>{m.email ?? m.userId.slice(0, 8)}</strong>
-            <div className="muted">{m.role}</div>
+            <div className="muted">{roleLabel(m.role)}</div>
           </div>
         ))}
       </div>
