@@ -1200,6 +1200,9 @@ function Thread({
       {canClose && consultation.childId ? (
         <ChildSummary childId={consultation.childId} />
       ) : null}
+      {canClose && consultation.status !== 'REFUNDED' && consultation.status !== 'CANCELLED' ? (
+        <ReferralRequest consultationId={consultation.id} onMsg={onMsg} />
+      ) : null}
       {video ? (
         <VideoRoom url={video.url} token={video.token} onLeave={() => setVideo(null)} />
       ) : null}
@@ -2664,6 +2667,91 @@ function ReviewForm({
 
 // ──────────────── Pediatrician: doctor-to-doctor 2nd opinion ────────────────
 type Colleague = { id: string; displayName?: string | null; bio?: string | null; specialties?: string[] };
+
+/**
+ * Inline "request a second opinion" action, shown inside a consultation thread
+ * so the request is anchored to the patient/consultation in context.
+ */
+function ReferralRequest({ consultationId, onMsg }: { consultationId: string; onMsg: (m: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [colleagues, setColleagues] = useState<Colleague[]>([]);
+  const [toId, setToId] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function start() {
+    setOpen(true);
+    if (colleagues.length) return;
+    try {
+      const [peds, me] = await Promise.all([Api.pediatricians(), Api.me()]);
+      setColleagues((peds as Colleague[]).filter((p) => p.id !== me.id));
+    } catch (e) {
+      onMsg(`Erro a carregar colegas: ${String(e)}`);
+    }
+  }
+  async function send() {
+    if (!toId || reason.trim().length < 3) return onMsg('Escolhe o colega e descreve o contexto.');
+    setBusy(true);
+    try {
+      await Api.createReferral({ consultationId, toPediatricianId: toId, reason: reason.trim() });
+      onMsg('Pedido de 2ª opinião enviado ✓ — acompanha em “2ª opinião”.');
+      setDone(true);
+      setOpen(false);
+    } catch (e) {
+      onMsg(`Erro a enviar: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done)
+    return (
+      <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+        ✓ 2ª opinião pedida sobre este doente — acompanha em “2ª opinião”.
+      </p>
+    );
+  if (!open)
+    return (
+      <button className="btn secondary small" onClick={() => void start()} style={{ marginTop: 8 }}>
+        🤝 Pedir 2ª opinião sobre este doente
+      </button>
+    );
+  return (
+    <div className="card section">
+      <strong>Pedir 2ª opinião a um colega</strong>
+      <p className="muted" style={{ fontSize: 12, margin: '2px 0 6px' }}>
+        Sobre esta consulta. O contexto clínico é cifrado e enviado ao colega.
+      </p>
+      <label className="muted">Colega</label>
+      <select className="search" value={toId} onChange={(e) => setToId(e.target.value)}>
+        <option value="">Escolhe um pediatra…</option>
+        {colleagues.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.displayName ?? specLabel(p.specialties?.[0])}
+            {p.specialties && p.specialties.length ? ` · ${specLabel(p.specialties[0])}` : ''}
+          </option>
+        ))}
+      </select>
+      <label className="muted">Contexto clínico (cifrado)</label>
+      <textarea
+        className="search"
+        rows={4}
+        placeholder="Descreve o caso e a questão para o colega…"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <div className="row" style={{ marginTop: 6 }}>
+        <button className="btn small" onClick={() => void send()} disabled={busy}>
+          Enviar pedido
+        </button>
+        <button className="btn secondary small" onClick={() => setOpen(false)}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function refStatusLabel(s: ReferralDto['status']): string {
   return (
