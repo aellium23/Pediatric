@@ -85,7 +85,7 @@ export default function Tour() {
   return (
     <div className="tourwrap">
       <header className="tourhero">
-        <span className="badge">PÉDIA · TOUR COMPLETO</span>
+        <span className="badge">HOC · TOUR COMPLETO</span>
         <h1>Como funciona a app</h1>
         <p>
           Todos os perfis: Pais, Pediatra, Clínica e Administrador. Mockups com o

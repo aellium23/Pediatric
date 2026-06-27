@@ -8,7 +8,7 @@ type Dict = Record<string, string>;
 
 const DICTS: Record<Lang, Dict> = {
   pt: {
-    'landing.badge': 'PÉDIA · TELEPEDIATRIA',
+    'landing.badge': 'HOC · TELEPEDIATRIA',
     'landing.title': 'O pediatra de confiança, à distância de uma mensagem.',
     'landing.subtitle': 'Pediatras verificados · Seguro e privado · Sem ir à urgência por tudo.',
     'landing.cta': 'Entrar na app (escolher perfil)',
@@ -33,7 +33,7 @@ const DICTS: Record<Lang, Dict> = {
     'tab.account': 'Conta',
   },
   en: {
-    'landing.badge': 'PÉDIA · TELEPEDIATRICS',
+    'landing.badge': 'HOC · TELEPEDIATRICS',
     'landing.title': 'Your trusted pediatrician, one message away.',
     'landing.subtitle': 'Verified pediatricians · Secure and private · Skip the ER for everything.',
     'landing.cta': 'Enter the app (choose a profile)',
@@ -58,7 +58,7 @@ const DICTS: Record<Lang, Dict> = {
     'tab.account': 'Account',
   },
   es: {
-    'landing.badge': 'PÉDIA · TELEPEDIATRÍA',
+    'landing.badge': 'HOC · TELEPEDIATRÍA',
     'landing.title': 'Tu pediatra de confianza, a un mensaje de distancia.',
     'landing.subtitle': 'Pediatras verificados · Seguro y privado · Sin ir a urgencias por todo.',
     'landing.cta': 'Entrar en la app (elegir perfil)',

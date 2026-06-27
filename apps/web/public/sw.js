@@ -1,4 +1,4 @@
-/* Simple offline shell for Pédia (same-origin app assets only).
+/* Simple offline shell for HOC (same-origin app assets only).
    Network-first with cache fallback; never caches the cross-origin API. */
 const CACHE = 'pedia-shell-v1';
 

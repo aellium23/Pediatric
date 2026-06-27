@@ -2,7 +2,7 @@
   "name": "@pedia/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Pédia web portal (marketplace, pediatrician & admin portals)",
+  "description": "HOC web portal (marketplace, pediatrician & admin portals)",
   "engines": {
     "node": ">=20.0.0"
   },
