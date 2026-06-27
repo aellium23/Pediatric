@@ -136,7 +136,17 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
     const text = await res.text().catch(() => '');
     throw new Error(text || `${res.status} ${res.statusText}`);
   }
-  return res.status === 204 ? null : res.json();
+  if (res.status === 204) return null;
+  // Parse defensively: a sleeping/booting backend (or a proxy) can answer 200
+  // with a non-JSON page, which would otherwise surface as a cryptic
+  // "SyntaxError: The string did not match the expected pattern.".
+  const text = await res.text().catch(() => '');
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('O servidor devolveu uma resposta inesperada. Tenta novamente em instantes.');
+  }
 }
 
 export interface ChildDto {
