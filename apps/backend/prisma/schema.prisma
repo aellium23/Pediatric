@@ -33,6 +33,7 @@ enum AuthProvider {
 model User {
   id            String        @id @default(uuid())
   role          Role          @default(PARENT)
+  name          String? // display name (e.g. guardian "Marta Silva")
   email         String?       @unique
   emailVerified Boolean       @default(false)
   phone         String?       @unique

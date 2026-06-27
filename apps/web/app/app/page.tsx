@@ -793,6 +793,9 @@ const PED_STATUS_PT: Record<string, { label: string; pill: string }> = {
 function pedStatus(s: string): { label: string; pill: string } {
   return PED_STATUS_PT[s] ?? { label: s, pill: 'pill muted' };
 }
+function guardianLabel(rel: string): string {
+  return ({ mother: '👩 Mãe', father: '👨 Pai' } as Record<string, string>)[rel] ?? '🧑 Tutor';
+}
 
 function roleIcon(role: string): string {
   const m: Record<string, string> = {
@@ -2660,7 +2663,7 @@ function ReviewForm({
 }
 
 // ──────────────── Pediatrician: doctor-to-doctor 2nd opinion ────────────────
-type Colleague = { id: string; bio?: string | null; specialties?: string[] };
+type Colleague = { id: string; displayName?: string | null; bio?: string | null; specialties?: string[] };
 
 function refStatusLabel(s: ReferralDto['status']): string {
   return (
@@ -2759,6 +2762,11 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>Segunda opinião</h2>
+      <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
+        Consulta entre médicos: pede o parecer de um colega sobre um caso teu, ou responde a quem te
+        pede. O contexto clínico é cifrado e o pedido parte sempre de uma das tuas consultas (do
+        doente) — em <strong>Pedir</strong>, escolhe a consulta e o colega.
+      </p>
       <div className="seg" role="tablist">
         <button className={view === 'incoming' ? 'active' : ''} onClick={() => setView('incoming')}>
           Recebidos{incoming.length ? ` (${incoming.length})` : ''}
@@ -2847,11 +2855,12 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {view === 'new' ? (
         <div className="card">
-          <label className="muted">Consulta</label>
+          <label className="muted">Doente / consulta</label>
           <select className="search" value={consultId} onChange={(e) => setConsultId(e.target.value)}>
-            <option value="">Escolhe uma consulta…</option>
+            <option value="">Escolhe o doente / consulta…</option>
             {myConsults.map((c) => (
               <option key={c.id} value={c.id}>
+                {c.child?.name ? `${c.child.name} · ` : ''}
                 {svcLabel(c.type)} · {statusLabel(c.status)}
               </option>
             ))}
@@ -2861,8 +2870,8 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
             <option value="">Escolhe um pediatra…</option>
             {colleagues.map((p) => (
               <option key={p.id} value={p.id}>
-                {(p.specialties && p.specialties.length ? p.specialties.join(', ') : 'Pediatra')} ·{' '}
-                {p.id.slice(0, 8)}
+                {p.displayName ?? specLabel(p.specialties?.[0])}
+                {p.specialties && p.specialties.length ? ` · ${specLabel(p.specialties[0])}` : ''}
               </option>
             ))}
           </select>
@@ -3186,6 +3195,11 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
         families.map((fam) => (
           <div key={fam.id} className="card" style={{ marginBottom: 12 }}>
             <strong>{fam.name}</strong>
+            {fam.guardians && fam.guardians.length > 0 ? (
+              <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                {fam.guardians.map((g) => `${guardianLabel(g.relationship)} ${g.name}`).join(' · ')}
+              </div>
+            ) : null}
             <div className="grid" style={{ marginTop: 8 }}>
               {fam.children.map((c) => (
                 <button

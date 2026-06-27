@@ -6,6 +6,7 @@ import {
   ConsultationStatus,
   PaymentStatus,
   ConsentSubject,
+  ReferralStatus,
 } from '@prisma/client';
 import { createCipheriv, randomBytes, createHash, randomUUID } from 'crypto';
 
@@ -182,15 +183,81 @@ async function seedChild(
   return child;
 }
 
-async function ensureFamily(user: { id: string }, familyName: string) {
+async function ensureFamily(user: { id: string }, familyName: string, relationship = 'guardian') {
   let family = await prisma.family.findFirst({ where: { primaryUserId: user.id } });
   family ??= await prisma.family.create({ data: { name: familyName, primaryUserId: user.id } });
   await prisma.familyMember.upsert({
     where: { familyId_userId: { familyId: family.id, userId: user.id } },
-    create: { familyId: family.id, userId: user.id, relationship: 'guardian' },
-    update: {},
+    create: { familyId: family.id, userId: user.id, relationship },
+    update: { relationship },
   });
   return family;
+}
+
+/** Adds a co-guardian (e.g. the other parent) to a family, with a display name. */
+async function addGuardian(familyId: string, email: string, name: string, relationship: string) {
+  const u = await upsertUser(email, Role.PARENT, { name });
+  await prisma.familyMember.upsert({
+    where: { familyId_userId: { familyId, userId: u.id } },
+    create: { familyId, userId: u.id, relationship },
+    update: { relationship },
+  });
+  return u;
+}
+
+interface PedRef { pedId: string; userId: string }
+/** Idempotent demo consultation (+ optional messages/payment/review). */
+async function ensureConsult(opts: {
+  ped: PedRef;
+  familyId: string;
+  childId: string;
+  parentUserId: string;
+  type: ServiceType;
+  status: ConsultationStatus;
+  priceCents: number;
+  daysAgo: number;
+  summary?: string;
+  parentMsg?: string;
+  pedMsg?: string;
+  paid?: boolean;
+  review?: { rating: number; comment: string };
+}) {
+  const existing = await prisma.consultation.findFirst({
+    where: { childId: opts.childId, pediatricianId: opts.ped.pedId, type: opts.type },
+  });
+  if (existing) return existing;
+  const open = ConsultationStatus.OPEN;
+  const c = await prisma.consultation.create({
+    data: {
+      familyId: opts.familyId,
+      childId: opts.childId,
+      pediatricianId: opts.ped.pedId,
+      type: opts.type,
+      status: opts.status,
+      priceCents: opts.priceCents,
+      openedAt: ago(opts.daysAgo),
+      answeredAt: opts.status !== open ? ago(opts.daysAgo) : null,
+      closedAt: opts.status === ConsultationStatus.CLOSED ? ago(Math.max(0, opts.daysAgo - 1)) : null,
+      slaDueAt: opts.status === open ? new Date(Date.now() + 23 * 3600 * 1000) : null,
+      summary: opts.summary ? enc(opts.summary) : null,
+    },
+  });
+  if (opts.parentMsg)
+    await prisma.message.create({ data: { consultationId: c.id, senderUserId: opts.parentUserId, body: enc(opts.parentMsg) } });
+  if (opts.pedMsg)
+    await prisma.message.create({ data: { consultationId: c.id, senderUserId: opts.ped.userId, body: enc(opts.pedMsg) } });
+  if (opts.paid) {
+    const pay = await prisma.payment.create({
+      data: { consultationId: c.id, amountCents: opts.priceCents, status: PaymentStatus.CAPTURED, psp: 'demo', pspRef: `demo_${c.id}`, capturedAt: ago(opts.daysAgo) },
+    });
+    const fee = Math.round(opts.priceCents * 0.2);
+    await prisma.split.create({ data: { paymentId: pay.id, platformFeeCents: fee, pediatricianAmount: opts.priceCents - fee } });
+  }
+  if (opts.review)
+    await prisma.review.create({
+      data: { consultationId: c.id, familyId: opts.familyId, pediatricianId: opts.ped.pedId, rating: opts.review.rating, comment: opts.review.comment },
+    });
+  return c;
 }
 
 // ── "Saber+" content library: validated, parent-friendly pediatric content,
@@ -844,23 +911,24 @@ async function main(): Promise<void> {
   const inesPed = peds['ines@demo.pedia'];
 
   // Base demo users for every profile (sign in with POST /auth/dev-login).
-  const roleUsers: { email: string; role: Role }[] = [
-    { email: 'marta@demo.pedia', role: Role.PARENT },
-    { email: 'joao@demo.pedia', role: Role.PARENT },
-    { email: 'sofia@demo.pedia', role: Role.PARENT },
-    { email: 'ricardo@demo.pedia', role: Role.PARENT },
-    { email: 'clinica.admin@demo.pedia', role: Role.CLINIC_ADMIN },
-    { email: 'clinica.staff@demo.pedia', role: Role.CLINIC_STAFF },
-    { email: 'admin@demo.pedia', role: Role.PLATFORM_ADMIN },
-    { email: 'suporte@demo.pedia', role: Role.SUPPORT },
-    { email: 'financas@demo.pedia', role: Role.FINANCE },
-    { email: 'compliance@demo.pedia', role: Role.COMPLIANCE },
+  const roleUsers: { email: string; role: Role; name: string }[] = [
+    { email: 'marta@demo.pedia', role: Role.PARENT, name: 'Marta Silva' },
+    { email: 'joao@demo.pedia', role: Role.PARENT, name: 'João Costa' },
+    { email: 'sofia@demo.pedia', role: Role.PARENT, name: 'Sofia Mendes' },
+    { email: 'ricardo@demo.pedia', role: Role.PARENT, name: 'Ricardo Rocha' },
+    { email: 'clinica.admin@demo.pedia', role: Role.CLINIC_ADMIN, name: 'Clínica Demo · Administração' },
+    { email: 'clinica.staff@demo.pedia', role: Role.CLINIC_STAFF, name: 'Clínica Demo · Receção' },
+    { email: 'admin@demo.pedia', role: Role.PLATFORM_ADMIN, name: 'Equipa HOC · Administração' },
+    { email: 'suporte@demo.pedia', role: Role.SUPPORT, name: 'Equipa HOC · Apoio' },
+    { email: 'financas@demo.pedia', role: Role.FINANCE, name: 'Equipa HOC · Finanças' },
+    { email: 'compliance@demo.pedia', role: Role.COMPLIANCE, name: 'Equipa HOC · Conformidade' },
   ];
-  for (const u of roleUsers) await upsertUser(u.email, u.role);
+  for (const u of roleUsers) await upsertUser(u.email, u.role, { name: u.name });
 
   // ── Family Silva (Marta) — Tomás: normal growth, up-to-date ──
   const marta = await prisma.user.findUniqueOrThrow({ where: { email: 'marta@demo.pedia' } });
-  const silva = await ensureFamily(marta, 'Família Silva');
+  const silva = await ensureFamily(marta, 'Família Silva', 'mother');
+  await addGuardian(silva.id, 'nuno.silva@demo.pedia', 'Nuno Silva', 'father');
   const tomas = await seedChild(silva.id, 'Tomás', d('2021-06-01'), 'M', marta.id, {
     growth: [
       { at: d('2021-12-01'), heightCm: 67, weightKg: 8.0 },
@@ -883,8 +951,9 @@ async function main(): Promise<void> {
 
   // ── Family Costa (João) — Beatriz (asma) + Rodrigo (lactente saudável) ──
   const joao = await prisma.user.findUniqueOrThrow({ where: { email: 'joao@demo.pedia' } });
-  const costa = await ensureFamily(joao, 'Família Costa');
-  await seedChild(costa.id, 'Beatriz', d('2021-03-15'), 'F', joao.id, {
+  const costa = await ensureFamily(joao, 'Família Costa', 'father');
+  await addGuardian(costa.id, 'sara.costa@demo.pedia', 'Sara Costa', 'mother');
+  const beatriz = await seedChild(costa.id, 'Beatriz', d('2021-03-15'), 'F', joao.id, {
     growth: [
       { at: d('2021-09-15'), heightCm: 65, weightKg: 7.2 },
       { at: d('2022-03-15'), heightCm: 74, weightKg: 9.0 },
@@ -923,8 +992,9 @@ async function main(): Promise<void> {
 
   // ── Family Mendes (Sofia) — Leonor: excesso de peso + alergia a penicilina ──
   const sofia = await prisma.user.findUniqueOrThrow({ where: { email: 'sofia@demo.pedia' } });
-  const mendes = await ensureFamily(sofia, 'Família Mendes');
-  await seedChild(mendes.id, 'Leonor', d('2022-01-01'), 'F', sofia.id, {
+  const mendes = await ensureFamily(sofia, 'Família Mendes', 'mother');
+  await addGuardian(mendes.id, 'hugo.mendes@demo.pedia', 'Hugo Mendes', 'father');
+  const leonor = await seedChild(mendes.id, 'Leonor', d('2022-01-01'), 'F', sofia.id, {
     growth: [
       { at: d('2023-01-01'), heightCm: 76, weightKg: 11.0 },
       { at: d('2024-01-01'), heightCm: 88, weightKg: 15.0 },
@@ -943,8 +1013,9 @@ async function main(): Promise<void> {
 
   // ── Family Rocha (Ricardo) — Afonso: crescimento insuficiente + vacinas em atraso ──
   const ricardo = await prisma.user.findUniqueOrThrow({ where: { email: 'ricardo@demo.pedia' } });
-  const rocha = await ensureFamily(ricardo, 'Família Rocha');
-  await seedChild(rocha.id, 'Afonso', d('2023-12-01'), 'M', ricardo.id, {
+  const rocha = await ensureFamily(ricardo, 'Família Rocha', 'father');
+  await addGuardian(rocha.id, 'patricia.rocha@demo.pedia', 'Patrícia Rocha', 'mother');
+  const afonso = await seedChild(rocha.id, 'Afonso', d('2023-12-01'), 'M', ricardo.id, {
     growth: [
       { at: d('2024-06-01'), heightCm: 65, weightKg: 7.0 },
       { at: d('2024-12-01'), heightCm: 71, weightKg: 8.0 },
@@ -960,6 +1031,47 @@ async function main(): Promise<void> {
     episodes: [{ title: 'Crescimento insuficiente — investigar', icpc2: 'T82', status: 'OPEN' }],
     allergies: [],
     vitals: [{ at: ago(30), temperatureC: 36.5, heartRateBpm: 110, respRateBpm: 26, spo2Pct: 98 }],
+  });
+
+  // ── Family Pinto (Diana + Bruno) — Martim: febre prolongada em investigação ──
+  const diana = await upsertUser('diana.pinto@demo.pedia', Role.PARENT, { name: 'Diana Pinto' });
+  const pinto = await ensureFamily(diana, 'Família Pinto', 'mother');
+  await addGuardian(pinto.id, 'bruno.pinto@demo.pedia', 'Bruno Pinto', 'father');
+  const martim = await seedChild(pinto.id, 'Martim', d('2022-09-10'), 'M', diana.id, {
+    growth: [
+      { at: d('2023-09-10'), heightCm: 78, weightKg: 10.2 },
+      { at: d('2024-09-10'), heightCm: 89, weightKg: 12.8 },
+      { at: d('2025-09-10'), heightCm: 97, weightKg: 14.6 },
+    ],
+    vaccines: [
+      { name: 'Hexavalente (DTPa+VIP+Hib+VHB)', at: d('2022-11-10'), pnvAbbr: 'Hexavalente' },
+      { name: 'VASPR', at: d('2023-09-10'), pnvAbbr: 'VASPR', cvx: '03' },
+    ],
+    meds: [{ name: 'Paracetamol', dose: '15 mg/kg SOS', atc: 'N02BE01', route: 'oral', freq: 'SOS', active: true, startedAt: ago(8) }],
+    episodes: [{ title: 'Febre prolongada — investigação', summary: 'Febre há 6 dias sem foco evidente. Análises pedidas; 2ª opinião solicitada.', icpc2: 'A03', status: 'OPEN' }],
+    allergies: [],
+    vitals: [{ at: ago(2), temperatureC: 38.6, heartRateBpm: 122, respRateBpm: 28, spo2Pct: 98 }],
+  });
+
+  // ── Family Lopes (Inês L. + Rui) — Clara: dermatite atópica + alergia a ovo ──
+  const inesL = await upsertUser('ines.lopes@demo.pedia', Role.PARENT, { name: 'Inês Lopes' });
+  const lopes = await ensureFamily(inesL, 'Família Lopes', 'mother');
+  await addGuardian(lopes.id, 'rui.lopes@demo.pedia', 'Rui Lopes', 'father');
+  const clara = await seedChild(lopes.id, 'Clara', d('2023-04-20'), 'F', inesL.id, {
+    growth: [
+      { at: d('2023-10-20'), heightCm: 66, weightKg: 7.6 },
+      { at: d('2024-04-20'), heightCm: 74, weightKg: 9.2 },
+      { at: d('2025-04-20'), heightCm: 84, weightKg: 11.4 },
+    ],
+    vaccines: [
+      { name: 'Hexavalente (DTPa+VIP+Hib+VHB)', at: d('2023-06-20'), pnvAbbr: 'Hexavalente' },
+      { name: 'Pneumocócica conjugada 13', at: d('2023-06-20'), pnvAbbr: 'Pn13', cvx: '133' },
+      { name: 'VASPR', at: d('2024-04-20'), pnvAbbr: 'VASPR', cvx: '03' },
+    ],
+    meds: [{ name: 'Emoliente (creme hidratante)', dose: '2x/dia', route: 'tópica', active: true, startedAt: d('2024-01-15') }],
+    episodes: [{ title: 'Dermatite atópica', summary: 'Eczema das pregas, agrava no inverno. Boa resposta a emoliente + corticoide tópico em crise.', icpc2: 'S87', icd10: 'L20.9', status: 'OPEN' }],
+    allergies: [{ label: 'Ovo', code: 'FOOD_EGG', category: 'alimentar' }],
+    vitals: [{ at: ago(25), temperatureC: 36.6, heartRateBpm: 102, respRateBpm: 24, spo2Pct: 99 }],
   });
 
   // ── Demo consultations (Inês ↔ Tomás) for history + finance, idempotent ──
@@ -1019,6 +1131,75 @@ async function main(): Promise<void> {
         },
       });
     }
+
+    // Inês's wider patient panel — consultations across several families, so the
+    // "Doentes" view spans multiple families (each with both guardians named).
+    const miguelPed = peds['miguel@demo.pedia'];
+    const pedroPed = peds['pedro@demo.pedia'];
+
+    const cBeatriz = await ensureConsult({
+      ped: inesPed, familyId: costa.id, childId: beatriz.id, parentUserId: joao.id,
+      type: ServiceType.MESSAGE, status: ConsultationStatus.CLOSED, priceCents: 1800, daysAgo: 50,
+      summary: 'S: Tosse noturna e pieira recorrentes.\nO: AP com sibilos expiratórios ligeiros.\nA: Asma parcialmente controlada.\nP: Reforço de fluticasona; reavaliar técnica inalatória.',
+      parentMsg: 'A Beatriz tem tossido muito à noite, mesmo com a bomba.', pedMsg: 'Vamos reforçar a medicação de controlo e rever a técnica da câmara. Mantenha o salbutamol SOS.',
+      paid: true, review: { rating: 5, comment: 'Muito atenta à asma da Beatriz.' },
+    });
+    await ensureConsult({
+      ped: inesPed, familyId: mendes.id, childId: leonor.id, parentUserId: sofia.id,
+      type: ServiceType.MESSAGE, status: ConsultationStatus.ANSWERED, priceCents: 1800, daysAgo: 12,
+      summary: 'Aconselhamento alimentar e atividade física; reavaliação em 3 meses.',
+      parentMsg: 'Preocupa-me o peso da Leonor.', pedMsg: 'Vamos trabalhar a alimentação por passos e aumentar a atividade. Marcamos reavaliação.', paid: true,
+    });
+    await ensureConsult({
+      ped: inesPed, familyId: rocha.id, childId: afonso.id, parentUserId: ricardo.id,
+      type: ServiceType.MESSAGE, status: ConsultationStatus.OPEN, priceCents: 1800, daysAgo: 1,
+      parentMsg: 'O Afonso parece estar a crescer pouco. Devo preocupar-me?',
+    });
+    await ensureConsult({
+      ped: inesPed, familyId: lopes.id, childId: clara.id, parentUserId: inesL.id,
+      type: ServiceType.MESSAGE, status: ConsultationStatus.CLOSED, priceCents: 1800, daysAgo: 22,
+      summary: 'Dermatite atópica — plano de hidratação e corticoide tópico em crise.',
+      parentMsg: 'A pele da Clara está muito seca e com comichão.', pedMsg: 'Emoliente generoso 2x/dia e nos surtos um creme anti-inflamatório por poucos dias. Evite sabonetes perfumados.',
+      paid: true, review: { rating: 5, comment: 'Explicou o eczema muito bem.' },
+    });
+
+    // ── Second-opinion (referral) demo cases ──
+    // 1) OUTGOING: Inês → Dr. Miguel (pneumologia) sobre a asma da Beatriz (concluída, com parecer).
+    if (miguelPed) {
+      const exists = await prisma.referral.findFirst({ where: { consultationId: cBeatriz.id } });
+      if (!exists)
+        await prisma.referral.create({
+          data: {
+            consultationId: cBeatriz.id,
+            fromPediatricianId: inesPed.pedId,
+            toPediatricianId: miguelPed.pedId,
+            status: ReferralStatus.COMPLETED,
+            reason: enc('Beatriz, 4 anos, asma com crises apesar de fluticasona 50 mcg 2x/dia + salbutamol SOS. Agradeço opinião sobre step-up terapêutico.'),
+            opinion: enc('Sugiro step-up: fluticasona 125 ou associação com LABA conforme controlo. Rever técnica inalatória e adesão, e entregar plano de ação escrito. Reavaliar em 4-6 semanas.'),
+            respondedAt: ago(48), completedAt: ago(47),
+          },
+        });
+    }
+    // 2) INCOMING: Dr. Pedro (Açores) → Inês sobre febre prolongada do Martim (pendente — aparece na caixa da Inês).
+    if (pedroPed) {
+      const cMartim = await ensureConsult({
+        ped: pedroPed, familyId: pinto.id, childId: martim.id, parentUserId: diana.id,
+        type: ServiceType.MESSAGE, status: ConsultationStatus.ANSWERED, priceCents: 1800, daysAgo: 5,
+        summary: 'Febre prolongada sem foco; análises pedidas.',
+        parentMsg: 'O Martim tem febre há 6 dias e não percebo porquê.', pedMsg: 'Pedi análises e vou pedir uma 2ª opinião a uma colega mais experiente.',
+      });
+      const exists = await prisma.referral.findFirst({ where: { consultationId: cMartim.id } });
+      if (!exists)
+        await prisma.referral.create({
+          data: {
+            consultationId: cMartim.id,
+            fromPediatricianId: pedroPed.pedId,
+            toPediatricianId: inesPed.pedId,
+            status: ReferralStatus.PENDING,
+            reason: enc('Martim, 3 anos, febre há 6 dias (até 38.6ºC) sem foco claro. Hemograma e PCR ligeiramente elevados, bom estado geral. Agradeço a tua opinião sobre orientação e necessidade de referenciação hospitalar.'),
+          },
+        });
+    }
   }
 
   // ── Demo clinic linking the clinic users + Dra. Inês (idempotent) ──
@@ -1055,7 +1236,7 @@ async function main(): Promise<void> {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Seeded ${PEDS.length} pediatricians, 4 families/5 children with clinical data, consultations + clinic + ${ARTICLES.length} articles.`);
+  console.log(`Seeded ${PEDS.length} pediatricians, 6 families (two guardians each)/7 children with varied clinical histories, consultations + 2 second-opinion cases + clinic + ${ARTICLES.length} articles.`);
 }
 
 main()

@@ -97,9 +97,28 @@ export class ConsultationsService {
     if (!childIds.length) return [];
 
     const children = await this.prisma.child.findMany({ where: { id: { in: childIds } } });
-    const families = await this.prisma.family.findMany({
-      where: { id: { in: [...new Set(children.map((c) => c.familyId))] } },
+    const familyIds = [...new Set(children.map((c) => c.familyId))];
+    const families = await this.prisma.family.findMany({ where: { id: { in: familyIds } } });
+
+    // Guardians (the parents) per family, so the panel can show "Mãe / Pai".
+    const members = await this.prisma.familyMember.findMany({
+      where: { familyId: { in: familyIds } },
+      include: { user: { select: { name: true, email: true } } },
     });
+    const relOrder: Record<string, number> = { mother: 0, father: 1, guardian: 2 };
+    const guardiansByFamily = new Map<string, { name: string; relationship: string }[]>();
+    for (const mem of members) {
+      const list = guardiansByFamily.get(mem.familyId) ?? [];
+      list.push({
+        name: mem.user.name ?? mem.user.email ?? 'Tutor',
+        relationship: mem.relationship ?? 'guardian',
+      });
+      guardiansByFamily.set(mem.familyId, list);
+    }
+    for (const [k, v] of guardiansByFamily) {
+      v.sort((a, b) => (relOrder[a.relationship] ?? 9) - (relOrder[b.relationship] ?? 9));
+      guardiansByFamily.set(k, v);
+    }
 
     const stat = new Map<string, { count: number; last: Date | null }>();
     for (const c of consults) {
@@ -118,9 +137,18 @@ export class ConsultationsService {
       consultationCount: number;
       lastConsultAt: Date | null;
     };
-    const byFamily = new Map<string, { id: string; name: string; children: PatientChild[] }>();
+    type Guardian = { name: string; relationship: string };
+    const byFamily = new Map<
+      string,
+      { id: string; name: string; guardians: Guardian[]; children: PatientChild[] }
+    >();
     for (const fam of families) {
-      byFamily.set(fam.id, { id: fam.id, name: fam.name, children: [] });
+      byFamily.set(fam.id, {
+        id: fam.id,
+        name: fam.name,
+        guardians: guardiansByFamily.get(fam.id) ?? [],
+        children: [],
+      });
     }
     for (const child of children) {
       const s = stat.get(child.id) ?? { count: 0, last: null };

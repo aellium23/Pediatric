@@ -652,9 +652,14 @@ export interface PatientChild {
   consultationCount: number;
   lastConsultAt: string | null;
 }
+export interface Guardian {
+  name: string;
+  relationship: string;
+}
 export interface PatientFamily {
   id: string;
   name: string;
+  guardians?: Guardian[];
   children: PatientChild[];
 }
 export interface ChildHistory {

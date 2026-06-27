@@ -32,12 +32,20 @@ describe('ConsultationsService — patient chart', () => {
           ]),
         },
         family: { findMany: jest.fn().mockResolvedValue([{ id: 'famA', name: 'Família Silva' }]) },
+        familyMember: {
+          findMany: jest.fn().mockResolvedValue([
+            { familyId: 'famA', relationship: 'father', user: { name: 'Nuno Silva', email: null } },
+            { familyId: 'famA', relationship: 'mother', user: { name: 'Marta Silva', email: null } },
+          ]),
+        },
       };
       const svc = make(prisma);
       const out = await svc.patientsForPediatrician('u1');
 
       expect(out).toHaveLength(1);
       expect(out[0].name).toBe('Família Silva');
+      // Guardians ordered mother-first.
+      expect(out[0].guardians.map((g) => g.name)).toEqual(['Marta Silva', 'Nuno Silva']);
       expect(out[0].children).toHaveLength(2);
       const ana = out[0].children.find((c) => c.id === 'c1')!;
       expect(ana.consultationCount).toBe(2);
