@@ -9,7 +9,8 @@ import {
   Param,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { createHmac, randomUUID } from 'crypto';
+import { JwtService } from '@nestjs/jwt';
+import { randomUUID } from 'crypto';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
@@ -34,36 +35,32 @@ export const VIDEO_PORT = Symbol('VIDEO_PORT');
  */
 @Injectable()
 export class LiveKitAdapter extends VideoPort {
-  private b64url(obj: unknown): string {
-    return Buffer.from(JSON.stringify(obj)).toString('base64url');
-  }
+  // Sign the LiveKit access token with the vetted JWT library (HS256). The
+  // secret is a JWT signing key, not a stored password — HS256/HMAC-SHA256 is
+  // the algorithm LiveKit requires (the app itself is passwordless).
+  private readonly jwt = new JwtService();
 
   issueAccessToken(roomId: string, identity: string, canPublish: boolean): VideoAccess {
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
     const url = process.env.LIVEKIT_URL ?? 'wss://video.pedia.local';
+    const hasCreds = Boolean(apiKey && apiSecret);
 
-    if (apiKey && apiSecret) {
-      // Real LiveKit JWT (HS256). ttl 1h.
-      const now = Math.floor(Date.now() / 1000);
-      const header = this.b64url({ alg: 'HS256', typ: 'JWT' });
-      const body = this.b64url({
-        iss: apiKey,
-        sub: identity,
-        nbf: now,
-        iat: now,
-        exp: now + 3600,
-        jti: randomUUID(),
-        video: { room: roomId, roomJoin: true, canPublish, canSubscribe: true },
-      });
-      const sig = createHmac('sha256', apiSecret).update(`${header}.${body}`).digest('base64url');
-      return { token: `${header}.${body}.${sig}`, url, roomId };
-    }
-
-    // Demo fallback (no LiveKit credentials).
-    const payload = this.b64url({ room: roomId, sub: identity, canPublish, nonce: randomUUID() });
-    const sig = createHmac('sha256', 'dev-livekit-secret').update(payload).digest('base64url');
-    return { token: `${payload}.${sig}`, url, roomId };
+    // Real LiveKit token when credentials are provisioned; a dev-signed token
+    // otherwise so the demo flow still works (never reaches a real LiveKit).
+    const token = this.jwt.sign(
+      { video: { room: roomId, roomJoin: true, canPublish, canSubscribe: true } },
+      {
+        secret: hasCreds ? (apiSecret as string) : 'dev-livekit-secret',
+        algorithm: 'HS256',
+        issuer: hasCreds ? (apiKey as string) : 'demo',
+        subject: identity,
+        expiresIn: 3600,
+        notBefore: 0,
+        jwtid: randomUUID(),
+      },
+    );
+    return { token, url, roomId };
   }
 }
 

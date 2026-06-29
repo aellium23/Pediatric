@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { createHmac } from 'crypto';
+import { JwtService } from '@nestjs/jwt';
 import { LiveKitAdapter, VideoService } from '../../src/modules/video/video.module';
 
 function build(over: { prisma?: Record<string, any>; port?: any } = {}) {
@@ -103,15 +103,10 @@ describe('LiveKitAdapter.issueAccessToken', () => {
     expect(url).toBe('wss://eu');
     expect(roomId).toBe('room-9');
 
-    const [h, b, sig] = token.split('.');
-    expect(h && b && sig).toBeTruthy();
-    // Signature must verify against the secret over header.body.
-    const expected = createHmac('sha256', 'secret').update(`${h}.${b}`).digest('base64url');
-    expect(sig).toBe(expected);
-
-    const header = JSON.parse(Buffer.from(h, 'base64url').toString());
-    expect(header).toEqual({ alg: 'HS256', typ: 'JWT' });
-    const claims = JSON.parse(Buffer.from(b, 'base64url').toString());
+    const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
+    expect(header.alg).toBe('HS256');
+    // verify() checks the HS256 signature against the secret (throws if invalid).
+    const claims = new JwtService().verify(token, { secret: 'secret' }) as Record<string, any>;
     expect(claims.iss).toBe('devkey');
     expect(claims.sub).toBe('user-9');
     expect(claims.video).toEqual(
@@ -120,13 +115,14 @@ describe('LiveKitAdapter.issueAccessToken', () => {
     expect(claims.exp - claims.iat).toBe(3600);
   });
 
-  it('falls back to a signed demo grant without credentials', () => {
+  it('falls back to a dev-signed grant without credentials', () => {
     process.env = { ...OLD };
     delete process.env.LIVEKIT_API_KEY;
     delete process.env.LIVEKIT_API_SECRET;
     const { token, roomId } = new LiveKitAdapter().issueAccessToken('room-d', 'user-d', false);
     expect(roomId).toBe('room-d');
-    // Demo token is payload.sig (two segments), not a 3-part JWT.
-    expect(token.split('.').length).toBe(2);
+    const claims = new JwtService().verify(token, { secret: 'dev-livekit-secret' }) as Record<string, any>;
+    expect(claims.iss).toBe('demo');
+    expect(claims.video.room).toBe('room-d');
   });
 });
