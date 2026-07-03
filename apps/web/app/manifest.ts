@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'O pediatra de confiança, à distância de uma mensagem. Uma solução DES.',
     start_url: '/app',
     display: 'standalone',
-    background_color: '#fafafa',
-    theme_color: '#16233b',
+    background_color: '#f6f7f9',
+    theme_color: '#1b2b4b',
     icons: [
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },

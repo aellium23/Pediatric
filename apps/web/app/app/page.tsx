@@ -630,6 +630,7 @@ export default function MultiProfileApp() {
             <span className="ico">
               <TabIcon name={tb.key} active={tab === tb.key} />
             </span>
+            <span className="lbl">{t(`tab.${tb.key}`, tb.label)}</span>
           </button>
         ))}
       </nav>

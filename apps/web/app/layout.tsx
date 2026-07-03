@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+// Brand UI typeface — variable, swap-safe; falls back to the system stack.
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-ui' });
 import { LanguageProvider } from '@/lib/i18n';
 import { ThemeProvider } from '@/lib/theme';
 import { RegisterSW } from '@/lib/sw-register';
@@ -16,8 +20,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
-    { media: '(prefers-color-scheme: dark)', color: '#0c1413' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c111c' },
   ],
 };
 
@@ -27,7 +31,7 @@ const themeBootstrap = `(function(){try{var t=localStorage.getItem('pedia_theme'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt" suppressHydrationWarning>
+    <html lang="pt" suppressHydrationWarning className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
