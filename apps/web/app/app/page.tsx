@@ -331,7 +331,6 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
  * halo technique needs a known background). The compact header mark stays
  * inline (currentColor) so it sits cleanly on the translucent blurred chrome.
  */
-const HOC_GOLD = '#b89460';
 function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
   if (full) {
     const h = height ?? 150;
@@ -351,12 +350,16 @@ function BrandLogo({ full = false, height }: { full?: boolean; height?: number }
       </span>
     );
   }
+  // Compact mark: the official monogram with mask-cut gaps (no halo), so it
+  // sits cleanly on the translucent blurred header in light AND dark.
+  const h = height ?? 28;
   return (
-    <svg viewBox="0 0 150 60" height={height ?? 28} style={{ color: 'var(--text)', display: 'block' }} role="img" aria-label="HOC — Healthcare on Call">
-      <text x="2" y="46" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={200} fontSize="52" letterSpacing="5" fill="currentColor">HOC</text>
-      {/* ECG trace through the centre of the O only */}
-      <polyline points="56,28 65,28 68,23 71,35 74,17 77,33 80,28 89,28" stroke={HOC_GOLD} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" fill="none" />
-    </svg>
+    <span role="img" aria-label="HOC — Healthcare on Call" style={{ display: 'inline-flex' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/hoc-mark-light.svg" alt="" height={h} className="logo-light" style={{ display: 'block' }} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/hoc-mark-dark.svg" alt="" height={h} className="logo-dark" style={{ display: 'block' }} />
+    </span>
   );
 }
 
@@ -611,7 +614,7 @@ export default function MultiProfileApp() {
     <main>
       <div className="apphead">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <BrandLogo height={22} />
+          <BrandLogo height={26} />
           <span className="avatar sm">
             <TabIcon name={roleIcon(profile.role)} />
           </span>
