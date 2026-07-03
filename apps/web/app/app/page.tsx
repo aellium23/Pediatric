@@ -356,9 +356,9 @@ function BrandLogo({ full = false, height }: { full?: boolean; height?: number }
   return (
     <span role="img" aria-label="HOC — Healthcare on Call" style={{ display: 'inline-flex' }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/hoc-mark-light.svg" alt="" height={h} className="logo-light" style={{ display: 'block' }} />
+      <img src="/hoc-mark-light.svg" alt="" height={h} className="logo-light" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/hoc-mark-dark.svg" alt="" height={h} className="logo-dark" style={{ display: 'block' }} />
+      <img src="/hoc-mark-dark.svg" alt="" height={h} className="logo-dark" />
     </span>
   );
 }

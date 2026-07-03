@@ -1169,7 +1169,11 @@ button.card:active {
   border: 2px solid var(--surface);
 }
 
-/* Theme-aware brand artwork (halo technique needs a known background). */
+/* Theme-aware brand artwork: exactly one variant visible per theme. */
+.logo-light,
+.logo-dark {
+  display: block;
+}
 .logo-dark {
   display: none;
 }
@@ -1177,7 +1181,7 @@ button.card:active {
   display: none;
 }
 :root[data-theme="dark"] .logo-dark {
-  display: inline;
+  display: block;
 }
 
 /* ─── Child health profile: one bounded card per clinical section ─── */
