@@ -661,7 +661,16 @@ export default function MultiProfileApp() {
         {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
-        {tab === 'notif' ? <NotifTab onMsg={setMsg} onOpenConsultation={openConsultation} /> : null}
+        {tab === 'notif' ? (
+          <NotifTab
+            onMsg={setMsg}
+            onOpenConsultation={openConsultation}
+            onGoConsults={() => {
+              setMsg('');
+              setTab(profile.role === 'PEDIATRICIAN' ? 'inbox' : 'myconsults');
+            }}
+          />
+        ) : null}
           </>
         )}
       </div>
@@ -4735,19 +4744,24 @@ function AdminTab({ onMsg }: { onMsg: (m: string) => void }) {
 function NotifTab({
   onMsg,
   onOpenConsultation,
+  onGoConsults,
 }: {
   onMsg: (m: string) => void;
   onOpenConsultation?: (id: string) => void;
+  onGoConsults?: () => void;
 }) {
   const [rows, setRows] = useState<NotificationDto[]>([]);
-  const [marking, setMarking] = useState<string | null>(null);
 
-  /** Tapping a notification jumps to what it's about (and marks it read). */
+  /**
+   * Every notification is actionable: with a refId it opens that exact
+   * consultation; without one (older rows, generic types) it still jumps to
+   * the consultations list — tapping never dead-ends on "mark as read".
+   * Opening marks it read implicitly.
+   */
   function openTarget(n: NotificationDto) {
     if (!n.read) void Api.markRead(n.id).catch(() => {});
-    if (n.refId && onOpenConsultation) {
-      onOpenConsultation(n.refId);
-    }
+    if (n.refId && onOpenConsultation) onOpenConsultation(n.refId);
+    else if (onGoConsults) onGoConsults();
   }
 
   async function load() {
@@ -4762,64 +4776,34 @@ function NotifTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function read(id: string) {
-    if (marking) return;
-    setMarking(id);
-    try {
-      await Api.markRead(id);
-      await load();
-    } catch (e) {
-      onMsg(`Erro: ${String(e)}`);
-    } finally {
-      setMarking(null);
-    }
-  }
-
   return (
     <div className="section">
       <h2>Avisos</h2>
       {rows.length === 0 ? (
         <p className="muted">Sem avisos. As notificações aparecem ao criar/fechar consultas.</p>
       ) : (
-        rows.map((n) =>
-          n.refId ? (
-            // Actionable: tapping opens the consultation it refers to.
-            <button
-              key={n.id}
-              className="card"
-              onClick={() => openTarget(n)}
-              style={{
-                marginBottom: 8,
-                opacity: n.read ? 0.6 : 1,
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                cursor: 'pointer',
-              }}
-            >
-              <strong>{n.title}</strong>
-              {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
-              <div className="muted">{n.body}</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {when(n.createdAt)} · toca para abrir a consulta
-              </div>
-            </button>
-          ) : (
-            <div key={n.id} className="card" style={{ marginBottom: 8, opacity: n.read ? 0.6 : 1 }}>
-              <strong>{n.title}</strong>
-              {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
-              <div className="muted">{n.body}</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {when(n.createdAt)}
-              </div>
-              {!n.read ? (
-                <button className="btn small secondary" disabled={marking === n.id} onClick={() => read(n.id)}>
-                  Marcar como lido
-                </button>
-              ) : null}
+        rows.map((n) => (
+          <button
+            key={n.id}
+            className="card"
+            onClick={() => openTarget(n)}
+            style={{
+              marginBottom: 8,
+              opacity: n.read ? 0.6 : 1,
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <strong>{n.title}</strong>
+            {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
+            <div className="muted">{n.body}</div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {when(n.createdAt)} · {n.refId ? 'toca para abrir a consulta' : 'toca para ver as consultas'}
             </div>
-          ),
-        )
+          </button>
+        ))
       )}
     </div>
   );
