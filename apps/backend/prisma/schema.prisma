@@ -424,6 +424,7 @@ model Notification {
   type      String
   title     String
   body      String
+  refId     String? // e.g. consultationId — lets the app deep-link on tap
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 

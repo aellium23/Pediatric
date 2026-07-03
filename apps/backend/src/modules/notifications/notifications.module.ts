@@ -76,8 +76,14 @@ export class NotificationsService {
     return { registered: true };
   }
 
-  private async notify(userId: string, type: string, title: string, body: string) {
-    await this.prisma.notification.create({ data: { userId, type, title, body } });
+  private async notify(
+    userId: string,
+    type: string,
+    title: string,
+    body: string,
+    refId?: string,
+  ) {
+    await this.prisma.notification.create({ data: { userId, type, title, body, refId } });
     await this.push.push(userId, title, body);
   }
 
@@ -98,7 +104,7 @@ export class NotificationsService {
     ]);
     recipients.delete(event.senderUserId);
     for (const userId of recipients) {
-      await this.notify(userId, 'message', 'Nova mensagem', 'Tens uma nova mensagem numa consulta.');
+      await this.notify(userId, 'message', 'Nova mensagem', 'Tens uma nova mensagem numa consulta.', event.consultationId);
     }
   }
 
@@ -111,6 +117,7 @@ export class NotificationsService {
       'invoice',
       'Consulta concluída',
       'A consulta foi encerrada e a fatura emitida.',
+      event.consultationId,
     );
   }
 
@@ -123,6 +130,7 @@ export class NotificationsService {
       'refund',
       'Reembolso efetuado',
       'O pediatra não respondeu dentro do prazo. O valor foi reembolsado.',
+      event.consultationId,
     );
   }
 

@@ -431,6 +431,16 @@ export default function MultiProfileApp() {
   const [onboarding, setOnboarding] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // Cross-tab deep link: "open this consultation" (from Início, Avisos or a
+  // just-created consultation) — consumed by MyConsultsTab/InboxTab on mount.
+  const [focusConsult, setFocusConsult] = useState<string | null>(null);
+
+  function openConsultation(id: string) {
+    setFocusConsult(id);
+    setSettingsOpen(false);
+    setMsg('');
+    setTab(profile?.role === 'PEDIATRICIAN' ? 'inbox' : 'myconsults');
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -491,14 +501,28 @@ export default function MultiProfileApp() {
   }
 
   if (!profile) {
+    const mainProfiles = PROFILES.filter((p) => p.role === 'PARENT' || p.role === 'PEDIATRICIAN');
+    const teamProfiles = PROFILES.filter((p) => p.role !== 'PARENT' && p.role !== 'PEDIATRICIAN');
+    const profileRow = (p: Profile) => (
+      <button key={p.email} className="lrow" onClick={() => enter(p)} disabled={busy}>
+        <span className="avatar">
+          <TabIcon name={roleIcon(p.role)} />
+        </span>
+        <span className="lrow-main">
+          <strong>{p.name}</strong>
+          <span className="muted">{p.desc}</span>
+        </span>
+        <span className="chev">›</span>
+      </button>
+    );
     return (
       <main>
         <div style={{ textAlign: 'center', margin: '10px 0 18px' }}>
           <BrandLogo full height={150} />
         </div>
-        <h1 style={{ textAlign: 'center', fontSize: 22 }}>Entrar na app</h1>
+        <h1 style={{ textAlign: 'center', fontSize: 22 }}>Bem-vindo à HOC</h1>
         <p className="muted" style={{ textAlign: 'center' }}>
-          Escolhe um perfil de demonstração. Cada um tem o seu painel, com dados reais do backend.
+          A saúde do teu filho num só lugar — e um pediatra à distância de uma mensagem.
         </p>
         {!hasApi ? (
           <p className="notice">
@@ -506,20 +530,15 @@ export default function MultiProfileApp() {
           </p>
         ) : null}
         {msg ? <p className="notice">{msg}</p> : null}
-        <div className="list">
-          {PROFILES.map((p) => (
-            <button key={p.email} className="lrow" onClick={() => enter(p)} disabled={busy}>
-              <span className="avatar">
-                <TabIcon name={roleIcon(p.role)} />
-              </span>
-              <span className="lrow-main">
-                <strong>{p.name}</strong>
-                <span className="muted">{p.desc}</span>
-              </span>
-              <span className="chev">›</span>
-            </button>
-          ))}
-        </div>
+        <div className="list">{mainProfiles.map(profileRow)}</div>
+        {teamProfiles.length ? (
+          <details style={{ marginTop: 14 }}>
+            <summary className="muted" style={{ cursor: 'pointer', padding: '6px 2px' }}>
+              Perfis de equipa (demonstração)
+            </summary>
+            <div className="list">{teamProfiles.map(profileRow)}</div>
+          </details>
+        ) : null}
       </main>
     );
   }
@@ -557,6 +576,16 @@ export default function MultiProfileApp() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             className="iconbtn"
+            aria-label="Avisos"
+            onClick={() => {
+              setSettingsOpen(false);
+              setTab('notif');
+            }}
+          >
+            <TabIcon name="notif" />
+          </button>
+          <button
+            className="iconbtn"
             aria-label="Definições"
             onClick={() => setSettingsOpen(true)}
           >
@@ -576,9 +605,26 @@ export default function MultiProfileApp() {
         ) : null}
         {settingsOpen ? null : (
           <>
+        {tab === 'home' ? (
+          <HomeTab
+            profile={profile}
+            onMsg={setMsg}
+            onGo={(k) => {
+              setMsg('');
+              setTab(k);
+            }}
+            onOpenConsultation={openConsultation}
+          />
+        ) : null}
         {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
-        {tab === 'consult' ? <ConsultTab onMsg={setMsg} /> : null}
-        {tab === 'myconsults' ? <MyConsultsTab onMsg={setMsg} /> : null}
+        {tab === 'consult' ? <ConsultTab onMsg={setMsg} onOpenConsultation={openConsultation} /> : null}
+        {tab === 'myconsults' ? (
+          <MyConsultsTab
+            onMsg={setMsg}
+            focusId={focusConsult}
+            onFocusConsumed={() => setFocusConsult(null)}
+          />
+        ) : null}
         {tab === 'myaccount' ? (
           <div className="section">
             <h2>A minha conta</h2>
@@ -588,7 +634,13 @@ export default function MultiProfileApp() {
             <PrivacySection onMsg={setMsg} onLeave={leave} />
           </div>
         ) : null}
-        {tab === 'inbox' ? <InboxTab onMsg={setMsg} /> : null}
+        {tab === 'inbox' ? (
+          <InboxTab
+            onMsg={setMsg}
+            focusId={focusConsult}
+            onFocusConsumed={() => setFocusConsult(null)}
+          />
+        ) : null}
         {tab === 'patients' ? <PatientsTab onMsg={setMsg} /> : null}
         {tab === 'referrals' ? <ReferralsTab onMsg={setMsg} /> : null}
         {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
@@ -609,7 +661,7 @@ export default function MultiProfileApp() {
         {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
-        {tab === 'notif' ? <NotifTab onMsg={setMsg} /> : null}
+        {tab === 'notif' ? <NotifTab onMsg={setMsg} onOpenConsultation={openConsultation} /> : null}
           </>
         )}
       </div>
@@ -660,6 +712,13 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
   const icons: Record<string, React.ReactNode> = {
     person,
     people,
+    home: (
+      <>
+        <path d="M4 11.5 12 4.5l8 7" />
+        <path d="M6 10v9.5h12V10" />
+        <path d="M10 19.5v-5h4v5" />
+      </>
+    ),
     cross: (
       <>
         <circle cx="12" cy="12" r="9" />
@@ -676,7 +735,14 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
       </>
     ),
     children: people,
+    // "Consultar" = talk to a doctor (chat + cross), not a search magnifier.
     consult: (
+      <>
+        <path d="M21 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-5.1A8 8 0 1 1 21 11.5z" />
+        <path d="M12 8.5v6M9 11.5h6" />
+      </>
+    ),
+    search: (
       <>
         <circle cx="11" cy="11" r="6.5" />
         <path d="m20 20-3.4-3.4" />
@@ -756,7 +822,7 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
     fin_moves: 'audit',
     comp_overview: 'shield',
     comp_creds: 'audit',
-    sup_users: 'consult',
+    sup_users: 'search',
     sup_peds: 'cross',
     sup_help: 'headset',
   };
@@ -818,64 +884,55 @@ function roleIcon(role: string): string {
   return m[role] ?? 'person';
 }
 
-function tabsFor(role: string): { key: string; label: string; ico: string }[] {
-  const notif = { key: 'notif', label: 'Avisos', ico: '🔔' };
+// Notifications live behind the header bell (not a tab) — recognition over
+// clutter; the labels under each icon carry the rest.
+function tabsFor(role: string): { key: string; label: string }[] {
   if (role === 'PARENT')
     return [
-      { key: 'children', label: 'Crianças', ico: '👶' },
-      { key: 'consult', label: 'Consultar', ico: '🔎' },
-      { key: 'myconsults', label: 'Consultas', ico: '💬' },
-      { key: 'content', label: 'Saber+', ico: '📚' },
-      { key: 'myaccount', label: 'Conta', ico: '👤' },
-      notif,
+      { key: 'home', label: 'Início' },
+      { key: 'consult', label: 'Consultar' },
+      { key: 'myconsults', label: 'Consultas' },
+      { key: 'children', label: 'Crianças' },
+      { key: 'myaccount', label: 'Conta' },
     ];
   if (role === 'PEDIATRICIAN')
     return [
-      { key: 'inbox', label: 'Caixa', ico: '📥' },
-      { key: 'patients', label: 'Doentes', ico: '🧒' },
-      { key: 'referrals', label: '2ª opinião', ico: '🤝' },
-      { key: 'agenda', label: 'Agenda', ico: '📅' },
-      { key: 'profile', label: 'Perfil', ico: '⚙️' },
-      { key: 'finance', label: 'Ganhos', ico: '💶' },
-      notif,
+      { key: 'inbox', label: 'Caixa' },
+      { key: 'patients', label: 'Doentes' },
+      { key: 'referrals', label: '2ª opinião' },
+      { key: 'agenda', label: 'Agenda' },
+      { key: 'profile', label: 'Perfil' },
+      { key: 'finance', label: 'Ganhos' },
     ];
-  const overview = { key: 'overview', label: 'Visão', ico: '📊' };
-  const audit = { key: 'audit', label: 'Auditoria', ico: '📋' };
-  const users = { key: 'users', label: 'Utilizadores', ico: '👥' };
+  const overview = { key: 'overview', label: 'Visão' };
+  const audit = { key: 'audit', label: 'Auditoria' };
+  const users = { key: 'users', label: 'Utilizadores' };
   if (role === 'PLATFORM_ADMIN')
     return [
       overview,
-      { key: 'verify', label: 'Pediatras', ico: '✅' },
-      { key: 'admin', label: 'Consultas', ico: '🗂️' },
+      { key: 'verify', label: 'Pediatras' },
+      { key: 'admin', label: 'Consultas' },
       users,
-      notif,
     ];
   if (role === 'FINANCE')
     return [
-      { key: 'fin_treasury', label: 'Tesouraria', ico: '💶' },
-      { key: 'fin_moves', label: 'Movimentos', ico: '🧾' },
-      notif,
+      { key: 'fin_treasury', label: 'Tesouraria' },
+      { key: 'fin_moves', label: 'Movimentos' },
     ];
   if (role === 'COMPLIANCE')
     return [
-      { key: 'comp_overview', label: 'Conformidade', ico: '🛡️' },
-      { key: 'comp_creds', label: 'Credenciais', ico: '📄' },
+      { key: 'comp_overview', label: 'Conformidade' },
+      { key: 'comp_creds', label: 'Credenciais' },
       audit,
-      notif,
     ];
   if (role === 'SUPPORT')
     return [
-      { key: 'sup_users', label: 'Utilizadores', ico: '🔎' },
-      { key: 'sup_peds', label: 'Pediatras', ico: '🩺' },
-      { key: 'sup_help', label: 'Visão', ico: '🎧' },
-      notif,
+      { key: 'sup_users', label: 'Utilizadores' },
+      { key: 'sup_peds', label: 'Pediatras' },
+      { key: 'sup_help', label: 'Visão' },
     ];
-  if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF')
-    return [{ key: 'clinic', label: 'Clínica', ico: '🏥' }, notif];
-  return [
-    { key: 'account', label: 'Conta', ico: '👤' },
-    notif,
-  ];
+  if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF') return [{ key: 'clinic', label: 'Clínica' }];
+  return [{ key: 'account', label: 'Conta' }];
 }
 
 // ───────────────────────── Thread (shared) ─────────────────────────
@@ -1314,6 +1371,162 @@ function Thread({
   );
 }
 
+// ───────────────────────── Parent: Início (home) ─────────────────────────
+/** Answers "what should I do now?": primary action, what's happening,
+ *  the children, and a taste of Saber+ — no forms, no jargon. */
+function HomeTab({
+  profile,
+  onMsg,
+  onGo,
+  onOpenConsultation,
+}: {
+  profile: Profile;
+  onMsg: (m: string) => void;
+  onGo: (tab: string) => void;
+  onOpenConsultation: (id: string) => void;
+}) {
+  const [children, setChildren] = useState<ChildDto[]>([]);
+  const [consults, setConsults] = useState<ConsultationDto[]>([]);
+  const [articles, setArticles] = useState<ArticleCard[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [c, m, a] = await Promise.all([
+          Api.children().catch(() => [] as ChildDto[]),
+          Api.myConsultations().catch(() => [] as ConsultationDto[]),
+          Api.articles().catch(() => [] as ArticleCard[]),
+        ]);
+        setChildren(c);
+        setConsults(m);
+        setArticles(a.slice(0, 2));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const now = Date.now();
+  const upcomingVideo = consults
+    .filter(
+      (c) =>
+        c.type === 'VIDEO' &&
+        c.scheduledAt &&
+        new Date(c.scheduledAt).getTime() > now - 30 * 60 * 1000 &&
+        !['CLOSED', 'REFUNDED', 'EXPIRED'].includes(c.status),
+    )
+    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())[0];
+  const answered = consults.filter((c) => c.status === 'ANSWERED');
+
+  const firstName = (profile.name || '').split(' ')[0];
+  const ageLabel = (birth: string) => {
+    const months = Math.floor((now - new Date(birth).getTime()) / (30.44 * 86_400_000));
+    return months < 24 ? `${months} m` : `${Math.floor(months / 12)} anos`;
+  };
+
+  return (
+    <div className="section">
+      <h2 style={{ marginBottom: 0 }}>Olá, {firstName} 👋</h2>
+      <p className="muted" style={{ marginTop: 2, textTransform: 'capitalize' }}>
+        {new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })}
+      </p>
+
+      <button
+        className="card accent"
+        onClick={() => onGo('consult')}
+        style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left' }}
+      >
+        <strong style={{ fontSize: 17 }}>Falar com um pediatra</strong>
+        <span className="muted" style={{ display: 'block', marginTop: 2 }}>
+          Envia uma pergunta ou marca uma videoconsulta — resposta de um pediatra verificado.
+        </span>
+      </button>
+
+      {upcomingVideo ? (
+        <button
+          className="card"
+          onClick={() => onOpenConsultation(upcomingVideo.id)}
+          style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
+        >
+          <span className="pill">A seguir</span>
+          <strong style={{ display: 'block', marginTop: 6 }}>
+            Videoconsulta{upcomingVideo.child?.name ? ` · ${upcomingVideo.child.name}` : ''}
+          </strong>
+          <span className="muted">
+            {new Date(upcomingVideo.scheduledAt!).toLocaleString('pt-PT', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}{' '}
+            · toca para abrir
+          </span>
+        </button>
+      ) : null}
+
+      {answered.length > 0 ? (
+        <button
+          className="card"
+          onClick={() => onOpenConsultation(answered[0].id)}
+          style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
+        >
+          <span className="pill ok">Resposta nova</span>
+          <strong style={{ display: 'block', marginTop: 6 }}>
+            O pediatra respondeu{answered[0].child?.name ? ` sobre ${answered[0].child.name}` : ''}
+          </strong>
+          <span className="muted">Toca para ler a resposta.</span>
+        </button>
+      ) : null}
+
+      <h3 style={{ marginTop: 18 }}>As crianças</h3>
+      {loading ? (
+        <Skeleton rows={1} />
+      ) : children.length === 0 ? (
+        <button
+          className="card"
+          onClick={() => onGo('children')}
+          style={{ display: 'block', width: '100%', textAlign: 'left' }}
+        >
+          <strong>Adicionar o meu filho</strong>
+          <span className="muted" style={{ display: 'block', marginTop: 2 }}>
+            Guarda vacinas, crescimento e consultas num só sítio, em segurança.
+          </span>
+        </button>
+      ) : (
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          {children.map((c) => (
+            <button key={c.id} className="chip" onClick={() => onGo('children')}>
+              🧒 {c.name} · {ageLabel(c.birthDate)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {articles.length ? (
+        <>
+          <h3 style={{ marginTop: 18 }}>Saber+</h3>
+          {articles.map((a) => (
+            <button
+              key={a.id}
+              className="card"
+              onClick={() => onGo('content')}
+              style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8 }}
+            >
+              <span className="badge">{a.category}</span>
+              <strong style={{ display: 'block', marginTop: 2 }}>{a.title}</strong>
+            </button>
+          ))}
+          <button className="btn secondary small" onClick={() => onGo('content')} style={{ marginTop: 8 }}>
+            Ver todos os conteúdos
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 // ───────────────────────── Parent: Children ─────────────────────────
 function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [children, setChildren] = useState<ChildDto[]>([]);
@@ -1361,7 +1574,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
     <div className="section">
       <h2>As crianças</h2>
       {children.length === 0 ? (
-        <p className="muted">Ainda sem crianças. Adiciona a primeira abaixo.</p>
+        <p className="muted">Vamos começar pelo teu filho — adiciona-o para guardar vacinas, crescimento e consultas num só sítio.</p>
       ) : (
         <div className="grid">
           {children.map((c) => (
@@ -1384,7 +1597,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
         <input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
         <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
         <select value={sex} onChange={(e) => setSex(e.target.value)} style={{ display: 'block', margin: '8px 0' }}>
-          <option value="">Sexo (para percentis WHO)…</option>
+          <option value="">Sexo — para as curvas de crescimento certas…</option>
           <option value="M">Masculino</option>
           <option value="F">Feminino</option>
         </select>
@@ -1419,7 +1632,7 @@ function ChildHealth({
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'main' | 'timeline' | 'boletim'>('main');
   // growth form
-  const [gDate, setGDate] = useState('');
+  const [gDate, setGDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [gH, setGH] = useState('');
   const [gW, setGW] = useState('');
   // vitals form
@@ -1429,7 +1642,7 @@ function ChildHealth({
   const [vtSpo2, setVtSpo2] = useState('');
   // vaccine form
   const [vName, setVName] = useState('');
-  const [vDate, setVDate] = useState('');
+  const [vDate, setVDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [vCode, setVCode] = useState('');
   // medication form
   const [mName, setMName] = useState('');
@@ -1490,8 +1703,7 @@ function ChildHealth({
       </button>
       <h2>{child.name}</h2>
       <p className="muted">
-        {new Date(child.birthDate).toLocaleDateString('pt-PT')} · perfil de saúde 🔒 (dados
-        sensíveis cifrados)
+        {new Date(child.birthDate).toLocaleDateString('pt-PT')} · os dados de saúde do teu filho, guardados em segurança 🔒
       </p>
       <div className="row" style={{ marginBottom: 4 }}>
         <button className="btn small secondary" onClick={() => setView('timeline')}>
@@ -2251,7 +2463,13 @@ function BoletimView({
 }
 
 // ───────────────────────── Parent: Consult (message + video) ─────────────────────────
-function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
+function ConsultTab({
+  onMsg,
+  onOpenConsultation,
+}: {
+  onMsg: (m: string) => void;
+  onOpenConsultation?: (id: string) => void;
+}) {
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [peds, setPeds] = useState<PediatricianCard[]>([]);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
@@ -2334,9 +2552,10 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
         childId={child}
         serviceId={triageServiceId}
         onCancel={() => setTriageFor(null)}
-        onDone={() => {
+        onDone={(consultationId) => {
           setTriageFor(null);
-          onMsg('Consulta criada ✓ (vê em "Consultas")');
+          onMsg('Pergunta enviada! Um pediatra vai responder — já a abrimos para ti.');
+          if (consultationId && onOpenConsultation) onOpenConsultation(consultationId);
         }}
         onMsg={onMsg}
       />
@@ -2349,9 +2568,10 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
         ped={booking}
         childId={child}
         onBack={() => setBooking(null)}
-        onDone={() => {
+        onDone={(consultationId) => {
           setBooking(null);
-          onMsg('Videoconsulta marcada ✓ (vê em "Consultas")');
+          onMsg('Videoconsulta marcada ✓');
+          if (consultationId && onOpenConsultation) onOpenConsultation(consultationId);
         }}
         onMsg={onMsg}
       />
@@ -2618,7 +2838,7 @@ function TriageDialog({
   childId: string;
   serviceId: string;
   onCancel: () => void;
-  onDone: () => void;
+  onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
 }) {
   const [flags, setFlags] = useState<Record<string, boolean>>({});
@@ -2642,14 +2862,14 @@ function TriageDialog({
     if (severe && !ack) return onMsg('Confirma o aviso de urgência para continuar.');
     setBusy(true);
     try {
-      await Api.startConsultation({
+      const created = (await Api.startConsultation({
         childId,
         serviceId,
         question: question || 'Olá, tenho uma dúvida sobre o meu filho.',
         triage: { redFlags: Object.keys(flags).filter((k) => flags[k]), severe },
         episodeId: episodeId || undefined,
-      });
-      onDone();
+      })) as { id?: string };
+      onDone(created?.id);
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
     } finally {
@@ -2662,8 +2882,8 @@ function TriageDialog({
       <button className="btn secondary small" onClick={onCancel} style={{ marginBottom: 12 }}>
         ← Voltar
       </button>
-      <h2>Antes de começar — triagem</h2>
-      <p className="muted">Assinala se a criança tem algum destes sinais:</p>
+      <h2>Como está o teu filho agora?</h2>
+      <p className="muted">Assinala o que se aplica — ajuda o pediatra a avaliar a urgência:</p>
       <div className="card">
         {RED_FLAGS.map((f) => (
           <label key={f.key} style={{ display: 'block', margin: '6px 0' }}>
@@ -2728,7 +2948,7 @@ function TriageDialog({
       </div>
 
       <button className="btn" onClick={submit} disabled={busy}>
-        Iniciar consulta
+        Enviar pergunta ao pediatra
       </button>
     </div>
   );
@@ -2744,13 +2964,16 @@ function BookVideo({
   ped: PediatricianCard;
   childId: string;
   onBack: () => void;
-  onDone: () => void;
+  onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
 }) {
   const [days, setDays] = useState<{ date: string; slots: string[] }[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Two safe taps: pick a slot → review the summary (who/when/price + consent)
+  // → confirm. A stray tap never books.
+  const [pendingSlot, setPendingSlot] = useState<string | null>(null);
   const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
 
   // Load the next available days up front, so the parent picks a time directly
@@ -2773,18 +2996,66 @@ function BookVideo({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ped.id]);
 
-  async function book(slot: string) {
-    if (!vidSvc) return;
-    if (!consent) return onMsg('Confirma o consentimento de teleconsulta primeiro.');
+  async function confirmBooking() {
+    if (!vidSvc || !pendingSlot || busy) return;
+    if (!consent) return onMsg('Para marcar, confirma o consentimento no resumo.');
     setBusy(true);
     try {
-      await Api.book({ childId, serviceId: vidSvc.id, scheduledAt: slot, teleconsultConsent: true });
-      onDone();
+      const res = (await Api.book({
+        childId,
+        serviceId: vidSvc.id,
+        scheduledAt: pendingSlot,
+        teleconsultConsent: true,
+      })) as { consultationId?: string };
+      onDone(res?.consultationId);
     } catch (e) {
       onMsg(`Erro a marcar: ${String(e)}`);
+      setPendingSlot(null);
     } finally {
       setBusy(false);
     }
+  }
+
+  if (pendingSlot) {
+    const when = new Date(pendingSlot);
+    return (
+      <div className="section">
+        <button
+          className="btn secondary small"
+          onClick={() => setPendingSlot(null)}
+          style={{ marginBottom: 12 }}
+        >
+          ← Escolher outro horário
+        </button>
+        <h2>Confirmar marcação</h2>
+        <div className="card accent" style={{ marginTop: 10 }}>
+          <strong style={{ fontSize: 17, display: 'block' }}>
+            {ped.displayName ?? specLabel(ped.specialties[0])}
+          </strong>
+          <span className="muted">{specLabel(ped.specialties[0])}</span>
+          <p style={{ margin: '10px 0 4px', textTransform: 'capitalize' }}>
+            📅{' '}
+            {when.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })} ·{' '}
+            {when.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+          {vidSvc ? (
+            <p style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>{euro(vidSvc.priceCents)}</p>
+          ) : null}
+          <label className="muted" style={{ display: 'block', margin: '8px 0', fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              style={{ width: 'auto', marginRight: 8 }}
+            />
+            Aceito a videoconsulta e o tratamento dos dados de saúde da criança.
+          </label>
+          <button className="btn" disabled={busy || !consent} onClick={() => void confirmBooking()}>
+            {vidSvc ? `Confirmar marcação · ${euro(vidSvc.priceCents)}` : 'Confirmar marcação'}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -2799,16 +3070,10 @@ function BookVideo({
       <p className="muted">
         {specLabel(ped.specialties[0])} · {vidSvc ? euro(vidSvc.priceCents) : ''}
       </p>
-      <label className="muted" style={{ display: 'block', margin: '8px 0' }}>
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-          style={{ width: 'auto', marginRight: 8 }}
-        />
-        Consinto a teleconsulta por vídeo e o tratamento dos dados de saúde da criança 🔒
-      </label>
       <h3 style={{ marginTop: 14 }}>Próximos horários disponíveis</h3>
+      <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+        Escolhe um horário — confirmas os detalhes no passo seguinte.
+      </p>
       {loading ? (
         <Skeleton rows={2} />
       ) : days.length === 0 ? (
@@ -2830,7 +3095,7 @@ function BookVideo({
                 <button
                   key={s}
                   className="btn small secondary"
-                  onClick={() => book(s)}
+                  onClick={() => setPendingSlot(s)}
                   disabled={busy}
                 >
                   {new Date(s).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
@@ -2845,7 +3110,15 @@ function BookVideo({
 }
 
 // ───────────────────────── Parent: My consultations ─────────────────────────
-function MyConsultsTab({ onMsg }: { onMsg: (m: string) => void }) {
+function MyConsultsTab({
+  onMsg,
+  focusId,
+  onFocusConsumed,
+}: {
+  onMsg: (m: string) => void;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [reviewing, setReviewing] = useState<ConsultationDto | null>(null);
@@ -2853,7 +3126,14 @@ function MyConsultsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   async function load() {
     try {
-      setRows(await Api.myConsultations());
+      const list = await Api.myConsultations();
+      setRows(list);
+      // Deep link from Início/Avisos/just-created: open that thread directly.
+      if (focusId) {
+        const target = list.find((c) => c.id === focusId);
+        if (target) setOpen(target);
+        onFocusConsumed?.();
+      }
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
     } finally {
@@ -3327,14 +3607,28 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Pediatrician: Inbox ─────────────────────────
-function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
+function InboxTab({
+  onMsg,
+  focusId,
+  onFocusConsumed,
+}: {
+  onMsg: (m: string) => void;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
-      setRows(await Api.inbox());
+      const list = await Api.inbox();
+      setRows(list);
+      if (focusId) {
+        const target = list.find((c) => c.id === focusId);
+        if (target) setOpen(target);
+        onFocusConsumed?.();
+      }
     } catch (e) {
       onMsg(`Erro a carregar: ${String(e)}`);
     } finally {
@@ -3361,38 +3655,86 @@ function InboxTab({ onMsg }: { onMsg: (m: string) => void }) {
       />
     );
 
+  // Priority order: alarm signs from triage first, then nearest SLA. Today's
+  // scheduled video consultations get their own section so the day is scannable.
+  const isSevere = (c: ConsultationDto) => Boolean((c.triage as { severe?: unknown } | null)?.severe);
+  const byUrgency = (a: ConsultationDto, b: ConsultationDto) => {
+    if (isSevere(a) !== isSevere(b)) return isSevere(a) ? -1 : 1;
+    return new Date(a.slaDueAt ?? '2999-01-01').getTime() - new Date(b.slaDueAt ?? '2999-01-01').getTime();
+  };
+  const today = new Date().toDateString();
+  const videosToday = rows
+    .filter((c) => c.type === 'VIDEO' && c.scheduledAt && new Date(c.scheduledAt).toDateString() === today)
+    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime());
+  const toAnswer = rows.filter((c) => !videosToday.includes(c)).sort(byUrgency);
+
+  const consultCard = (c: ConsultationDto) => (
+    <button
+      key={c.id}
+      className={`card${isSevere(c) ? ' accent' : ''}`}
+      onClick={() => setOpen(c)}
+      style={{ textAlign: 'left', cursor: 'pointer' }}
+    >
+      {isSevere(c) ? (
+        <span className="pill" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', marginRight: 6 }}>
+          ⚠️ Sinais de alarme
+        </span>
+      ) : null}
+      <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+      {c.type === 'VIDEO' ? (
+        <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
+      ) : null}
+      <div style={{ marginTop: 4 }}>
+        <strong>{c.child?.name ?? 'Doente'}</strong>
+        {c.child?.birthDate ? <span className="muted"> · {ageLabel(c.child.birthDate)}</span> : null} ·{' '}
+        {euro(c.priceCents)}
+      </div>
+      {c.type === 'VIDEO' && c.scheduledAt ? (
+        <div style={{ color: 'var(--brand)', fontSize: 13 }}>
+          📅{' '}
+          {new Date(c.scheduledAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+          {' · '}
+          {new Date(c.scheduledAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
+        </div>
+      ) : c.slaDueAt ? (
+        <div className="muted">
+          Responder até{' '}
+          {new Date(c.slaDueAt).toLocaleString('pt-PT', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </div>
+      ) : null}
+    </button>
+  );
+
   return (
     <div className="section">
       <h2>Caixa de entrada</h2>
       {loading ? (
         <Skeleton rows={2} />
       ) : rows.length === 0 ? (
-        <EmptyState title="Sem consultas pendentes" hint="Entra como Marta e cria uma." />
+        <EmptyState
+          title="Tudo em dia"
+          hint="Assim que uma família enviar uma questão ou marcar uma consulta, aparece aqui."
+        />
       ) : (
-        <div className="grid">
-          {rows.map((c) => (
-            <button
-              key={c.id}
-              className="card"
-              onClick={() => setOpen(c)}
-              style={{ textAlign: 'left', cursor: 'pointer' }}
-            >
-              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
-              {c.type === 'VIDEO' ? (
-                <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
-              ) : null}
-              <div style={{ marginTop: 4 }}>
-                <strong>{c.child?.name ?? 'Doente'}</strong> · {svcLabel(c.type)} ·{' '}
-                {euro(c.priceCents)}
-              </div>
-              {c.type === 'VIDEO' && c.scheduledAt ? (
-                <div style={{ color: 'var(--brand)', fontSize: 13 }}>📅 {when(c.scheduledAt)}</div>
-              ) : (
-                <div className="muted">SLA: {when(c.slaDueAt)}</div>
-              )}
-            </button>
-          ))}
-        </div>
+        <>
+          {videosToday.length ? (
+            <>
+              <h3 style={{ marginTop: 8 }}>Videoconsultas de hoje</h3>
+              <div className="grid">{videosToday.map(consultCard)}</div>
+            </>
+          ) : null}
+          {toAnswer.length ? (
+            <>
+              <h3 style={{ marginTop: videosToday.length ? 16 : 8 }}>A responder</h3>
+              <div className="grid">{toAnswer.map(consultCard)}</div>
+            </>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -4379,9 +4721,23 @@ function AdminTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Notifications (all roles) ─────────────────────────
-function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
+function NotifTab({
+  onMsg,
+  onOpenConsultation,
+}: {
+  onMsg: (m: string) => void;
+  onOpenConsultation?: (id: string) => void;
+}) {
   const [rows, setRows] = useState<NotificationDto[]>([]);
   const [marking, setMarking] = useState<string | null>(null);
+
+  /** Tapping a notification jumps to what it's about (and marks it read). */
+  function openTarget(n: NotificationDto) {
+    if (!n.read) void Api.markRead(n.id).catch(() => {});
+    if (n.refId && onOpenConsultation) {
+      onOpenConsultation(n.refId);
+    }
+  }
 
   async function load() {
     try {
@@ -4414,21 +4770,45 @@ function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
       {rows.length === 0 ? (
         <p className="muted">Sem avisos. As notificações aparecem ao criar/fechar consultas.</p>
       ) : (
-        rows.map((n) => (
-          <div key={n.id} className="card" style={{ marginBottom: 8, opacity: n.read ? 0.6 : 1 }}>
-            <strong>{n.title}</strong>
-            {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
-            <div className="muted">{n.body}</div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              {when(n.createdAt)}
+        rows.map((n) =>
+          n.refId ? (
+            // Actionable: tapping opens the consultation it refers to.
+            <button
+              key={n.id}
+              className="card"
+              onClick={() => openTarget(n)}
+              style={{
+                marginBottom: 8,
+                opacity: n.read ? 0.6 : 1,
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              <strong>{n.title}</strong>
+              {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
+              <div className="muted">{n.body}</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {when(n.createdAt)} · toca para abrir a consulta
+              </div>
+            </button>
+          ) : (
+            <div key={n.id} className="card" style={{ marginBottom: 8, opacity: n.read ? 0.6 : 1 }}>
+              <strong>{n.title}</strong>
+              {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
+              <div className="muted">{n.body}</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {when(n.createdAt)}
+              </div>
+              {!n.read ? (
+                <button className="btn small secondary" disabled={marking === n.id} onClick={() => read(n.id)}>
+                  Marcar como lido
+                </button>
+              ) : null}
             </div>
-            {!n.read ? (
-              <button className="btn small secondary" disabled={marking === n.id} onClick={() => read(n.id)}>
-                Marcar como lido
-              </button>
-            ) : null}
-          </div>
-        ))
+          ),
+        )
       )}
     </div>
   );

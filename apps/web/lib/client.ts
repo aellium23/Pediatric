@@ -257,6 +257,7 @@ export interface NotificationDto {
   type: string;
   title: string;
   body: string;
+  refId?: string | null; // e.g. consultationId — enables tap-to-open
   read: boolean;
   createdAt: string;
 }
