@@ -1842,7 +1842,12 @@ function ChildHealth({
         <>
           {/* Growth */}
           <GrowthAlert growth={d.growth} />
-          <h3 style={{ marginTop: 16 }}>Crescimento</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>📏</span>
+            <h3>Crescimento</h3>
+            <span className="pill muted">{d.growth.length}</span>
+          </div>
           {d.whoBands && d.who ? (
             <>
               <WhoGrowthChart
@@ -1936,9 +1941,15 @@ function ChildHealth({
               Adicionar medição
             </button>
           </Reg>
+          </section>
 
           {/* Vital signs */}
-          <h3 style={{ marginTop: 16 }}>Sinais do dia</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>🌡️</span>
+            <h3>Sinais do dia</h3>
+            <span className="pill muted">{(d.vitals ?? []).length}</span>
+          </div>
           {(d.vitals ?? []).length === 0 ? (
             <p className="muted">Sem registos.</p>
           ) : (
@@ -1992,9 +2003,15 @@ function ChildHealth({
               Registar sinais vitais
             </button>
           </Reg>
+          </section>
 
           {/* Vaccines */}
-          <h3 style={{ marginTop: 16 }}>Vacinas</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>💉</span>
+            <h3>Vacinas</h3>
+            <span className="pill muted">{d.vaccines.length}</span>
+          </div>
           {d.vaccines.length === 0 ? (
             <p className="muted">Sem vacinas registadas.</p>
           ) : (
@@ -2053,9 +2070,15 @@ function ChildHealth({
               Adicionar vacina
             </button>
           </Reg>
+          </section>
 
           {/* Allergies */}
-          <h3 style={{ marginTop: 16 }}>Alergias</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>⚠️</span>
+            <h3>Alergias</h3>
+            <span className="pill muted">{(d.allergies ?? []).length}</span>
+          </div>
           {(d.allergies ?? []).length === 0 ? (
             <p className="muted">Sem alergias registadas.</p>
           ) : (
@@ -2117,9 +2140,15 @@ function ChildHealth({
               Adicionar alergia
             </button>
           </Reg>
+          </section>
 
           {/* Medications */}
-          <h3 style={{ marginTop: 16 }}>Medicação</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>💊</span>
+            <h3>Medicação</h3>
+            <span className="pill muted">{d.medications.length}</span>
+          </div>
           {d.medications.length === 0 ? (
             <p className="muted">Sem medicação.</p>
           ) : (
@@ -2224,9 +2253,15 @@ function ChildHealth({
               Adicionar medicação
             </button>
           </Reg>
+          </section>
 
           {/* Episodes */}
-          <h3 style={{ marginTop: 16 }}>Problemas de saúde</h3>
+          <section className="hsec">
+          <div className="hsec-head">
+            <span className="hsec-ico" aria-hidden>🤒</span>
+            <h3>Problemas de saúde</h3>
+            <span className="pill muted">{d.episodes.length}</span>
+          </div>
           {d.episodes.length === 0 ? (
             <p className="muted">Sem episódios.</p>
           ) : (
@@ -2293,6 +2328,7 @@ function ChildHealth({
               Criar episódio
             </button>
           </Reg>
+          </section>
         </>
       )}
     </div>

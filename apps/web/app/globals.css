@@ -1179,3 +1179,43 @@ button.card:active {
 :root[data-theme="dark"] .logo-dark {
   display: inline;
 }
+
+/* ─── Child health profile: one bounded card per clinical section ─── */
+.hsec {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px 16px;
+  margin-top: 16px;
+}
+.hsec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.hsec-head h3 {
+  margin: 0;
+  flex: 1;
+}
+.hsec-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--brand-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex: none;
+}
+/* Inner cards sit on the section surface: tonal, not double-bordered. */
+.hsec .card {
+  background: var(--surface-2);
+  border-color: transparent;
+  box-shadow: none;
+}
+.hsec .regform summary {
+  background: var(--surface-2);
+}
