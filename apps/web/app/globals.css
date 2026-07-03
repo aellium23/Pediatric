@@ -1168,3 +1168,14 @@ button.card:active {
   background: var(--danger);
   border: 2px solid var(--surface);
 }
+
+/* Theme-aware brand artwork (halo technique needs a known background). */
+.logo-dark {
+  display: none;
+}
+:root[data-theme="dark"] .logo-light {
+  display: none;
+}
+:root[data-theme="dark"] .logo-dark {
+  display: inline;
+}

@@ -308,22 +308,29 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
 }
 
 /**
- * HOC — Healthcare on Call brand logo (company DES). Inline SVG so the navy
- * wordmark follows the theme (currentColor) while the heartbeat/accent stay
- * gold — readable in both light and dark mode.
+ * HOC — Healthcare on Call brand logo (company DES). The full lockup uses the
+ * official vector artwork (light/dark variants swapped via CSS, because its
+ * halo technique needs a known background). The compact header mark stays
+ * inline (currentColor) so it sits cleanly on the translucent blurred chrome.
  */
 const HOC_GOLD = '#b89460';
 function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
   if (full) {
+    const h = height ?? 150;
+    // The artwork's 1000×1000 canvas carries ~28% padding around the lockup —
+    // render larger and crop with a wrapper so the visual weight matches.
+    const box = Math.round(h * 1.9);
     return (
-      <svg viewBox="0 0 360 210" height={height ?? 150} style={{ color: 'var(--text)', maxWidth: '100%' }} role="img" aria-label="HOC — Healthcare on Call">
-        <text x="180" y="100" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontWeight={200} fontSize="108" letterSpacing="10" fill="currentColor">HOC</text>
-        {/* ECG trace through the centre of the O only */}
-        <polyline points="150,60 170,60 175,52 180,74 185,30 190,70 195,60 213,60" stroke={HOC_GOLD} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" fill="none" />
-        <text x="180" y="150" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="16" letterSpacing="6" fill="currentColor">HEALTHCARE <tspan fill={HOC_GOLD}>ON</tspan> CALL</text>
-        <line x1="150" y1="176" x2="210" y2="176" stroke={HOC_GOLD} strokeWidth="0.8" opacity="0.7" />
-        <text x="180" y="198" textAnchor="middle" fontFamily="'Helvetica Neue', Arial, sans-serif" fontSize="13" letterSpacing="8" fill={HOC_GOLD}>DES</text>
-      </svg>
+      <span
+        role="img"
+        aria-label="HOC — Healthcare on Call"
+        style={{ display: 'inline-flex', height: box * 0.62, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/hoc-logo-light.svg" alt="" width={box} height={box} className="logo-light" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/hoc-logo-dark.svg" alt="" width={box} height={box} className="logo-dark" />
+      </span>
     );
   }
   return (
