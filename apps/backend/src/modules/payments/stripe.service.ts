@@ -81,6 +81,12 @@ export class StripeService {
     return { id: intent.id, clientSecret: intent.client_secret! };
   }
 
+  /** Commission math shared by the real and demo settle paths (no client needed). */
+  computeSplit(amountCents: number): { platformFeeCents: number; pediatricianAmount: number } {
+    const platformFeeCents = Math.round((amountCents * this.platformFeeBps) / 10000);
+    return { platformFeeCents, pediatricianAmount: amountCents - platformFeeCents };
+  }
+
   /** On close: capture and transfer the pediatrician's share, keeping the fee. */
   async captureAndSplit(params: {
     paymentIntentId: string;
@@ -89,8 +95,7 @@ export class StripeService {
   }): Promise<{ platformFeeCents: number; pediatricianAmount: number }> {
     await this.client().paymentIntents.capture(params.paymentIntentId);
 
-    const platformFeeCents = Math.round((params.amountCents * this.platformFeeBps) / 10000);
-    const pediatricianAmount = params.amountCents - platformFeeCents;
+    const { platformFeeCents, pediatricianAmount } = this.computeSplit(params.amountCents);
 
     await this.client().transfers.create({
       amount: pediatricianAmount,

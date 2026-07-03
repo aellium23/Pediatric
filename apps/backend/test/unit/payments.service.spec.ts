@@ -10,6 +10,7 @@ function build(over: { prisma?: Record<string, any>; stripe?: Record<string, any
     familyMember: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
     payment: {
       findUnique: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
       upsert: jest.fn().mockResolvedValue({ id: 'p1' }),
       update: jest.fn().mockReturnValue({ op: 'payment.update' }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -23,6 +24,10 @@ function build(over: { prisma?: Record<string, any>; stripe?: Record<string, any
     enabled: true,
     createPaymentIntent: jest.fn().mockResolvedValue({ id: 'pi_1', clientSecret: 'cs_1' }),
     captureAndSplit: jest.fn().mockResolvedValue({ platformFeeCents: 900, pediatricianAmount: 3600 }),
+    computeSplit: jest.fn((amountCents: number) => {
+      const platformFeeCents = Math.round(amountCents * 0.2);
+      return { platformFeeCents, pediatricianAmount: amountCents - platformFeeCents };
+    }),
     refund: jest.fn().mockResolvedValue(undefined),
     ...over.stripe,
   };
@@ -87,6 +92,31 @@ describe('PaymentsService', () => {
       expect(stripe.captureAndSplit).not.toHaveBeenCalled();
     });
 
+    it('settles a demo payment locally (never calls Stripe with a demo_ ref)', async () => {
+      const { service, prisma, stripe } = build({
+        prisma: {
+          payment: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'p1',
+              psp: 'demo',
+              pspRef: 'demo_c1',
+              status: PaymentStatus.CREATED,
+              amountCents: 4500,
+              split: null,
+              consultation: { pediatrician: { stripeAccountId: null } },
+            }),
+            update: jest.fn().mockReturnValue({ op: 'payment.update' }),
+          },
+          split: { upsert: jest.fn().mockReturnValue({ op: 'split.upsert' }) },
+          $transaction: jest.fn().mockResolvedValue([]),
+        },
+      });
+      const res = await service.captureAndSplit('c1');
+      expect(stripe.captureAndSplit).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(res).toEqual({ platformFeeCents: 900, pediatricianAmount: 3600 });
+    });
+
     it('rejects when the pediatrician has no payout account', async () => {
       const { service } = build({
         prisma: {
@@ -149,6 +179,24 @@ describe('PaymentsService', () => {
       expect(stripe.refund).not.toHaveBeenCalled();
     });
 
+    it('refunds a demo payment locally without calling Stripe', async () => {
+      const { service, prisma, stripe } = build({
+        prisma: {
+          payment: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue({ id: 'p1', psp: 'demo', pspRef: 'demo_c1', status: PaymentStatus.CREATED, amountCents: 4500 }),
+            update: jest.fn().mockReturnValue({ op: 'payment.update' }),
+          },
+          refund: { create: jest.fn().mockReturnValue({ op: 'refund.create' }) },
+          $transaction: jest.fn().mockResolvedValue([]),
+        },
+      });
+      await service.refundForConsultation('c1', 'sla_breached');
+      expect(stripe.refund).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
     it('refunds and records the refund row', async () => {
       const { service, prisma, stripe } = build({
         prisma: {
@@ -178,6 +226,32 @@ describe('PaymentsService', () => {
       } as any);
       expect(prisma.payment.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { pspRef: 'pi_1' }, data: expect.objectContaining({ status: PaymentStatus.CAPTURED }) }),
+      );
+    });
+
+    it('backfills the split when a webhook capture arrives without one', async () => {
+      const { service, prisma } = build({
+        prisma: {
+          payment: {
+            findUnique: jest.fn(),
+            findFirst: jest
+              .fn()
+              .mockResolvedValue({ id: 'p1', pspRef: 'pi_1', amountCents: 4500, split: null }),
+            upsert: jest.fn(),
+            update: jest.fn(),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          },
+          split: { upsert: jest.fn().mockResolvedValue({ id: 'sp1' }) },
+        },
+      });
+      await service.handleWebhook({
+        type: 'payment_intent.succeeded',
+        data: { object: { id: 'pi_1' } },
+      } as any);
+      expect(prisma.split.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ platformFeeCents: 900, pediatricianAmount: 3600 }),
+        }),
       );
     });
 

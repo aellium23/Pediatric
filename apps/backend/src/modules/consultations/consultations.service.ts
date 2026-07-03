@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ConsultationStatus, Prisma, Role, ServiceType } from '@prisma/client';
+import { ConsultationStatus, PediatricianStatus, Prisma, Role, ServiceType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
@@ -36,7 +36,7 @@ export class ConsultationsService {
   async structureSummary(userId: string, consultationId: string, text: string) {
     const consultation = await this.assertParticipant(userId, consultationId);
     if (consultation.pediatrician.userId !== userId) {
-      throw new ForbiddenException('Only the pediatrician can use the assistant');
+      throw new ForbiddenException('Apenas o pediatra pode usar o assistente.');
     }
     const structured = await this.ai.structureClinicalNote(text);
     return { text: structured };
@@ -45,18 +45,25 @@ export class ConsultationsService {
   /** Parent starts a paid message consultation (consent-gated). */
   async start(userId: string, dto: StartConsultationDto) {
     const child = await this.prisma.child.findUnique({ where: { id: dto.childId } });
-    if (!child) throw new NotFoundException('Child not found');
+    if (!child) throw new NotFoundException('Criança não encontrada.');
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: child.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized for this child');
+    if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
 
     // Special-category data: require active health-data consent.
     await this.consent.assertHealthConsent(child.id);
 
-    const service = await this.prisma.pediatricianService.findFirstOrThrow({
+    const service = await this.prisma.pediatricianService.findFirst({
       where: { id: dto.serviceId, active: true },
+      include: { pediatrician: { select: { status: true } } },
     });
+    if (!service) throw new NotFoundException('Serviço não encontrado.');
+    // Only verified (ACTIVE) pediatricians can take paid consultations — the
+    // marketplace only lists them, but a direct serviceId must not bypass that.
+    if (service.pediatrician.status !== PediatricianStatus.ACTIVE) {
+      throw new BadRequestException('O pediatra não está disponível de momento.');
+    }
     const slaDueAt = new Date(Date.now() + service.slaHours * 3600 * 1000);
 
     const consultation = await this.prisma.consultation.create({
@@ -70,7 +77,11 @@ export class ConsultationsService {
         currency: service.currency,
         scopeSnapshot: service.scopeText,
         slaDueAt,
-        triage: dto.triage as Prisma.InputJsonValue | undefined,
+        // Triage answers are special-category health data — encrypted at rest
+        // like message bodies and the clinical summary.
+        triage: dto.triage
+          ? (this.crypto.encrypt(JSON.stringify(dto.triage)) as Prisma.InputJsonValue)
+          : undefined,
         episodeId: dto.episodeId,
       },
     });
@@ -170,7 +181,7 @@ export class ConsultationsService {
    */
   async historyForChild(user: AuthenticatedUser, childId: string) {
     const child = await this.prisma.child.findUnique({ where: { id: childId } });
-    if (!child) throw new NotFoundException('Child not found');
+    if (!child) throw new NotFoundException('Criança não encontrada.');
 
     let where: Prisma.ConsultationWhereInput;
     if (user.role === Role.PEDIATRICIAN) {
@@ -178,13 +189,13 @@ export class ConsultationsService {
       const link = ped
         ? await this.prisma.consultation.findFirst({ where: { childId, pediatricianId: ped.id } })
         : null;
-      if (!link) throw new ForbiddenException('No consultation with this child');
+      if (!link) throw new ForbiddenException('Não existe consulta com esta criança.');
       where = { childId, pediatricianId: ped!.id };
     } else {
       const member = await this.prisma.familyMember.findFirst({
         where: { userId: user.userId, familyId: child.familyId },
       });
-      if (!member) throw new ForbiddenException('Not authorized for this child');
+      if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
       where = { childId };
     }
 
@@ -208,9 +219,25 @@ export class ConsultationsService {
     };
   }
 
+  /** Triage is stored AES-256-GCM (a string in the Json column). Decrypts for
+   *  authorized readers; tolerates legacy plaintext objects and never throws
+   *  on unreadable ciphertext (returns null instead of 500ing the list). */
+  private revealTriage(triage: Prisma.JsonValue | null): Record<string, unknown> | null {
+    if (triage == null) return null;
+    if (typeof triage === 'string') {
+      try {
+        const dec = this.crypto.decryptSafe(triage);
+        return dec ? (JSON.parse(dec) as Record<string, unknown>) : null;
+      } catch {
+        return null;
+      }
+    }
+    return triage as Record<string, unknown>;
+  }
+
   async listForParent(userId: string) {
     const memberships = await this.prisma.familyMember.findMany({ where: { userId } });
-    return this.prisma.consultation.findMany({
+    const rows = await this.prisma.consultation.findMany({
       where: { familyId: { in: memberships.map((m) => m.familyId) } },
       orderBy: { openedAt: 'desc' },
       include: {
@@ -218,11 +245,13 @@ export class ConsultationsService {
         pediatrician: { select: { displayName: true, specialties: true } },
       },
     });
+    return rows.map((c) => ({ ...c, triage: this.revealTriage(c.triage) }));
   }
 
-  /** Admin/Finance: the most recent consultations across the platform. */
+  /** Admin/Finance: the most recent consultations across the platform.
+   *  Triage (clinical) is omitted — back-office roles don't need it. */
   async listAll(skip = 0, take = 50) {
-    return this.prisma.consultation.findMany({
+    const rows = await this.prisma.consultation.findMany({
       orderBy: { openedAt: 'desc' },
       skip: Math.max(0, skip),
       take: Math.min(Math.max(take, 1), 100),
@@ -231,12 +260,13 @@ export class ConsultationsService {
         pediatrician: { select: { displayName: true, specialties: true } },
       },
     });
+    return rows.map(({ triage: _triage, ...c }) => c);
   }
 
   /** Pediatrician inbox, ordered by SLA urgency. */
   async listForPediatrician(userId: string) {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
-    return this.prisma.consultation.findMany({
+    const rows = await this.prisma.consultation.findMany({
       where: {
         pediatricianId: ped.id,
         status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE, ConsultationStatus.ANSWERED] },
@@ -244,6 +274,7 @@ export class ConsultationsService {
       orderBy: { slaDueAt: 'asc' },
       include: { child: { select: { id: true, name: true, birthDate: true } } },
     });
+    return rows.map((c) => ({ ...c, triage: this.revealTriage(c.triage) }));
   }
 
   async getMessages(userId: string, consultationId: string) {
@@ -255,7 +286,7 @@ export class ConsultationsService {
     return messages.map((m) => ({
       id: m.id,
       senderUserId: m.senderUserId,
-      body: this.crypto.decrypt(m.body),
+      body: this.crypto.decryptSafe(m.body),
       aiGenerated: m.aiGenerated,
       createdAt: m.createdAt,
     }));
@@ -265,7 +296,7 @@ export class ConsultationsService {
   async setSummary(userId: string, consultationId: string, text: string) {
     const consultation = await this.assertParticipant(userId, consultationId);
     if (consultation.pediatrician.userId !== userId) {
-      throw new ForbiddenException('Only the pediatrician can write the summary');
+      throw new ForbiddenException('Apenas o pediatra pode escrever o resumo.');
     }
     await this.prisma.consultation.update({
       where: { id: consultationId },
@@ -281,11 +312,21 @@ export class ConsultationsService {
       where: { id: consultationId },
       select: { summary: true },
     });
-    return { summary: this.crypto.decrypt(c?.summary ?? null) };
+    return { summary: this.crypto.decryptSafe(c?.summary ?? null) };
   }
 
   async sendMessage(userId: string, consultationId: string, dto: SendMessageDto) {
     const consultation = await this.assertParticipant(userId, consultationId);
+    // Messaging only while the case is live — a settled/refunded/expired
+    // consultation is read-only (and must not fire notifications).
+    const writable: ConsultationStatus[] = [
+      ConsultationStatus.OPEN,
+      ConsultationStatus.TRIAGE,
+      ConsultationStatus.ANSWERED,
+    ];
+    if (!writable.includes(consultation.status)) {
+      throw new BadRequestException('Esta consulta está encerrada — já não recebe mensagens.');
+    }
     const message = await this.persistMessage(consultationId, userId, dto.body);
 
     // Pediatrician's first reply moves the consultation to ANSWERED (SLA met).
@@ -307,9 +348,19 @@ export class ConsultationsService {
   async close(userId: string, consultationId: string) {
     const consultation = await this.assertParticipant(userId, consultationId);
     if (consultation.pediatrician.userId !== userId) {
-      throw new ForbiddenException('Only the pediatrician can close');
+      throw new ForbiddenException('Apenas o pediatra pode encerrar a consulta.');
     }
     if (consultation.status === ConsultationStatus.CLOSED) return consultation;
+    // Only a live consultation can be closed — closing an EXPIRED/REFUNDED one
+    // would re-capture an already-refunded payment and double-invoice.
+    const closable: ConsultationStatus[] = [
+      ConsultationStatus.OPEN,
+      ConsultationStatus.TRIAGE,
+      ConsultationStatus.ANSWERED,
+    ];
+    if (!closable.includes(consultation.status)) {
+      throw new BadRequestException('A consulta já não pode ser encerrada.');
+    }
 
     const split = await this.payments.captureAndSplit(consultationId);
 
@@ -332,13 +383,13 @@ export class ConsultationsService {
     const inFamily = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: consultation.familyId },
     });
-    if (!inFamily) throw new ForbiddenException('Only the family can cancel');
+    if (!inFamily) throw new ForbiddenException('Apenas a família pode cancelar.');
     const cancellable: ConsultationStatus[] = [
       ConsultationStatus.OPEN,
       ConsultationStatus.TRIAGE,
     ];
     if (!cancellable.includes(consultation.status)) {
-      throw new BadRequestException('Consultation can no longer be cancelled');
+      throw new BadRequestException('A consulta já não pode ser cancelada.');
     }
     await this.payments.refundForConsultation(consultationId, 'cancelled_by_parent');
     return this.prisma.consultation.update({
@@ -352,12 +403,12 @@ export class ConsultationsService {
     const consultation = await this.prisma.consultation.findUnique({
       where: { id: consultationId },
     });
-    if (!consultation) throw new NotFoundException('Consultation not found');
+    if (!consultation) throw new NotFoundException('Consulta não encontrada.');
     if (consultation.status === ConsultationStatus.REFUNDED) {
-      throw new BadRequestException('Consultation already refunded');
+      throw new BadRequestException('Consulta já reembolsada.');
     }
     if (consultation.status === ConsultationStatus.EXPIRED) {
-      throw new BadRequestException('Cannot refund an expired consultation');
+      throw new BadRequestException('Não é possível reembolsar uma consulta expirada.');
     }
     await this.payments.refundForConsultation(consultationId, reason ?? 'admin_refund');
     return this.prisma.consultation.update({
@@ -367,7 +418,8 @@ export class ConsultationsService {
   }
 
   /** Called by the SLA scheduler: expire overdue consultations and auto-refund.
-   *  Scheduled video consultations are excluded (no-show handled separately). */
+   *  Message consultations expire on SLA breach; scheduled video consultations
+   *  expire as no-shows 24h after the scheduled time if the room never started. */
   async expireOverdue(): Promise<number> {
     const overdue = await this.prisma.consultation.findMany({
       where: {
@@ -376,15 +428,27 @@ export class ConsultationsService {
         type: { notIn: [ServiceType.VIDEO] },
       },
     });
-    for (const c of overdue) {
-      await this.payments.refundForConsultation(c.id, 'sla_breached');
+    // Video no-shows: nobody ever joined the room and the slot is >24h past —
+    // refund so the payment doesn't dangle in CREATED/AUTHORIZED forever.
+    const noShowCutoff = new Date(Date.now() - 24 * 3600 * 1000);
+    const noShows = await this.prisma.consultation.findMany({
+      where: {
+        status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE] },
+        type: ServiceType.VIDEO,
+        scheduledAt: { lt: noShowCutoff },
+        videoSession: { startedAt: null },
+      },
+    });
+    for (const c of [...overdue, ...noShows]) {
+      const reason = c.type === ServiceType.VIDEO ? 'video_no_show' : 'sla_breached';
+      await this.payments.refundForConsultation(c.id, reason);
       await this.prisma.consultation.update({
         where: { id: c.id },
         data: { status: ConsultationStatus.EXPIRED },
       });
       this.events.emit('consultation.expired', new ConsultationExpiredEvent(c.id));
     }
-    return overdue.length;
+    return overdue.length + noShows.length;
   }
 
   private async persistMessage(consultationId: string, userId: string, body: string) {
@@ -404,13 +468,13 @@ export class ConsultationsService {
       where: { id: consultationId },
       include: { pediatrician: true },
     });
-    if (!consultation) throw new NotFoundException('Consultation not found');
+    if (!consultation) throw new NotFoundException('Consulta não encontrada.');
 
     const inFamily = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: consultation.familyId },
     });
     if (!inFamily && consultation.pediatrician.userId !== userId) {
-      throw new ForbiddenException('Not a participant in this consultation');
+      throw new ForbiddenException('Não és participante nesta consulta.');
     }
     return consultation;
   }

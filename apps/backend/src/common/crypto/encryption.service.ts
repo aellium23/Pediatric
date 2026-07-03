@@ -51,6 +51,19 @@ export class EncryptionService {
     return dec.toString('utf8');
   }
 
+  /**
+   * Read-path variant: never throws. A value that fails auth (wrong key, bit
+   * rot, legacy plaintext) yields null instead of 500ing an entire list.
+   * Write/critical paths keep using decrypt() so hard failures stay visible.
+   */
+  decryptSafe(payload: string | null | undefined): string | null {
+    try {
+      return this.decrypt(payload);
+    } catch {
+      return null;
+    }
+  }
+
   /** One-way hash for tokens (refresh token storage). */
   hash(value: string): string {
     return createHash('sha256').update(value).digest('hex');

@@ -49,7 +49,7 @@ export class ClinicsService {
     const m = await this.prisma.clinicMember.findFirst({
       where: { clinicId, userId: user.userId, role: Role.CLINIC_ADMIN },
     });
-    if (!m) throw new ForbiddenException('Not a clinic admin');
+    if (!m) throw new ForbiddenException('Não és administrador da clínica.');
   }
 
   /** Dashboard for the clinic the current user belongs to. */
@@ -137,7 +137,7 @@ export class ClinicsService {
   async addPediatrician(user: AuthenticatedUser, clinicId: string, dto: AddPediatricianDto) {
     await this.assertManage(user, clinicId);
     const ped = await this.prisma.pediatrician.findUnique({ where: { id: dto.pediatricianId } });
-    if (!ped) throw new NotFoundException('Pediatrician not found');
+    if (!ped) throw new NotFoundException('Pediatra não encontrado.');
     return this.prisma.clinicPediatrician.upsert({
       where: {
         clinicId_pediatricianId: { clinicId, pediatricianId: dto.pediatricianId },

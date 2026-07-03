@@ -69,7 +69,7 @@ export class ConsultationsGateway implements OnGatewayConnection {
       id: message.id,
       consultationId: event.consultationId,
       senderUserId: message.senderUserId,
-      body: this.crypto.decrypt(message.body),
+      body: this.crypto.decryptSafe(message.body),
       createdAt: message.createdAt,
     });
   }

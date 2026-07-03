@@ -17,20 +17,20 @@ export class ReviewsService {
     const consultation = await this.prisma.consultation.findUnique({
       where: { id: dto.consultationId },
     });
-    if (!consultation) throw new NotFoundException('Consultation not found');
+    if (!consultation) throw new NotFoundException('Consulta não encontrada.');
 
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: consultation.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized for this consultation');
+    if (!member) throw new ForbiddenException('Sem autorização para esta consulta.');
     if (consultation.status !== ConsultationStatus.CLOSED) {
-      throw new BadRequestException('Consultation must be closed before reviewing');
+      throw new BadRequestException('A consulta tem de estar encerrada antes de avaliar.');
     }
 
     const existing = await this.prisma.review.findUnique({
       where: { consultationId: consultation.id },
     });
-    if (existing) throw new BadRequestException('Consultation already reviewed');
+    if (existing) throw new BadRequestException('Consulta já avaliada.');
 
     const review = await this.prisma.review.create({
       data: {

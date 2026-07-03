@@ -24,7 +24,7 @@ export class ChildrenService {
   /** Creates a child + encrypted health profile, gated by explicit consent. */
   async create(userId: string, dto: CreateChildDto) {
     if (!dto.healthDataConsent) {
-      throw new ForbiddenException('Health data consent is required');
+      throw new ForbiddenException('É necessário consentimento para dados de saúde.');
     }
 
     // Resolve (or lazily create) the user's family.
@@ -89,11 +89,11 @@ export class ChildrenService {
   /** Ownership check: the user must belong to the child's family. */
   private async assertOwnership(userId: string, childId: string) {
     const child = await this.prisma.child.findUnique({ where: { id: childId } });
-    if (!child) throw new NotFoundException('Child not found');
+    if (!child) throw new NotFoundException('Criança não encontrada.');
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: child.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized for this child');
+    if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
     return child;
   }
 
@@ -103,7 +103,7 @@ export class ChildrenService {
   }
 
   private decrypt(child: { healthProfile: string | null } & Record<string, unknown>) {
-    const decrypted = this.crypto.decrypt(child.healthProfile);
+    const decrypted = this.crypto.decryptSafe(child.healthProfile);
     const health: HealthProfile = decrypted
       ? JSON.parse(decrypted)
       : { allergies: [], medications: [], conditions: [] };

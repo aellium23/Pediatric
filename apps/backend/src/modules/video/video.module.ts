@@ -77,14 +77,14 @@ export class VideoService {
       where: { consultationId },
       include: { consultation: { include: { pediatrician: true } } },
     });
-    if (!session) throw new NotFoundException('Video session not found');
+    if (!session) throw new NotFoundException('Sessão de vídeo não encontrada.');
 
     const inFamily = await this.prisma.familyMember.findFirst({
       where: { userId: user.userId, familyId: session.consultation.familyId },
     });
     const isPediatrician = session.consultation.pediatrician.userId === user.userId;
     if (!inFamily && !isPediatrician) {
-      throw new ForbiddenException('Not a participant in this consultation');
+      throw new ForbiddenException('Não és participante nesta consulta.');
     }
 
     if (!session.startedAt) {

@@ -15,15 +15,21 @@ function build(overrides: Record<string, any> = {}) {
   const prisma: any = {
     consultation: {
       findUnique: jest.fn().mockResolvedValue(consultationRecord),
-      findMany: jest.fn().mockResolvedValue([
-        { id: 'c-overdue', status: ConsultationStatus.OPEN },
-      ]),
+      // expireOverdue queries twice: message SLA breaches, then video no-shows.
+      findMany: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'c-overdue', status: ConsultationStatus.OPEN }])
+        .mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({ ...consultationRecord, status: ConsultationStatus.CLOSED }),
     },
     familyMember: { findFirst: jest.fn().mockResolvedValue(null) },
     message: { create: jest.fn() },
   };
-  const crypto: any = { encrypt: (s: string) => `enc(${s})`, decrypt: (s: string) => s };
+  const crypto: any = {
+    encrypt: (s: string) => `enc(${s})`,
+    decrypt: (s: string) => s,
+    decryptSafe: (s: string) => s,
+  };
   const consent: any = { assertHealthConsent: jest.fn() };
   const payments: any = {
     captureAndSplit: jest.fn().mockResolvedValue({ platformFeeCents: 360, pediatricianAmount: 1440 }),
@@ -74,6 +80,20 @@ describe('ConsultationsService', () => {
       .mockResolvedValueOnce({ summary: 'texto-decifrado' });
     const result = await service.getSummary('ped-user', 'c1');
     expect(result).toEqual({ summary: 'texto-decifrado' });
+  });
+
+  it('close() rejects an EXPIRED consultation (would re-capture a refunded payment)', async () => {
+    const { service, payments } = build({ status: ConsultationStatus.EXPIRED });
+    await expect(service.close('ped-user', 'c1')).rejects.toThrow('já não pode ser encerrada');
+    expect(payments.captureAndSplit).not.toHaveBeenCalled();
+  });
+
+  it('sendMessage() rejects a settled consultation (read-only after close/refund)', async () => {
+    const { service, prisma } = build({ status: ConsultationStatus.REFUNDED });
+    await expect(
+      service.sendMessage('ped-user', 'c1', { body: 'olá' } as any),
+    ).rejects.toThrow('já não recebe mensagens');
+    expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
   it('expireOverdue() refunds and expires consultations past SLA', async () => {

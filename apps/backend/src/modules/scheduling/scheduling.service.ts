@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { ConsentSubject, ConsultationStatus, ServiceType } from '@prisma/client';
+import { ConsentSubject, ConsultationStatus, Prisma, ServiceType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -24,7 +24,7 @@ export class SchedulingService {
 
   async setAvailability(userId: string, dto: SetAvailabilityDto) {
     if (dto.endMinute <= dto.startMinute) {
-      throw new BadRequestException('endMinute must be after startMinute');
+      throw new BadRequestException('O minuto final tem de ser posterior ao inicial.');
     }
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
     return this.prisma.availability.create({
@@ -50,7 +50,7 @@ export class SchedulingService {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
     const block = await this.prisma.availability.findUnique({ where: { id } });
     if (!block || block.pediatricianId !== ped.id) {
-      throw new ForbiddenException('Not your availability block');
+      throw new ForbiddenException('Este bloco de disponibilidade não é teu.');
     }
     await this.prisma.availability.delete({ where: { id } });
     return { deleted: true };
@@ -59,7 +59,7 @@ export class SchedulingService {
   /** Computes free slots for a pediatrician on a given UTC date. */
   async slots(pediatricianId: string, dateStr: string): Promise<string[]> {
     const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
-    if (Number.isNaN(dayStart.getTime())) throw new BadRequestException('Invalid date');
+    if (Number.isNaN(dayStart.getTime())) throw new BadRequestException('Data inválida.');
     const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
     const weekday = dayStart.getUTCDay();
 
@@ -111,13 +111,13 @@ export class SchedulingService {
   /** Books a video consultation: consent + consultation + video room + payment intent. */
   async book(userId: string, dto: BookVideoDto) {
     const child = await this.prisma.child.findUnique({ where: { id: dto.childId } });
-    if (!child) throw new NotFoundException('Child not found');
+    if (!child) throw new NotFoundException('Criança não encontrada.');
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: child.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized for this child');
+    if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
     if (!dto.teleconsultConsent) {
-      throw new BadRequestException('Teleconsultation consent is required');
+      throw new BadRequestException('É necessário consentimento para a teleconsulta.');
     }
     // Health-data consent is normally recorded when the child is added. If it is
     // missing (e.g. a child created before that gate existed), the verified
@@ -138,41 +138,59 @@ export class SchedulingService {
     });
     const scheduledAt = new Date(dto.scheduledAt);
     if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
-      throw new BadRequestException('scheduledAt must be a valid future time');
+      throw new BadRequestException('A data/hora agendada tem de ser um momento futuro válido.');
     }
     // The slot must still be free and inside the pediatrician's availability.
-    // slots() already excludes times taken by an existing video session, so this
-    // also prevents two families booking the same slot.
     const free = await this.slots(service.pediatricianId, scheduledAt.toISOString().slice(0, 10));
     if (!free.includes(scheduledAt.toISOString())) {
       throw new BadRequestException('Esse horário já não está disponível. Escolhe outro.');
     }
 
-    const consultation = await this.prisma.consultation.create({
-      data: {
-        familyId: child.familyId,
-        childId: child.id,
-        pediatricianId: service.pediatricianId,
-        type: ServiceType.VIDEO,
-        status: ConsultationStatus.OPEN,
-        priceCents: service.priceCents,
-        currency: service.currency,
-        scopeSnapshot: service.scopeText,
-        scheduledAt,
-        slaDueAt: scheduledAt,
-      },
-    });
+    // Re-check + create atomically (Serializable) so two families racing for
+    // the same slot cannot both book it — the loser gets a friendly 400.
+    let consultation: { id: string };
+    let session: { roomId: string };
+    try {
+      ({ consultation, session } = await this.prisma.$transaction(
+        async (tx) => {
+          const clash = await tx.videoSession.findFirst({
+            where: { consultation: { pediatricianId: service.pediatricianId }, scheduledAt },
+            select: { id: true },
+          });
+          if (clash) {
+            throw new BadRequestException('Esse horário já não está disponível. Escolhe outro.');
+          }
+          const created = await tx.consultation.create({
+            data: {
+              familyId: child.familyId,
+              childId: child.id,
+              pediatricianId: service.pediatricianId,
+              type: ServiceType.VIDEO,
+              status: ConsultationStatus.OPEN,
+              priceCents: service.priceCents,
+              currency: service.currency,
+              scopeSnapshot: service.scopeText,
+              scheduledAt,
+              slaDueAt: scheduledAt,
+            },
+          });
+          const vs = await tx.videoSession.create({
+            data: { consultationId: created.id, roomId: randomUUID(), scheduledAt },
+          });
+          return { consultation: created, session: vs };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ));
+    } catch (err) {
+      // P2034: serialization conflict — the other booking won the race.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+        throw new BadRequestException('Esse horário acabou de ser reservado. Escolhe outro.');
+      }
+      throw err;
+    }
 
     await this.consent.record(userId, ConsentSubject.TELECONSULT, '2026-06-01', child.id, {
       consultationId: consultation.id,
-    });
-
-    const session = await this.prisma.videoSession.create({
-      data: {
-        consultationId: consultation.id,
-        roomId: randomUUID(),
-        scheduledAt,
-      },
     });
 
     // Payment pre-auth is best-effort: the booking (consultation + video

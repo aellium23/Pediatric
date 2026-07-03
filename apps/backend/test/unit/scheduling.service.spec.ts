@@ -83,8 +83,14 @@ describe('SchedulingService.book — health-data consent', () => {
       },
       availability: { findMany: jest.fn().mockResolvedValue(availability) },
       consultation: { create: jest.fn().mockResolvedValue({ id: 'c1' }) },
-      videoSession: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ roomId: 'r1' }) },
+      videoSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ roomId: 'r1' }),
+      },
     };
+    // Interactive transaction: run the callback against the same mock client.
+    prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
     const consent: any = { record: jest.fn().mockResolvedValue(undefined) };
     const payments: any = {
       createIntentForConsultation: jest.fn().mockResolvedValue({ clientSecret: 'cs' }),
@@ -120,5 +126,13 @@ describe('SchedulingService.book — health-data consent', () => {
   it('rejects a slot outside the pediatrician availability', async () => {
     const { service } = bookService({ id: 'existing' }, []); // no availability → no slots
     await expect(service.book('u1', dto())).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects when another booking wins the race inside the transaction', async () => {
+    const { service } = bookService({ id: 'existing' });
+    // The atomic re-check finds a clash created between slots() and the txn.
+    ((service as any).prisma.videoSession.findFirst as jest.Mock).mockResolvedValue({ id: 'clash' });
+    await expect(service.book('u1', dto())).rejects.toBeInstanceOf(BadRequestException);
+    expect((service as any).prisma.consultation.create).not.toHaveBeenCalled();
   });
 });

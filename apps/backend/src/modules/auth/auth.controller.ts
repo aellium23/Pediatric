@@ -97,7 +97,7 @@ export class AuthController {
   async verifyAuthentication(
     @Body() dto: PasskeyVerifyAuthenticationDto,
   ): Promise<TokenResponseDto> {
-    if (!dto.challenge) throw new BadRequestException('Missing challenge');
+    if (!dto.challenge) throw new BadRequestException('Falta o desafio (challenge) do passkey.');
     const { userId } = await this.passkeys.verifyAuthentication(dto.challenge, dto.response);
     return this.auth.issueForUser(userId);
   }

@@ -81,12 +81,12 @@ export class HealthRecordsService {
    *  Returns the child so callers can use its birthDate/sex (e.g. WHO percentiles). */
   private async assertAccess(user: AuthenticatedUser, childId: string) {
     const child = await this.prisma.child.findUnique({ where: { id: childId } });
-    if (!child) throw new ForbiddenException('Child not found');
+    if (!child) throw new ForbiddenException('Criança não encontrada.');
     if (user.role === Role.PARENT) {
       const member = await this.prisma.familyMember.findFirst({
         where: { userId: user.userId, familyId: child.familyId },
       });
-      if (!member) throw new ForbiddenException('Not authorized for this child');
+      if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
       return child;
     }
     if (user.role === Role.PEDIATRICIAN) {
@@ -96,10 +96,10 @@ export class HealthRecordsService {
             where: { childId, pediatricianId: ped.id },
           })
         : null;
-      if (!link) throw new ForbiddenException('No consultation with this child');
+      if (!link) throw new ForbiddenException('Não existe consulta com esta criança.');
       return child;
     }
-    throw new ForbiddenException('Not authorized');
+    throw new ForbiddenException('Sem autorização.');
   }
 
   async overview(user: AuthenticatedUser, childId: string) {
@@ -147,16 +147,16 @@ export class HealthRecordsService {
       }),
       vaccines: vaccines.map((v) => ({
         id: v.id,
-        name: this.crypto.decrypt(v.name),
+        name: this.crypto.decryptSafe(v.name),
         date: v.date,
-        notes: this.crypto.decrypt(v.notes),
+        notes: this.crypto.decryptSafe(v.notes),
         pnvAbbr: v.pnvAbbr,
         cvx: v.cvx,
       })),
       medications: medications.map((m) => ({
         id: m.id,
-        name: this.crypto.decrypt(m.name),
-        dose: this.crypto.decrypt(m.dose),
+        name: this.crypto.decryptSafe(m.name),
+        dose: this.crypto.decryptSafe(m.dose),
         atcCode: m.atcCode,
         route: m.route,
         frequency: m.frequency,
@@ -166,8 +166,8 @@ export class HealthRecordsService {
       })),
       episodes: episodes.map((e) => ({
         id: e.id,
-        title: this.crypto.decrypt(e.title),
-        summary: this.crypto.decrypt(e.summary),
+        title: this.crypto.decryptSafe(e.title),
+        summary: this.crypto.decryptSafe(e.summary),
         icpc2Code: e.icpc2Code,
         icd10Code: e.icd10Code,
         status: e.status,
@@ -186,7 +186,7 @@ export class HealthRecordsService {
       })),
       allergies: allergies.map((a) => ({
         id: a.id,
-        label: this.crypto.decrypt(a.label),
+        label: this.crypto.decryptSafe(a.label),
         code: a.code,
         category: a.category,
       })),

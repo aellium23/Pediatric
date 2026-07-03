@@ -59,7 +59,7 @@ export class SubscriptionsService {
   async subscribe(user: AuthenticatedUser, plan: SubscriptionPlan) {
     const def = PLANS[plan];
     if (def.role !== user.role) {
-      throw new BadRequestException('Plan not available for this profile');
+      throw new BadRequestException('Plano indisponível para este perfil.');
     }
     // Single active subscription per user: cancel any current one first.
     await this.prisma.subscription.updateMany({

@@ -96,7 +96,7 @@ export class PediatriciansService {
         },
       },
     });
-    if (!ped) throw new NotFoundException('Pediatrician not found');
+    if (!ped) throw new NotFoundException('Pediatra não encontrado.');
     const weekdays = await this.availableWeekdaysByPediatrician([ped.id]);
     return { ...ped, availableWeekdays: weekdays.get(ped.id) ?? [] };
   }
@@ -106,7 +106,7 @@ export class PediatriciansService {
       where: { userId },
       include: { services: true },
     });
-    if (!ped) throw new NotFoundException('Pediatrician profile not found');
+    if (!ped) throw new NotFoundException('Perfil de pediatra não encontrado.');
     return ped;
   }
 
@@ -219,9 +219,9 @@ export class PediatriciansService {
       where: { id: serviceId },
       include: { pediatrician: true },
     });
-    if (!service) throw new NotFoundException('Service not found');
+    if (!service) throw new NotFoundException('Serviço não encontrado.');
     if (service.pediatrician.userId !== userId) {
-      throw new ForbiddenException('Not your service');
+      throw new ForbiddenException('Este serviço não é teu.');
     }
     return service;
   }

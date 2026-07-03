@@ -20,7 +20,7 @@ export class ConsentService {
       orderBy: { grantedAt: 'desc' },
     });
     if (!consent) {
-      throw new ForbiddenException('Active health-data consent required');
+      throw new ForbiddenException('É necessário um consentimento ativo para dados de saúde.');
     }
   }
 

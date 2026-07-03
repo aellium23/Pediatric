@@ -5,6 +5,7 @@ import { ReferralsService } from '../../src/modules/referrals/referrals.module';
 const crypto: any = {
   encrypt: (s: string | null | undefined) => (s == null ? null : `enc(${s})`),
   decrypt: (s: string | null | undefined) => (s == null ? null : s),
+  decryptSafe: (s: string | null | undefined) => (s == null ? null : s),
 };
 
 function build(over: Record<string, any> = {}) {

@@ -43,7 +43,7 @@ export class ReferralsService {
 
   private async myPediatrician(userId: string) {
     const ped = await this.prisma.pediatrician.findUnique({ where: { userId } });
-    if (!ped) throw new ForbiddenException('Pediatrician profile not found');
+    if (!ped) throw new ForbiddenException('Perfil de pediatra não encontrado.');
     return ped;
   }
 
@@ -53,18 +53,18 @@ export class ReferralsService {
     const consultation = await this.prisma.consultation.findUnique({
       where: { id: dto.consultationId },
     });
-    if (!consultation) throw new NotFoundException('Consultation not found');
+    if (!consultation) throw new NotFoundException('Consulta não encontrada.');
     if (consultation.pediatricianId !== me.id) {
-      throw new ForbiddenException('Only the treating pediatrician can refer this consultation');
+      throw new ForbiddenException('Apenas o pediatra responsável pode referenciar esta consulta.');
     }
     if (dto.toPediatricianId === me.id) {
-      throw new BadRequestException('Cannot refer to yourself');
+      throw new BadRequestException('Não te podes referenciar a ti próprio.');
     }
     const target = await this.prisma.pediatrician.findUnique({
       where: { id: dto.toPediatricianId },
     });
     if (!target || target.status !== PediatricianStatus.ACTIVE) {
-      throw new BadRequestException('Target pediatrician is not available');
+      throw new BadRequestException('O pediatra de destino não está disponível.');
     }
     const referral = await this.prisma.referral.create({
       data: {
@@ -106,10 +106,10 @@ export class ReferralsService {
   async respond(userId: string, id: string, accept: boolean) {
     const { me, referral } = await this.assertParty(userId, id);
     if (referral.toPediatricianId !== me.id) {
-      throw new ForbiddenException('Only the addressed pediatrician can respond');
+      throw new ForbiddenException('Apenas o pediatra destinatário pode responder.');
     }
     if (referral.status !== ReferralStatus.PENDING) {
-      throw new BadRequestException('Referral already handled');
+      throw new BadRequestException('Referência já tratada.');
     }
     const updated = await this.prisma.referral.update({
       where: { id },
@@ -125,10 +125,10 @@ export class ReferralsService {
   async submitOpinion(userId: string, id: string, opinion: string) {
     const { me, referral } = await this.assertParty(userId, id);
     if (referral.toPediatricianId !== me.id) {
-      throw new ForbiddenException('Only the addressed pediatrician can answer');
+      throw new ForbiddenException('Apenas o pediatra destinatário pode responder.');
     }
     if (referral.status !== ReferralStatus.ACCEPTED) {
-      throw new BadRequestException('Referral must be accepted before answering');
+      throw new BadRequestException('A referência tem de ser aceite antes de responder.');
     }
     const updated = await this.prisma.referral.update({
       where: { id },
@@ -145,9 +145,9 @@ export class ReferralsService {
   private async assertParty(userId: string, id: string) {
     const me = await this.myPediatrician(userId);
     const referral = await this.prisma.referral.findUnique({ where: { id } });
-    if (!referral) throw new NotFoundException('Referral not found');
+    if (!referral) throw new NotFoundException('Referência não encontrada.');
     if (referral.fromPediatricianId !== me.id && referral.toPediatricianId !== me.id) {
-      throw new ForbiddenException('Not a party to this referral');
+      throw new ForbiddenException('Não fazes parte desta referência.');
     }
     return { me, referral };
   }
@@ -170,8 +170,8 @@ export class ReferralsService {
       fromPediatricianId: r.fromPediatricianId,
       toPediatricianId: r.toPediatricianId,
       status: r.status,
-      reason: this.crypto.decrypt(r.reason),
-      opinion: this.crypto.decrypt(r.opinion),
+      reason: this.crypto.decryptSafe(r.reason),
+      opinion: this.crypto.decryptSafe(r.opinion),
       createdAt: r.createdAt,
       respondedAt: r.respondedAt,
       completedAt: r.completedAt,

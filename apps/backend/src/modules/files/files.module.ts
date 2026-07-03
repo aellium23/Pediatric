@@ -46,11 +46,11 @@ export class FilesService {
     // Authorization: the caller must belong to the child's family (prevents
     // uploading clinical files against another family's child — IDOR).
     const child = await this.prisma.child.findUnique({ where: { id: dto.childId } });
-    if (!child) throw new ForbiddenException('Child not found');
+    if (!child) throw new ForbiddenException('Criança não encontrada.');
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: child.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized for this child');
+    if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
 
     const key = `quarantine/${dto.childId}/${randomUUID()}-${dto.filename}`;
     const uploadUrl = await this.s3.getSignedUrlPromise('putObject', {

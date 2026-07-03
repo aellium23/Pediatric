@@ -49,13 +49,14 @@ export class ContentService {
     return this.prisma.article.findMany({
       where: { published: true, ...(category ? { category } : {}) },
       orderBy: { createdAt: 'desc' },
+      take: 200, // bounded — each row carries the full body (≤20k chars)
       select: { id: true, slug: true, title: true, category: true, body: true, createdAt: true },
     });
   }
 
   async getPublished(slug: string) {
     const a = await this.prisma.article.findFirst({ where: { slug, published: true } });
-    if (!a) throw new NotFoundException('Article not found');
+    if (!a) throw new NotFoundException('Artigo não encontrado.');
     return a;
   }
 
@@ -63,6 +64,7 @@ export class ContentService {
     return this.prisma.article.findMany({
       where: { authorUserId: userId },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   }
 
@@ -88,9 +90,9 @@ export class ContentService {
 
   async update(user: AuthenticatedUser, id: string, dto: UpdateArticleDto) {
     const a = await this.prisma.article.findUnique({ where: { id } });
-    if (!a) throw new NotFoundException('Article not found');
+    if (!a) throw new NotFoundException('Artigo não encontrado.');
     if (user.role !== Role.PLATFORM_ADMIN && a.authorUserId !== user.userId) {
-      throw new ForbiddenException('Not the author');
+      throw new ForbiddenException('Não és o autor.');
     }
     return this.prisma.article.update({ where: { id }, data: dto });
   }

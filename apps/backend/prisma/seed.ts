@@ -145,8 +145,23 @@ async function seedChild(
   userId: string,
   clin: ClinicalSpec,
 ) {
+  // The /children API reads its health summary from the encrypted healthProfile
+  // blob — keep it in sync with the normalized clinical tables seeded below.
+  const healthProfile = enc(
+    JSON.stringify({
+      allergies: clin.allergies.map((a) => a.label),
+      medications: clin.meds
+        .filter((m) => m.active ?? true)
+        .map((m) => (m.dose ? `${m.name} (${m.dose})` : m.name)),
+      conditions: clin.episodes
+        .filter((e) => (e.status ?? 'OPEN') !== 'CLOSED')
+        .map((e) => e.title),
+    }),
+  );
   const existingChild = await prisma.child.findFirst({ where: { familyId, name } });
-  const child = existingChild ?? (await prisma.child.create({ data: { familyId, name, birthDate, sex } }));
+  const child = existingChild
+    ? await prisma.child.update({ where: { id: existingChild.id }, data: { healthProfile } })
+    : await prisma.child.create({ data: { familyId, name, birthDate, sex, healthProfile } });
 
   const consent = await prisma.consent.findFirst({
     where: { childId: child.id, subject: ConsentSubject.HEALTH_DATA, revokedAt: null },

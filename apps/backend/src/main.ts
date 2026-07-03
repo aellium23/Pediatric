@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -42,6 +42,15 @@ async function bootstrap(): Promise<void> {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      // class-validator's default messages are English; the web app surfaces
+      // 400 bodies verbatim, so return a Portuguese summary of the bad fields
+      // instead of "email must be an email"-style strings.
+      exceptionFactory: (errors) => {
+        const fields = [...new Set(errors.map((e) => e.property))].join(', ');
+        return new BadRequestException(
+          fields ? `Dados inválidos nos campos: ${fields}.` : 'Dados inválidos.',
+        );
+      },
     }),
   );
   app.useGlobalFilters(new AllExceptionsFilter());

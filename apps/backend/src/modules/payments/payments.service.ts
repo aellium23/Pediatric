@@ -24,12 +24,12 @@ export class PaymentsService {
     const consultation = await this.prisma.consultation.findUnique({
       where: { id: consultationId },
     });
-    if (!consultation) throw new NotFoundException('Consultation not found');
+    if (!consultation) throw new NotFoundException('Consulta não encontrada.');
 
     const member = await this.prisma.familyMember.findFirst({
       where: { userId, familyId: consultation.familyId },
     });
-    if (!member) throw new ForbiddenException('Not authorized');
+    if (!member) throw new ForbiddenException('Sem autorização.');
 
     // Demo mode (no STRIPE_SECRET_KEY): record a placeholder payment so the
     // booking completes without a real charge, instead of failing with a 503.
@@ -79,8 +79,8 @@ export class PaymentsService {
       where: { consultationId },
       include: { split: true, consultation: { include: { pediatrician: true } } },
     });
-    // Demo / no-payment mode (no Stripe key, so no PaymentIntent was created):
-    // settle as zero so the pediatrician can still close the consultation.
+    // No-payment mode (no PaymentIntent was ever recorded): settle as zero so
+    // the pediatrician can still close the consultation.
     if (!payment?.pspRef) {
       return { platformFeeCents: 0, pediatricianAmount: 0 };
     }
@@ -91,8 +91,29 @@ export class PaymentsService {
         pediatricianAmount: payment.split.pediatricianAmount,
       };
     }
+    // Demo payment (recorded without a Stripe key): settle locally with the
+    // same commission math — never call Stripe with a demo_ reference.
+    if (payment.psp === 'demo' || payment.pspRef.startsWith('demo_')) {
+      const result = this.stripe.computeSplit(payment.amountCents);
+      await this.prisma.$transaction([
+        this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.CAPTURED, capturedAt: new Date() },
+        }),
+        this.prisma.split.upsert({
+          where: { paymentId: payment.id },
+          create: {
+            paymentId: payment.id,
+            platformFeeCents: result.platformFeeCents,
+            pediatricianAmount: result.pediatricianAmount,
+          },
+          update: {},
+        }),
+      ]);
+      return result;
+    }
     const account = payment.consultation.pediatrician.stripeAccountId;
-    if (!account) throw new BadRequestException('Pediatrician has no payout account');
+    if (!account) throw new BadRequestException('O pediatra não tem conta de pagamentos configurada.');
 
     const result = await this.stripe.captureAndSplit({
       paymentIntentId: payment.pspRef,
@@ -129,7 +150,9 @@ export class PaymentsService {
     ) {
       return;
     }
-    await this.stripe.refund(payment.pspRef);
+    // Demo payment: mark refunded locally — never call Stripe with a demo_ ref.
+    const isDemo = payment.psp === 'demo' || payment.pspRef.startsWith('demo_');
+    if (!isDemo) await this.stripe.refund(payment.pspRef);
     await this.prisma.$transaction([
       this.prisma.payment.update({
         where: { id: payment.id },
@@ -157,6 +180,26 @@ export class PaymentsService {
             capturedAt: event.type === 'payment_intent.succeeded' ? new Date() : undefined,
           },
         });
+        // A capture confirmed by webhook must also settle the split; otherwise
+        // a later close() sees CAPTURED-without-split and re-captures (500).
+        if (event.type === 'payment_intent.succeeded') {
+          const payment = await this.prisma.payment.findFirst({
+            where: { pspRef: pi.id },
+            include: { split: true },
+          });
+          if (payment && !payment.split) {
+            const split = this.stripe.computeSplit(payment.amountCents);
+            await this.prisma.split.upsert({
+              where: { paymentId: payment.id },
+              create: {
+                paymentId: payment.id,
+                platformFeeCents: split.platformFeeCents,
+                pediatricianAmount: split.pediatricianAmount,
+              },
+              update: {},
+            });
+          }
+        }
         break;
       }
       case 'charge.refunded': {
