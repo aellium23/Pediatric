@@ -307,6 +307,8 @@ export const Api = {
     episodeId?: string;
   }) => request('/consultations', { method: 'POST', body: JSON.stringify(data) }),
   myConsultations: () => request('/consultations') as Promise<ConsultationDto[]>,
+  pedHistory: (take = 50) =>
+    request(`/consultations/history?take=${take}`) as Promise<ConsultationDto[]>,
   cancelConsultation: (id: string) =>
     request(`/consultations/${id}/cancel`, { method: 'POST' }),
   reviews: (pedId: string) => request(`/pediatricians/${pedId}/reviews`) as Promise<ReviewDto[]>,

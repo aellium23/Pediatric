@@ -35,6 +35,12 @@ class ConsultationsController {
     return this.service.listForPediatrician(user.userId);
   }
 
+  @Get('history')
+  @Roles(Role.PEDIATRICIAN)
+  history(@CurrentUser() user: AuthenticatedUser, @Query('take') take?: string) {
+    return this.service.recentForPediatrician(user.userId, take ? Number(take) : 50);
+  }
+
   @Get('patients')
   @Roles(Role.PEDIATRICIAN)
   patients(@CurrentUser() user: AuthenticatedUser) {

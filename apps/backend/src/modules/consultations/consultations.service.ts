@@ -263,6 +263,19 @@ export class ConsultationsService {
     return rows.map(({ triage: _triage, ...c }) => c);
   }
 
+  /** Pediatrician: recent consultations across every state — lets the
+   *  clinician revisit closed/expired cases, not only the live inbox. */
+  async recentForPediatrician(userId: string, take = 50) {
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    const rows = await this.prisma.consultation.findMany({
+      where: { pediatricianId: ped.id },
+      orderBy: { openedAt: 'desc' },
+      take: Math.min(Math.max(take, 1), 100),
+      include: { child: { select: { id: true, name: true, birthDate: true } } },
+    });
+    return rows.map((c) => ({ ...c, triage: this.revealTriage(c.triage) }));
+  }
+
   /** Pediatrician inbox, ordered by SLA urgency. */
   async listForPediatrician(userId: string) {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });

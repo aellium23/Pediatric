@@ -1559,6 +1559,35 @@ function HomeTab({
         </div>
       )}
 
+      {consults.length ? (
+        <>
+          <h3 style={{ marginTop: 18 }}>Últimas consultas</h3>
+          {consults.slice(0, 3).map((c) => (
+            <button
+              key={c.id}
+              className="card"
+              onClick={() => onOpenConsultation(c.id)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8 }}
+            >
+              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>{' '}
+              <strong>{svcLabel(c.type)}</strong>
+              {c.child?.name ? <span className="muted"> · {c.child.name}</span> : null}
+              <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+                {new Date(c.openedAt).toLocaleDateString('pt-PT', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}{' '}
+                · toca para rever
+              </span>
+            </button>
+          ))}
+          <button className="btn secondary small" onClick={() => onGo('myconsults')} style={{ marginTop: 8 }}>
+            Ver todas as consultas
+          </button>
+        </>
+      ) : null}
+
       {articles.length ? (
         <>
           <h3 style={{ marginTop: 18 }}>Saber+</h3>
@@ -3719,15 +3748,21 @@ function InboxTab({
   onFocusConsumed?: () => void;
 }) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
+  const [recent, setRecent] = useState<ConsultationDto[]>([]);
+  const [view, setView] = useState<'todo' | 'recent'>('todo');
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
-      const list = await Api.inbox();
+      const [list, hist] = await Promise.all([
+        Api.inbox(),
+        Api.pedHistory().catch(() => [] as ConsultationDto[]),
+      ]);
       setRows(list);
+      setRecent(hist);
       if (focusId) {
-        const target = list.find((c) => c.id === focusId);
+        const target = list.find((c) => c.id === focusId) ?? hist.find((c) => c.id === focusId);
         if (target) setOpen(target);
         onFocusConsumed?.();
       }
@@ -3742,11 +3777,12 @@ function InboxTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (open)
+  if (open) {
+    const live = ['OPEN', 'TRIAGE', 'ANSWERED'].includes(open.status);
     return (
       <Thread
         consultation={open}
-        canClose
+        canClose={live}
         canCancel={false}
         onChanged={() => {
           setOpen(null);
@@ -3756,6 +3792,7 @@ function InboxTab({
         onMsg={onMsg}
       />
     );
+  }
 
   // Priority order: alarm signs from triage first, then nearest SLA. Today's
   // scheduled video consultations get their own section so the day is scannable.
@@ -3815,8 +3852,22 @@ function InboxTab({
   return (
     <div className="section">
       <h2>Caixa de entrada</h2>
+      <div className="seg" role="tablist" style={{ margin: '8px 0' }}>
+        <button className={view === 'todo' ? 'active' : ''} onClick={() => setView('todo')}>
+          A responder{rows.length ? ` (${rows.length})` : ''}
+        </button>
+        <button className={view === 'recent' ? 'active' : ''} onClick={() => setView('recent')}>
+          Recentes
+        </button>
+      </div>
       {loading ? (
         <Skeleton rows={2} />
+      ) : view === 'recent' ? (
+        recent.length === 0 ? (
+          <EmptyState title="Sem consultas anteriores" hint="O histórico aparece aqui." />
+        ) : (
+          <div className="grid">{recent.map(consultCard)}</div>
+        )
       ) : rows.length === 0 ? (
         <EmptyState
           title="Tudo em dia"
