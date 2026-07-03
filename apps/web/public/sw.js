@@ -1,9 +1,16 @@
 /* Simple offline shell for HOC (same-origin app assets only).
    Network-first with cache fallback; never caches the cross-origin API. */
-const CACHE = 'pedia-shell-v1';
+const CACHE = 'pedia-shell-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) =>
+  e.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  ),
+);
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -15,8 +22,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        // Never cache error pages — a cached 404/500 would replace the shell offline.
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
         return res;
       })
       .catch(() => caches.match(req).then((m) => m || caches.match('/app'))),

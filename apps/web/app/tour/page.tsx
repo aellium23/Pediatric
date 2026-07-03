@@ -85,7 +85,7 @@ export default function Tour() {
   return (
     <div className="tourwrap">
       <header className="tourhero">
-        <span className="badge">HOC · TOUR COMPLETO</span>
+        <span className="badge">HOC · VISITA GUIADA COMPLETA</span>
         <h1>Como funciona a app</h1>
         <p>
           Todos os perfis: Pais, Pediatra, Clínica e Administrador. Mockups com o
@@ -231,7 +231,7 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="P11" title="Marketplace" desc="Pediatras verificados (cédula validada). Filtros por idioma, preço, rating.">
+      <Step n="P11" title="Diretório de pediatras" desc="Pediatras verificados (cédula validada). Filtros por idioma, preço e avaliação.">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Encontrar pediatra</h2></div>
@@ -598,9 +598,9 @@ export default function Tour() {
       </Step>
 
       {/* ══════════════ CLÍNICA ══════════════ */}
-      <Sec title="🏥 Clínica" sub="Gestão de equipa e operação (web; app companion para o essencial)." />
+      <Sec title="🏥 Clínica" sub="Gestão de equipa e operação (web; app complementar para o essencial)." />
 
-      <Step n="C1" title="Dashboard da clínica" desc="KPIs do tenant: consultas, receita, SLA e equipa ativa.">
+      <Step n="C1" title="Painel da clínica" desc="KPIs da organização: consultas, receita, SLA e equipa ativa.">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Clínica X</h2><span className="sub">Junho 2026</span></div>
@@ -611,7 +611,7 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="C2" title="Equipa — Pediatras" desc="Convidar e gerir pediatras do tenant; estados e ações.">
+      <Step n="C2" title="Equipa — Pediatras" desc="Convidar e gerir pediatras da organização; estados e ações.">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Pediatras</h2></div>
@@ -624,14 +624,14 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="C3" title="Papéis & permissões" desc="RBAC do tenant: Clinic Admin vs Staff (least privilege).">
+      <Step n="C3" title="Papéis & permissões" desc="RBAC da organização: Administrador vs Colaborador (privilégio mínimo).">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Equipa & Papéis</h2></div>
           <div className="scr-body" style={{ fontSize: 13 }}>
-            <div className="tcard">Ana — <b>Receção</b> (Staff)</div>
-            <div className="tcard">João — <b>Gestor</b> (Clinic Admin)</div>
-            <div className="tcard surface">Staff: agendar, triagem · sem acesso clínico amplo</div>
+            <div className="tcard">Ana — <b>Receção</b> (Colaboradora)</div>
+            <div className="tcard">João — <b>Gestor</b> (Administrador)</div>
+            <div className="tcard surface">Colaborador: agendar, triagem · sem acesso clínico amplo</div>
           </div>
         </div>
       </Step>
@@ -647,7 +647,7 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="C5" title="Relatórios" desc="Desempenho operacional e clínico do tenant.">
+      <Step n="C5" title="Relatórios" desc="Desempenho operacional e clínico da organização.">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Relatórios</h2></div>
@@ -683,7 +683,7 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="A3" title="Pagamentos" desc="Transações, reembolsos, disputas e payouts (perfil Finance).">
+      <Step n="A3" title="Pagamentos" desc="Transações, reembolsos, disputas e pagamentos a pediatras (perfil Finanças).">
         <div className="scr">
           <Bar />
           <div className="scr-top"><h2>Pagamentos</h2></div>
@@ -738,7 +738,7 @@ export default function Tour() {
           <div className="scr-top"><h2>Auditoria</h2></div>
           <div className="scr-body" style={{ fontSize: 12 }}>
             <div className="tcard">Avaliação reportada — “…” [aprovar] [remover]</div>
-            <div className="tcard surface">14:02 Support viu #4521 (mascarado)<br />14:05 Admin aprovou Dra. Rita<br />🔒 append-only · imutável</div>
+            <div className="tcard surface">14:02 Suporte viu #4521 (mascarado)<br />14:05 Admin aprovou Dra. Rita<br />🔒 append-only · imutável</div>
           </div>
         </div>
       </Step>

@@ -156,6 +156,13 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
     if (await refreshAccessToken()) res = await doFetch(path, init);
   }
   if (!res.ok) {
+    // Dead session (refresh failed or absent): clear the stored tokens and tell
+    // the app shell, so the user lands back on the profile picker instead of a
+    // logged-in shell where every tab errors with "sessão expirou".
+    if (res.status === 401 && path !== '/auth/refresh' && !path.startsWith('/auth/dev-login')) {
+      clearToken();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('hoc:logout'));
+    }
     const text = await res.text().catch(() => '');
     throw new Error(friendlyError(res.status, text));
   }
@@ -301,16 +308,11 @@ export const Api = {
   myConsultations: () => request('/consultations') as Promise<ConsultationDto[]>,
   cancelConsultation: (id: string) =>
     request(`/consultations/${id}/cancel`, { method: 'POST' }),
-  pediatrician: (id: string) => request(`/pediatricians/${id}`),
   reviews: (pedId: string) => request(`/pediatricians/${pedId}/reviews`) as Promise<ReviewDto[]>,
   addReview: (data: { consultationId: string; rating: number; comment?: string }) =>
     request('/pediatricians/reviews', { method: 'POST', body: JSON.stringify(data) }),
 
   // Scheduling (video)
-  slots: (pedId: string, date: string) =>
-    request(`/scheduling/pediatricians/${pedId}/slots?date=${encodeURIComponent(date)}`) as Promise<
-      string[]
-    >,
   nextSlots: (pedId: string, days = 10) =>
     request(`/scheduling/pediatricians/${pedId}/next-slots?days=${days}`) as Promise<
       { date: string; slots: string[] }[]
@@ -416,7 +418,6 @@ export const Api = {
     request(`/content${category ? `?category=${encodeURIComponent(category)}` : ''}`) as Promise<
       ArticleCard[]
     >,
-  article: (slug: string) => request(`/content/${slug}`) as Promise<ArticleCard>,
   myArticles: () => request('/content/mine') as Promise<ArticleCard[]>,
   createArticle: (data: { title: string; body: string; category?: string; published?: boolean }) =>
     request('/content', { method: 'POST', body: JSON.stringify(data) }),

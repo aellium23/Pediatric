@@ -55,7 +55,7 @@ const PROFILES: Profile[] = [
   { email: 'admin@demo.pedia', role: 'PLATFORM_ADMIN', name: 'Admin', emoji: '🛡️', desc: 'Administrador da plataforma' },
   { email: 'financas@demo.pedia', role: 'FINANCE', name: 'Finanças', emoji: '💶', desc: 'Equipa financeira' },
   { email: 'clinica.admin@demo.pedia', role: 'CLINIC_ADMIN', name: 'Clínica · Admin', emoji: '🏥', desc: 'Administrador de clínica' },
-  { email: 'clinica.staff@demo.pedia', role: 'CLINIC_STAFF', name: 'Clínica · Staff', emoji: '🧑‍💼', desc: 'Staff de clínica' },
+  { email: 'clinica.staff@demo.pedia', role: 'CLINIC_STAFF', name: 'Clínica · Colaborador', emoji: '🧑‍💼', desc: 'Colaborador de clínica' },
   { email: 'suporte@demo.pedia', role: 'SUPPORT', name: 'Suporte', emoji: '🎧', desc: 'Apoio ao cliente' },
   { email: 'compliance@demo.pedia', role: 'COMPLIANCE', name: 'Compliance', emoji: '📋', desc: 'Conformidade / RGPD' },
 ];
@@ -114,7 +114,6 @@ function specLabel(s?: string | null): string {
   if (!s) return 'Pediatria geral';
   return SPECIALTY_PT[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 }
-const WEEKDAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 /** "Seg–Sáb", "Todos os dias", or a short list of available weekdays. */
 function availabilityLabel(days?: number[]): string | null {
   if (!days || days.length === 0) return null;
@@ -122,9 +121,9 @@ function availabilityLabel(days?: number[]): string | null {
   const sorted = [...days].sort((a, b) => a - b);
   const contiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1);
   if (contiguous && sorted.length >= 3) {
-    return `${WEEKDAYS_PT[sorted[0]]}–${WEEKDAYS_PT[sorted[sorted.length - 1]]}`;
+    return `${WEEKDAYS[sorted[0]]}–${WEEKDAYS[sorted[sorted.length - 1]]}`;
   }
-  return sorted.map((d) => WEEKDAYS_PT[d]).join(' · ');
+  return sorted.map((d) => WEEKDAYS[d]).join(' · ');
 }
 function Skeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -297,11 +296,6 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
  * gold — readable in both light and dark mode.
  */
 const HOC_GOLD = '#b89460';
-/**
- * HOC — Healthcare on Call brand logo (company DES). Inline SVG so the navy
- * wordmark follows the theme (currentColor) while the heartbeat/accent stay
- * gold — readable in both light and dark mode.
- */
 function BrandLogo({ full = false, height }: { full?: boolean; height?: number }) {
   if (full) {
     return (
@@ -449,6 +443,15 @@ export default function MultiProfileApp() {
         setTab(tabsFor(p.role)[0].key);
       }
     }
+    // Dead session detected by the API client (401 + failed refresh): return to
+    // the profile picker instead of a logged-in shell where every tab errors.
+    const onLogout = () => {
+      localStorage.removeItem('pedia_profile');
+      setProfile(null);
+      setMsg('A sessão expirou. Entra novamente.');
+    };
+    window.addEventListener('hoc:logout', onLogout);
+    return () => window.removeEventListener('hoc:logout', onLogout);
   }, []);
 
   async function enter(p: Profile) {
@@ -545,7 +548,7 @@ export default function MultiProfileApp() {
           <div style={{ minWidth: 0 }}>
             <strong style={{ display: 'block', lineHeight: 1.1 }}>{profile.name}</strong>
             <span className="muted" style={{ fontSize: 12 }}>
-              {profile.role}
+              {roleLabel(profile.role)}
             </span>
           </div>
         </div>
@@ -776,8 +779,8 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
 const ROLE_PT: Record<string, string> = {
   PARENT: 'Família',
   PEDIATRICIAN: 'Pediatra',
-  CLINIC_ADMIN: 'Clínica · Admin',
-  CLINIC_STAFF: 'Clínica · Staff',
+  CLINIC_ADMIN: 'Clínica · Administrador',
+  CLINIC_STAFF: 'Clínica · Colaborador',
   PLATFORM_ADMIN: 'Administração',
   SUPPORT: 'Suporte',
   FINANCE: 'Finanças',
@@ -1986,18 +1989,25 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
   }, []);
 
   async function toggleFav(p: PediatricianCard) {
+    if (busy) return;
     const isFav = favIds.has(p.id);
-    setFavIds((prev) => {
-      const n = new Set(prev);
-      if (isFav) n.delete(p.id);
-      else n.add(p.id);
-      return n;
-    });
+    const apply = (fav: boolean) =>
+      setFavIds((prev) => {
+        const n = new Set(prev);
+        if (fav) n.add(p.id);
+        else n.delete(p.id);
+        return n;
+      });
+    apply(!isFav); // optimistic
+    setBusy(true);
     try {
       if (isFav) await Api.removeFavorite(p.id);
       else await Api.addFavorite(p.id);
     } catch (e) {
+      apply(isFav); // revert — the server never stored the change
       onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -2135,7 +2145,8 @@ function ConsultTab({ onMsg }: { onMsg: (m: string) => void }) {
                     type="button"
                     aria-label={favIds.has(p.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     aria-pressed={favIds.has(p.id)}
-                    style={{ cursor: 'pointer', fontSize: 18, background: 'none', border: 'none', padding: 0, width: 'auto' }}
+                    disabled={busy}
+                    style={{ cursor: 'pointer', fontSize: 18, background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44 }}
                     onClick={() => toggleFav(p)}
                   >
                     {favIds.has(p.id) ? '❤️' : '🤍'}
@@ -2227,7 +2238,7 @@ function PedDetail({
           type="button"
           aria-label={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
           aria-pressed={isFav}
-          style={{ cursor: 'pointer', fontSize: 22, background: 'none', border: 'none', padding: 0, width: 'auto' }}
+          style={{ cursor: 'pointer', fontSize: 22, background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44 }}
           onClick={onToggleFav}
         >
           {isFav ? '❤️' : '🤍'}
@@ -2662,7 +2673,7 @@ function ReviewForm({
             role="radio"
             aria-checked={n === rating}
             aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
-            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, width: 'auto', fontSize: 28 }}
+            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44, fontSize: 28 }}
             onClick={() => setRating(n)}
           >
             {n <= rating ? '⭐' : '☆'}
@@ -2784,6 +2795,7 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [incoming, setIncoming] = useState<ReferralDto[]>([]);
   const [outgoing, setOutgoing] = useState<ReferralDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false); // guards all mutations against double-taps
   const [opinions, setOpinions] = useState<Record<string, string>>({});
 
   // "New referral" form state
@@ -2822,10 +2834,12 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   }
 
   async function send() {
+    if (busy) return;
     if (!consultId || !toId || reason.trim().length < 3) {
       onMsg('Escolhe a consulta, o colega e descreve o contexto.');
       return;
     }
+    setBusy(true);
     try {
       await Api.createReferral({ consultationId: consultId, toPediatricianId: toId, reason: reason.trim() });
       onMsg('Pedido de 2ª opinião enviado.');
@@ -2836,31 +2850,41 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
       await load();
     } catch (e) {
       onMsg(`Erro a enviar: ${String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function respond(id: string, accept: boolean) {
+    if (busy) return;
+    setBusy(true);
     try {
       if (accept) await Api.acceptReferral(id);
       else await Api.declineReferral(id);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function submitOpinion(id: string) {
+    if (busy) return;
     const text = (opinions[id] ?? '').trim();
     if (text.length < 3) {
       onMsg('Escreve a tua opinião.');
       return;
     }
+    setBusy(true);
     try {
       await Api.submitReferralOpinion(id, text);
       onMsg('Opinião enviada ao colega.');
       await load();
     } catch (e) {
       onMsg(`Erro a enviar: ${String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -2899,10 +2923,10 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
                 <p style={{ whiteSpace: 'pre-wrap' }}>{r.reason}</p>
                 {r.status === 'PENDING' ? (
                   <div className="row">
-                    <button className="btn" onClick={() => void respond(r.id, true)}>
+                    <button className="btn" disabled={busy} onClick={() => void respond(r.id, true)}>
                       Aceitar
                     </button>
-                    <button className="btn secondary" onClick={() => void respond(r.id, false)}>
+                    <button className="btn secondary" disabled={busy} onClick={() => void respond(r.id, false)}>
                       Recusar
                     </button>
                   </div>
@@ -2916,7 +2940,7 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
                       value={opinions[r.id] ?? ''}
                       onChange={(e) => setOpinions((o) => ({ ...o, [r.id]: e.target.value }))}
                     />
-                    <button className="btn" onClick={() => void submitOpinion(r.id)}>
+                    <button className="btn" disabled={busy} onClick={() => void submitOpinion(r.id)}>
                       Enviar opinião
                     </button>
                   </div>
@@ -2988,7 +3012,7 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <button className="btn" onClick={() => void send()}>
+          <button className="btn" disabled={busy} onClick={() => void send()}>
             Enviar pedido
           </button>
         </div>
@@ -4052,6 +4076,7 @@ function AdminTab({ onMsg }: { onMsg: (m: string) => void }) {
 // ───────────────────────── Notifications (all roles) ─────────────────────────
 function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<NotificationDto[]>([]);
+  const [marking, setMarking] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -4066,11 +4091,15 @@ function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
   }, []);
 
   async function read(id: string) {
+    if (marking) return;
+    setMarking(id);
     try {
       await Api.markRead(id);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setMarking(null);
     }
   }
 
@@ -4089,7 +4118,7 @@ function NotifTab({ onMsg }: { onMsg: (m: string) => void }) {
               {when(n.createdAt)}
             </div>
             {!n.read ? (
-              <button className="btn small secondary" onClick={() => read(n.id)}>
+              <button className="btn small secondary" disabled={marking === n.id} onClick={() => read(n.id)}>
                 Marcar como lido
               </button>
             ) : null}
@@ -5276,8 +5305,8 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
               onChange={(e) => setEmail(e.target.value)}
             />
             <select value={srole} onChange={(e) => setSrole(e.target.value)}>
-              <option value="CLINIC_STAFF">Staff</option>
-              <option value="CLINIC_ADMIN">Admin</option>
+              <option value="CLINIC_STAFF">Colaborador</option>
+              <option value="CLINIC_ADMIN">Administrador</option>
             </select>
             <button className="btn" onClick={addStaff} disabled={busy}>
               Adicionar

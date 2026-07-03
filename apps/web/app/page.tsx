@@ -18,7 +18,7 @@ export default function Home() {
           {t('landing.cta')}
         </Link>
         <p className="muted" style={{ marginTop: 16 }}>
-          <Link href="/marketplace">marketplace</Link> · <Link href="/tour">tour</Link> 📱
+          <Link href="/marketplace">pediatras</Link> · <Link href="/tour">visita guiada</Link> 📱
         </p>
       </section>
     </main>
