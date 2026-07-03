@@ -112,9 +112,24 @@ const SPECIALTY_PT: Record<string, string> = {
   dermatology: 'Dermatologia',
   neurology: 'Neurologia',
 };
+/** Plain-parent explanations — most families don't know specialty names. */
+const SPECIALTY_DESC: Record<string, string> = {
+  general: 'Tudo o que é habitual: febres, infeções, crescimento, dúvidas do dia a dia.',
+  neonatology: 'Recém-nascidos e primeiras semanas de vida (amamentação, icterícia, peso).',
+  pulmonology: 'Respiração: asma, bronquiolites, tosse persistente, pieira.',
+  allergology: 'Alergias alimentares e respiratórias, eczema alérgico, rinite.',
+  cardiology: 'Coração: sopros, palpitações, avaliação cardíaca.',
+  gastroenterology: 'Digestão: refluxo, obstipação, dores de barriga, intolerâncias.',
+  dermatology: 'Pele: dermatite atópica, borbulhas, manchas, infeções da pele.',
+  neurology: 'Desenvolvimento, dores de cabeça, convulsões, sono.',
+};
 function specLabel(s?: string | null): string {
   if (!s) return 'Pediatria geral';
   return SPECIALTY_PT[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
+}
+function specDesc(s?: string | null): string | null {
+  if (!s) return null;
+  return SPECIALTY_DESC[s] ?? null;
 }
 /** "Seg–Sáb", "Todos os dias", or a short list of available weekdays. */
 function availabilityLabel(days?: number[]): string | null {
@@ -2706,6 +2721,11 @@ function ConsultTab({
             </button>
           ))}
         </div>
+        {fSpec && specDesc(fSpec) ? (
+          <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
+            <strong>{specLabel(fSpec)}</strong> — {specDesc(fSpec)}
+          </p>
+        ) : null}
         <div className="row" style={{ marginTop: 10 }}>
           <input
             placeholder="Preço máx €"
@@ -2847,6 +2867,11 @@ function PedDetail({
         </button>
       </div>
       <p className="muted" style={{ marginBottom: 2 }}>{specLabel(ped.specialties[0])}</p>
+      {specDesc(ped.specialties[0]) ? (
+        <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>
+          {specDesc(ped.specialties[0])}
+        </p>
+      ) : null}
       <p className="muted">
         {ped.region ? `📍 ${ped.region} · ` : ''}⭐ {ped.ratingAvg.toFixed(1)} ·{' '}
         {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
