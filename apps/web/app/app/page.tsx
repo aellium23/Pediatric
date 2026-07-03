@@ -170,7 +170,7 @@ function GrowthChart({
         {label}
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
-        <path d={d} fill="none" stroke="var(--brand)" strokeWidth="2" />
+        <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
         {points.map((p, i) => (
           <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r="2.6" fill="var(--brand)" />
         ))}
@@ -237,7 +237,7 @@ function WhoGrowthChart({
             strokeDasharray={b.p === 50 ? '' : '3 3'}
           />
         ))}
-        <path d={childPath} fill="none" stroke="var(--brand)" strokeWidth="2" />
+        <path d={childPath} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
         {child.map((p, i) => (
           <circle key={i} cx={sx(p.ageDays)} cy={sy(p.value)} r="2.8" fill="var(--brand)" />
         ))}
@@ -867,7 +867,7 @@ function pedStatus(s: string): { label: string; pill: string } {
   return PED_STATUS_PT[s] ?? { label: s, pill: 'pill muted' };
 }
 function guardianLabel(rel: string): string {
-  return ({ mother: '👩 Mãe', father: '👨 Pai' } as Record<string, string>)[rel] ?? '🧑 Tutor';
+  return ({ mother: 'Mãe', father: 'Pai' } as Record<string, string>)[rel] ?? 'Tutor';
 }
 
 function roleIcon(role: string): string {
@@ -989,7 +989,7 @@ function ChildSummary({ childId }: { childId: string }) {
         onClick={() => setOpen(!open)}
         style={{ display: 'block', width: '100%', textAlign: 'left', fontWeight: 600 }}
       >
-        {open ? '▾' : '▸'} 🧒 Ficha da criança
+        {open ? '▾' : '▸'} Ficha da criança
       </button>
       {open ? (
         !d ? (
@@ -1303,7 +1303,7 @@ function Thread({
                 disabled={busy}
                 title="Dita a nota clínica por voz (transcrição no browser)"
               >
-                {dictating ? '⏹ Parar ditado' : '🎙️ Ditar nota'}
+                {dictating ? 'Parar ditado' : 'Ditar nota'}
               </button>
             ) : null}
             <button
@@ -1312,7 +1312,7 @@ function Thread({
               disabled={busy || !sumDraft.trim()}
               title="Corrige e organiza a nota em SOAP com IA (revê antes de guardar)"
             >
-              ✨ Estruturar com IA
+              Estruturar com IA
             </button>
             <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
               Guardar resumo
@@ -1320,7 +1320,7 @@ function Thread({
           </div>
           {dictating ? (
             <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-              🎙️ A ouvir… fala a tua nota. (A transcrição é feita pelo serviço de voz do browser.)
+              A ouvir… fala a tua nota. (A transcrição é feita pelo serviço de voz do browser.)
             </p>
           ) : null}
         </div>
@@ -1618,6 +1618,17 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   );
 }
 
+/** Collapsed "+ Registar" form — the health profile reads first, writes on
+ *  demand (no wall of six open forms for a parent). */
+function Reg({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="regform">
+      <summary>{label}</summary>
+      <div className="card" style={{ marginTop: 8 }}>{children}</div>
+    </details>
+  );
+}
+
 // ───────────────────────── Parent: Child health profile ─────────────────────────
 function ChildHealth({
   child,
@@ -1785,7 +1796,7 @@ function ChildHealth({
               ))}
             </div>
           )}
-          <div className="card section">
+          <Reg label="+ Registar peso e altura">
             <div className="row">
               <input type="date" value={gDate} onChange={(e) => setGDate(e.target.value)} style={{ width: 150 }} />
               <input placeholder="Altura cm" value={gH} onChange={(e) => setGH(e.target.value)} style={{ width: 100 }} />
@@ -1812,10 +1823,10 @@ function ChildHealth({
             >
               Adicionar medição
             </button>
-          </div>
+          </Reg>
 
           {/* Vital signs */}
-          <h3 style={{ marginTop: 16 }}>Sinais vitais</h3>
+          <h3 style={{ marginTop: 16 }}>Sinais do dia</h3>
           {(d.vitals ?? []).length === 0 ? (
             <p className="muted">Sem registos.</p>
           ) : (
@@ -1837,12 +1848,12 @@ function ChildHealth({
               ))}
             </div>
           )}
-          <div className="card section">
+          <Reg label="+ Registar sinais do dia">
             <div className="row">
               <input placeholder="Tª ºC" value={vtTemp} onChange={(e) => setVtTemp(e.target.value)} style={{ width: 80 }} />
-              <input placeholder="FC bpm" value={vtHr} onChange={(e) => setVtHr(e.target.value)} style={{ width: 80 }} />
-              <input placeholder="FR cpm" value={vtRr} onChange={(e) => setVtRr(e.target.value)} style={{ width: 80 }} />
-              <input placeholder="SpO₂ %" value={vtSpo2} onChange={(e) => setVtSpo2(e.target.value)} style={{ width: 80 }} />
+              <input placeholder="Batimentos (bpm)" value={vtHr} onChange={(e) => setVtHr(e.target.value)} style={{ width: 150 }} />
+              <input placeholder="Respiração (por min.)" value={vtRr} onChange={(e) => setVtRr(e.target.value)} style={{ width: 170 }} />
+              <input placeholder="Oxigénio (%)" value={vtSpo2} onChange={(e) => setVtSpo2(e.target.value)} style={{ width: 130 }} />
             </div>
             <button
               className="btn small"
@@ -1868,7 +1879,7 @@ function ChildHealth({
             >
               Registar sinais vitais
             </button>
-          </div>
+          </Reg>
 
           {/* Vaccines */}
           <h3 style={{ marginTop: 16 }}>Vacinas</h3>
@@ -1882,7 +1893,7 @@ function ChildHealth({
               </div>
             ))
           )}
-          <div className="card section">
+          <Reg label="+ Registar vacina">
             <div className="row">
               <Autocomplete
                 placeholder="Vacina (ex.: VASPR)"
@@ -1929,7 +1940,7 @@ function ChildHealth({
             >
               Adicionar vacina
             </button>
-          </div>
+          </Reg>
 
           {/* Allergies */}
           <h3 style={{ marginTop: 16 }}>Alergias</h3>
@@ -1954,7 +1965,7 @@ function ChildHealth({
               ))}
             </div>
           )}
-          <div className="card section">
+          <Reg label="+ Registar alergia">
             <Autocomplete
               placeholder="Alergia (ex.: penicilina, ovo)"
               value={alName}
@@ -1993,7 +2004,7 @@ function ChildHealth({
             >
               Adicionar alergia
             </button>
-          </div>
+          </Reg>
 
           {/* Medications */}
           <h3 style={{ marginTop: 16 }}>Medicação</h3>
@@ -2024,7 +2035,7 @@ function ChildHealth({
               </div>
             ))
           )}
-          <div className="card section">
+          <Reg label="+ Registar medicação">
             <div className="row">
               <Autocomplete
                 placeholder="Medicamento (ex.: amox)"
@@ -2100,10 +2111,10 @@ function ChildHealth({
             >
               Adicionar medicação
             </button>
-          </div>
+          </Reg>
 
           {/* Episodes */}
-          <h3 style={{ marginTop: 16 }}>Episódios clínicos</h3>
+          <h3 style={{ marginTop: 16 }}>Problemas de saúde</h3>
           {d.episodes.length === 0 ? (
             <p className="muted">Sem episódios.</p>
           ) : (
@@ -2126,7 +2137,7 @@ function ChildHealth({
               </div>
             ))
           )}
-          <div className="card section">
+          <Reg label="+ Registar problema de saúde">
             <Autocomplete
               placeholder="Diagnóstico / episódio (ex.: otite)"
               value={eTitle}
@@ -2169,7 +2180,7 @@ function ChildHealth({
             >
               Criar episódio
             </button>
-          </div>
+          </Reg>
         </>
       )}
     </div>

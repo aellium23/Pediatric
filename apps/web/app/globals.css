@@ -1127,3 +1127,29 @@ button.card:active {
 .tl .tl-month::before {
   display: none;
 }
+
+/* ─── Collapsed "+ Registar" forms (child health profile) ─── */
+.regform {
+  margin: 10px 0 4px;
+}
+.regform summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 9px 16px;
+  min-height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 13.5px;
+  user-select: none;
+}
+.regform summary::-webkit-details-marker {
+  display: none;
+}
+.regform[open] summary {
+  background: var(--brand-tint);
+  color: var(--brand);
+}
