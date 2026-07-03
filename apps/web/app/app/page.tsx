@@ -142,6 +142,24 @@ function availabilityLabel(days?: number[]): string | null {
   }
   return sorted.map((d) => WEEKDAYS[d]).join(' · ');
 }
+/** Group list rows for scanability: months in the current year, whole years
+ *  before ("julho", "junho", …, "2025"). Rows must arrive newest-first. */
+function groupByPeriod<T>(rows: T[], dateOf: (r: T) => string): { label: string; items: T[] }[] {
+  const thisYear = new Date().getFullYear();
+  const groups: { label: string; items: T[] }[] = [];
+  for (const r of rows) {
+    const d = new Date(dateOf(r));
+    const label =
+      d.getFullYear() === thisYear
+        ? d.toLocaleDateString('pt-PT', { month: 'long' })
+        : String(d.getFullYear());
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(r);
+    else groups.push({ label, items: [r] });
+  }
+  return groups;
+}
+
 function Skeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="grid" aria-hidden="true">
@@ -3318,8 +3336,8 @@ function MyConsultsTab({
       ) : rows.length === 0 ? (
         <EmptyState title="Ainda sem consultas" hint="Inicia uma no separador Consultar." />
       ) : (
-        <div className="grid">
-          {rows.map((c) => (
+        (() => {
+          const card = (c: ConsultationDto) => (
             <div key={c.id} className="card">
               <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
               {c.type === 'VIDEO' ? (
@@ -3348,8 +3366,16 @@ function MyConsultsTab({
                 ) : null}
               </div>
             </div>
-          ))}
-        </div>
+          );
+          // Short lists stay flat; longer ones get month/year group headers.
+          if (rows.length <= 6) return <div className="grid">{rows.map(card)}</div>;
+          return groupByPeriod(rows, (c) => c.openedAt).map((g) => (
+            <Fragment key={g.label}>
+              <h3 style={{ margin: '16px 0 4px', textTransform: 'capitalize' }}>{g.label}</h3>
+              <div className="grid">{g.items.map(card)}</div>
+            </Fragment>
+          ));
+        })()
       )}
     </div>
   );
@@ -3872,8 +3898,15 @@ function InboxTab({
       ) : view === 'recent' ? (
         recent.length === 0 ? (
           <EmptyState title="Sem consultas anteriores" hint="O histórico aparece aqui." />
-        ) : (
+        ) : recent.length <= 6 ? (
           <div className="grid">{recent.map(consultCard)}</div>
+        ) : (
+          groupByPeriod(recent, (c) => c.openedAt).map((g) => (
+            <Fragment key={g.label}>
+              <h3 style={{ margin: '16px 0 4px', textTransform: 'capitalize' }}>{g.label}</h3>
+              <div className="grid">{g.items.map(consultCard)}</div>
+            </Fragment>
+          ))
         )
       ) : rows.length === 0 ? (
         <EmptyState
