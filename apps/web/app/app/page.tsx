@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Api,
@@ -33,6 +33,8 @@ import {
   type VerificationDoc,
   type PatientFamily,
   type ChildHistory,
+  type ChildTimeline,
+  type TimelineEvent,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
 import { useT } from '@/lib/i18n';
@@ -1414,6 +1416,7 @@ function ChildHealth({
 }) {
   const [d, setD] = useState<HealthOverview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'main' | 'timeline' | 'boletim'>('main');
   // growth form
   const [gDate, setGDate] = useState('');
   const [gH, setGH] = useState('');
@@ -1472,6 +1475,13 @@ function ChildHealth({
     }
   }
 
+  if (view === 'timeline') {
+    return <ChildTimelineView child={child} onBack={() => setView('main')} onMsg={onMsg} />;
+  }
+  if (view === 'boletim' && d) {
+    return <BoletimView child={child} d={d} onBack={() => setView('main')} />;
+  }
+
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
@@ -1482,6 +1492,14 @@ function ChildHealth({
         {new Date(child.birthDate).toLocaleDateString('pt-PT')} · perfil de saúde 🔒 (dados
         sensíveis cifrados)
       </p>
+      <div className="row" style={{ marginBottom: 4 }}>
+        <button className="btn small secondary" onClick={() => setView('timeline')}>
+          🕒 Linha do tempo
+        </button>
+        <button className="btn small secondary" disabled={!d} onClick={() => setView('boletim')}>
+          📄 Boletim (PDF)
+        </button>
+      </div>
       {!d ? (
         <p className="muted">A carregar…</p>
       ) : (
@@ -1941,6 +1959,292 @@ function ChildHealth({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ───────────────────────── Child timeline (one chronological record) ─────────────────────────
+const TL_ICON: Record<TimelineEvent['kind'], string> = {
+  consultation: '🩺',
+  vaccine: '💉',
+  growth: '📏',
+  episode: '🤒',
+  medication: '💊',
+  allergy: '⚠️',
+};
+
+function ChildTimelineView({
+  child,
+  onBack,
+  onMsg,
+}: {
+  child: ChildDto;
+  onBack: () => void;
+  onMsg: (m: string) => void;
+}) {
+  const [data, setData] = useState<ChildTimeline | null>(null);
+  const [kind, setKind] = useState<string>('');
+
+  useEffect(() => {
+    Api.childTimeline(child.id)
+      .then(setData)
+      .catch((e) => onMsg(`Erro a carregar: ${String(e)}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [child.id]);
+
+  const events = (data?.events ?? []).filter((e) => !kind || e.kind === kind);
+  // Group by month for scannability ("julho de 2026").
+  const monthOf = (iso: string) =>
+    new Date(iso).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  const groups: { month: string; items: TimelineEvent[] }[] = [];
+  for (const ev of events) {
+    const m = monthOf(ev.at);
+    const last = groups[groups.length - 1];
+    if (last && last.month === m) last.items.push(ev);
+    else groups.push({ month: m, items: [ev] });
+  }
+
+  return (
+    <div className="section">
+      <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
+        ← Voltar
+      </button>
+      <h2>Linha do tempo · {child.name}</h2>
+      <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
+        Tudo o que aconteceu na saúde da criança, por ordem cronológica.
+      </p>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {[
+          ['', 'Tudo'],
+          ['consultation', '🩺 Consultas'],
+          ['vaccine', '💉 Vacinas'],
+          ['growth', '📏 Crescimento'],
+          ['episode', '🤒 Episódios'],
+          ['medication', '💊 Medicação'],
+          ['allergy', '⚠️ Alergias'],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            className={`btn small ${kind === k ? '' : 'secondary'}`}
+            aria-pressed={kind === k}
+            onClick={() => setKind(k)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {!data ? (
+        <Skeleton rows={4} />
+      ) : events.length === 0 ? (
+        <EmptyState
+          title="Sem eventos"
+          hint="Regista consultas, vacinas ou medições para veres aqui a história da criança."
+        />
+      ) : (
+        <ul className="tl">
+          {groups.map((g) => (
+            <Fragment key={g.month}>
+              <li className="tl-month">{g.month}</li>
+              {g.items.map((ev) => (
+                <li key={`${ev.kind}-${ev.refId}-${ev.at}`}>
+                  <span className="tl-dot" aria-hidden>
+                    {TL_ICON[ev.kind]}
+                  </span>
+                  <strong style={{ display: 'block', fontSize: 14 }}>{ev.title}</strong>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {new Date(ev.at).toLocaleDateString('pt-PT', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                    {ev.detail ? ` · ${ev.detail}` : ''}
+                  </span>
+                </li>
+              ))}
+            </Fragment>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── Boletim de saúde (printable → PDF) ─────────────────────────
+function BoletimView({
+  child,
+  d,
+  onBack,
+}: {
+  child: ChildDto;
+  d: HealthOverview;
+  onBack: () => void;
+}) {
+  const fmt = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('pt-PT') : '—';
+  const ageLabel = (() => {
+    const months = Math.floor(
+      (Date.now() - new Date(child.birthDate).getTime()) / (30.44 * 86_400_000),
+    );
+    return months < 24 ? `${months} meses` : `${Math.floor(months / 12)} anos`;
+  })();
+  const activeMeds = d.medications.filter((m) => m.active);
+  const lastGrowth = d.growth.length ? d.growth[d.growth.length - 1] : null;
+
+  return (
+    <div className="section print-report">
+      <div className="row no-print" style={{ marginBottom: 12 }}>
+        <button className="btn secondary small" onClick={onBack}>
+          ← Voltar
+        </button>
+        <button className="btn small" onClick={() => window.print()}>
+          🖨️ Imprimir / Guardar PDF
+        </button>
+      </div>
+
+      <h2 style={{ marginBottom: 2 }}>Boletim de saúde — {child.name}</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Nascimento: {fmt(child.birthDate)} · Idade: {ageLabel} · Emitido em{' '}
+        {new Date().toLocaleDateString('pt-PT')} · HOC — Healthcare on Call
+      </p>
+
+      <h3>Alergias</h3>
+      {d.allergies && d.allergies.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Alergia</th>
+              <th>Categoria</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.allergies.map((a) => (
+              <tr key={a.id}>
+                <td>{a.label ?? '—'}</td>
+                <td>{a.category ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">Sem alergias registadas.</p>
+      )}
+
+      <h3>Medicação ativa</h3>
+      {activeMeds.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Medicamento</th>
+              <th>Dose</th>
+              <th>Frequência</th>
+              <th>Início</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeMeds.map((m) => (
+              <tr key={m.id}>
+                <td>{m.name ?? '—'}</td>
+                <td>{m.dose ?? '—'}</td>
+                <td>{m.frequency ?? '—'}</td>
+                <td>{fmt(m.startedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">Sem medicação ativa.</p>
+      )}
+
+      <h3>Vacinas</h3>
+      {d.vaccines.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Vacina</th>
+              <th>PNV</th>
+              <th>Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.vaccines.map((v) => (
+              <tr key={v.id}>
+                <td>{v.name ?? '—'}</td>
+                <td>{v.pnvAbbr ?? '—'}</td>
+                <td>{fmt(v.date)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">Sem vacinas registadas.</p>
+      )}
+
+      <h3>Crescimento</h3>
+      {lastGrowth ? (
+        <p style={{ margin: '2px 0 6px' }}>
+          Última medição ({fmt(lastGrowth.measuredAt)}):{' '}
+          {lastGrowth.heightCm ? `${lastGrowth.heightCm} cm` : ''}
+          {lastGrowth.heightCm && lastGrowth.weightKg ? ' · ' : ''}
+          {lastGrowth.weightKg ? `${lastGrowth.weightKg} kg` : ''}
+          {lastGrowth.heightP != null ? ` · estatura P${Math.round(lastGrowth.heightP)}` : ''}
+          {lastGrowth.weightP != null ? ` · peso P${Math.round(lastGrowth.weightP)}` : ''}
+        </p>
+      ) : null}
+      {d.growth.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Estatura (cm)</th>
+              <th>Peso (kg)</th>
+              <th>IMC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...d.growth].reverse().map((g) => (
+              <tr key={g.id}>
+                <td>{fmt(g.measuredAt)}</td>
+                <td>{g.heightCm ?? '—'}</td>
+                <td>{g.weightKg ?? '—'}</td>
+                <td>{g.bmi ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">Sem medições registadas.</p>
+      )}
+
+      <h3>Episódios clínicos</h3>
+      {d.episodes.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Episódio</th>
+              <th>Estado</th>
+              <th>Início</th>
+              <th>Fim</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.episodes.map((e) => (
+              <tr key={e.id}>
+                <td>{e.title ?? '—'}</td>
+                <td>{e.status === 'CLOSED' ? 'Resolvido' : 'Em curso'}</td>
+                <td>{fmt(e.createdAt)}</td>
+                <td>{fmt(e.closedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">Sem episódios registados.</p>
+      )}
+
+      <p className="muted" style={{ fontSize: 11, marginTop: 16 }}>
+        Documento informativo gerado pela família na app HOC. Não substitui o Boletim de Saúde
+        Infantil e Juvenil oficial nem o registo clínico do médico assistente.
+      </p>
     </div>
   );
 }

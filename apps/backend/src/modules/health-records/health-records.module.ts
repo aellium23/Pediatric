@@ -206,6 +206,131 @@ export class HealthRecordsService {
     };
   }
 
+  /**
+   * Child timeline: every clinically relevant event in one chronological view
+   * (consultations, vaccines, growth, episodes opened/closed, medication
+   * starts, allergies). The heart of the "one record per child" experience.
+   */
+  async timeline(user: AuthenticatedUser, childId: string) {
+    const child = await this.assertAccess(user, childId);
+    const [consults, growth, vaccines, medications, episodes, allergies] = await Promise.all([
+      this.prisma.consultation.findMany({
+        where: { childId },
+        orderBy: { openedAt: 'desc' },
+        take: 200,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          openedAt: true,
+          closedAt: true,
+          pediatrician: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.growthMeasurement.findMany({
+        where: { childId },
+        orderBy: { measuredAt: 'desc' },
+        take: 200,
+      }),
+      this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'desc' }, take: 200 }),
+      this.prisma.medication.findMany({
+        where: { childId },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+      this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' }, take: 200 }),
+      this.prisma.allergy.findMany({ where: { childId }, orderBy: { createdAt: 'desc' }, take: 200 }),
+    ]);
+
+    type TimelineEvent = {
+      at: Date;
+      kind: 'consultation' | 'vaccine' | 'growth' | 'episode' | 'medication' | 'allergy';
+      title: string;
+      detail: string | null;
+      refId: string;
+    };
+    const events: TimelineEvent[] = [];
+
+    for (const c of consults) {
+      const who = c.pediatrician?.displayName ? ` · ${c.pediatrician.displayName}` : '';
+      events.push({
+        at: c.openedAt,
+        kind: 'consultation',
+        title: c.type === 'VIDEO' ? 'Videoconsulta' : 'Consulta por mensagem',
+        detail: `${c.status}${who}`,
+        refId: c.id,
+      });
+    }
+    for (const g of growth) {
+      const parts = [
+        g.heightCm ? `${g.heightCm} cm` : null,
+        g.weightKg ? `${g.weightKg} kg` : null,
+        g.headCm ? `PC ${g.headCm} cm` : null,
+      ].filter(Boolean);
+      events.push({
+        at: g.measuredAt,
+        kind: 'growth',
+        title: 'Medição de crescimento',
+        detail: parts.join(' · ') || null,
+        refId: g.id,
+      });
+    }
+    for (const v of vaccines) {
+      events.push({
+        at: v.date,
+        kind: 'vaccine',
+        title: this.crypto.decryptSafe(v.name) ?? 'Vacina',
+        detail: v.pnvAbbr ? `PNV · ${v.pnvAbbr}` : null,
+        refId: v.id,
+      });
+    }
+    for (const m of medications) {
+      const name = this.crypto.decryptSafe(m.name) ?? 'Medicamento';
+      const dose = this.crypto.decryptSafe(m.dose);
+      events.push({
+        at: m.startedAt ?? m.createdAt,
+        kind: 'medication',
+        title: `Medicação: ${name}`,
+        detail: [dose, m.frequency].filter(Boolean).join(' · ') || null,
+        refId: m.id,
+      });
+    }
+    for (const e of episodes) {
+      const title = this.crypto.decryptSafe(e.title) ?? 'Episódio clínico';
+      events.push({
+        at: e.createdAt,
+        kind: 'episode',
+        title: `Episódio: ${title}`,
+        detail: e.icpc2Code ? `ICPC-2 ${e.icpc2Code}` : null,
+        refId: e.id,
+      });
+      if (e.closedAt) {
+        events.push({
+          at: e.closedAt,
+          kind: 'episode',
+          title: `Episódio resolvido: ${title}`,
+          detail: null,
+          refId: e.id,
+        });
+      }
+    }
+    for (const a of allergies) {
+      events.push({
+        at: a.createdAt,
+        kind: 'allergy',
+        title: `Alergia registada: ${this.crypto.decryptSafe(a.label) ?? '—'}`,
+        detail: a.category ?? null,
+        refId: a.id,
+      });
+    }
+
+    events.sort((a, b) => b.at.getTime() - a.at.getTime());
+    return {
+      child: { id: child.id, name: child.name, birthDate: child.birthDate, sex: child.sex },
+      events: events.slice(0, 300),
+    };
+  }
+
   async addAllergy(user: AuthenticatedUser, childId: string, dto: AllergyDto) {
     await this.assertAccess(user, childId);
     return this.prisma.allergy.create({
@@ -322,6 +447,12 @@ class HealthRecordsController {
   @Roles(Role.PARENT, Role.PEDIATRICIAN)
   overview(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
     return this.service.overview(user, childId);
+  }
+
+  @Get(':childId/timeline')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  timeline(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
+    return this.service.timeline(user, childId);
   }
 
   @Post(':childId/vitals')

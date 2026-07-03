@@ -439,6 +439,8 @@ export const Api = {
   // Health records (rich child health profile)
   childHealth: (childId: string) =>
     request(`/health-records/${childId}`) as Promise<HealthOverview>,
+  childTimeline: (childId: string) =>
+    request(`/health-records/${childId}/timeline`) as Promise<ChildTimeline>,
   addGrowth: (
     childId: string,
     data: { measuredAt: string; heightCm?: number; weightKg?: number; headCm?: number },
@@ -631,6 +633,18 @@ export interface HealthOverview {
     diastolicMmHg: number | null;
   }[];
   allergies?: { id: string; label: string | null; code: string | null; category: string | null }[];
+}
+
+export interface TimelineEvent {
+  at: string;
+  kind: 'consultation' | 'vaccine' | 'growth' | 'episode' | 'medication' | 'allergy';
+  title: string;
+  detail: string | null;
+  refId: string;
+}
+export interface ChildTimeline {
+  child: { id: string; name: string; birthDate: string; sex: string | null };
+  events: TimelineEvent[];
 }
 
 export interface CatalogCondition {
