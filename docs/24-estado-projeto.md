@@ -10,7 +10,7 @@ enterprise. Legenda: ✅ feito · ◑ parcial / a degradar até config · ⏳ po
 | **0 · Discovery** | ◑ | Tech (ADRs, CI/CD, auth, ambientes) ✅. Legal/fiscal/regulatório (DPIA, DPO, parecer ERS/Ordem, fiscalista) ⚖️ por fechar. |
 | **1 · MVP Portugal** | ✅ | Auth, perfis, consentimentos, arquivo da criança, uploads, marketplace + verificação, consulta por mensagem + SLA + triagem, pagamentos (hold/capture/split), faturação por eventos, reembolsos, dashboard financeiro, notificações. Falta **pentest/hardening final** e **beta fechado** (processo). |
 | **2 · Vídeo + Agenda** | ◑ | Agenda ✅, vídeo **media real** ✅ (sala LiveKit no web + token HS256 no backend; ativa com `LIVEKIT_*`), reembolsos/cancelamentos ✅, episódios ✅, notas/resumo pós-consulta ✅. Falta **lembretes push** 🔑, **Apple/Google Pay** 🔑(Stripe). |
-| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n PT/EN/ES ✅, **partilha médico-médico** ✅. Falta **AI administrativa** (resumos), **percentis WHO** (temos IMC), **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
+| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n (PT-only por decisão de produto; EN/ES prontos a reativar) ✅, **partilha médico-médico** ✅, **AI administrativa** ◑ (ditado + estruturação SOAP ✅; scribe ambiente planeado — doc 26), **percentis WHO** ✅ (motor LMS + gráfico). Falta **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
 
 ## 2. Produto / funcional (backend = 21 módulos, 35 modelos)
 Tudo o que não precisa de serviços externos está **implementado e em produção**:
