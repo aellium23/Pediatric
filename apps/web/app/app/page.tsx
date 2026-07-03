@@ -2765,10 +2765,12 @@ function ConsultTab({
   }
 
   const q = search.trim().toLowerCase();
+  // Live as-you-type filter over what a parent would actually type: the
+  // doctor's NAME first, then translated specialty, region, language, bio.
   const shown = (onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds).filter(
     (p) =>
       !q ||
-      `${p.specialties.join(' ')} ${p.languages.join(' ')} ${p.bio ?? ''}`
+      `${p.displayName ?? ''} ${p.specialties.map((s) => specLabel(s)).join(' ')} ${p.region ?? ''} ${p.languages.join(' ')} ${p.bio ?? ''}`
         .toLowerCase()
         .includes(q),
   );
@@ -2778,7 +2780,7 @@ function ConsultTab({
       <h2>Escolher pediatra</h2>
       <input
         className="search"
-        placeholder="Pesquisar especialidade, idioma…"
+        placeholder="Pesquisar pediatra por nome…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
