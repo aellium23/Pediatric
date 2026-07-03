@@ -434,6 +434,15 @@ export default function MultiProfileApp() {
   // Cross-tab deep link: "open this consultation" (from Início, Avisos or a
   // just-created consultation) — consumed by MyConsultsTab/InboxTab on mount.
   const [focusConsult, setFocusConsult] = useState<string | null>(null);
+  // Unread-notifications badge on the header bell; refreshed on each tab
+  // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!profile) return;
+    Api.notifications()
+      .then((rows) => setUnread(rows.filter((n) => !n.read).length))
+      .catch(() => {});
+  }, [profile, tab]);
 
   function openConsultation(id: string) {
     setFocusConsult(id);
@@ -576,13 +585,15 @@ export default function MultiProfileApp() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             className="iconbtn"
-            aria-label="Avisos"
+            aria-label={unread > 0 ? `Avisos — ${unread} por ler` : 'Avisos'}
+            style={{ position: 'relative' }}
             onClick={() => {
               setSettingsOpen(false);
               setTab('notif');
             }}
           >
             <TabIcon name="notif" />
+            {unread > 0 ? <span className="dot-badge" aria-hidden /> : null}
           </button>
           <button
             className="iconbtn"
@@ -2519,25 +2530,32 @@ function ConsultTab({
   const [triageFor, setTriageFor] = useState<PediatricianCard | null>(null);
   const [triageServiceId, setTriageServiceId] = useState('');
   const [busy, setBusy] = useState(false);
-  // filters
+  // filters — specialty is a tap-to-filter chip set (parents don't know
+  // specialty names, so we show the ones that actually exist, translated).
   const [fSpec, setFSpec] = useState('');
+  const [allSpecs, setAllSpecs] = useState<string[]>([]);
   const [fMaxEuro, setFMaxEuro] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  async function load(specOverride?: string, maxEuroOverride?: string) {
+    const spec = specOverride ?? fSpec;
+    const maxEuro = maxEuroOverride ?? fMaxEuro;
     try {
       const [c, p, favs] = await Promise.all([
         Api.children(),
         Api.pediatricians({
-          specialty: fSpec || undefined,
-          maxPriceCents: fMaxEuro ? Math.round(Number(fMaxEuro) * 100) : undefined,
+          specialty: spec || undefined,
+          maxPriceCents: maxEuro ? Math.round(Number(maxEuro) * 100) : undefined,
         }) as Promise<PediatricianCard[]>,
         Api.favorites().catch(() => []) as Promise<PediatricianCard[]>,
       ]);
       setChildren(c);
       setPeds(p);
+      // Grow the chip set from every listing seen (union), so chips never
+      // disappear while a filter is active.
+      setAllSpecs((prev) => [...new Set([...prev, ...p.flatMap((x) => x.specialties)])].sort());
       setFavIds(new Set(favs.map((f) => f.id)));
       if (c.length > 0 && !child) setChild(c[0].id);
     } catch (e) {
@@ -2550,6 +2568,11 @@ function ConsultTab({
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function pickSpec(code: string) {
+    setFSpec(code);
+    void load(code);
+  }
 
   async function toggleFav(p: PediatricianCard) {
     if (busy) return;
@@ -2667,27 +2690,41 @@ function ConsultTab({
       )}
 
       <div className="card section">
-        <div className="row">
-          <input placeholder="Especialidade" value={fSpec} onChange={(e) => setFSpec(e.target.value)} />
+        <span className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Especialidade</span>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          <button className={`chip${fSpec === '' ? ' active' : ''}`} onClick={() => pickSpec('')}>
+            Todas
+          </button>
+          {allSpecs.map((s) => (
+            <button
+              key={s}
+              className={`chip${fSpec === s ? ' active' : ''}`}
+              aria-pressed={fSpec === s}
+              onClick={() => pickSpec(s)}
+            >
+              {specLabel(s)}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ marginTop: 10 }}>
           <input
             placeholder="Preço máx €"
+            inputMode="decimal"
             value={fMaxEuro}
             onChange={(e) => setFMaxEuro(e.target.value)}
+            onBlur={() => void load()}
             style={{ width: 110 }}
           />
-          <button className="btn small" onClick={() => load()}>
-            Filtrar
-          </button>
+          <label className="muted" style={{ margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={onlyFav}
+              onChange={(e) => setOnlyFav(e.target.checked)}
+              style={{ width: 'auto', marginRight: 8 }}
+            />
+            ❤️ Só favoritos
+          </label>
         </div>
-        <label className="muted" style={{ display: 'block', marginTop: 6 }}>
-          <input
-            type="checkbox"
-            checked={onlyFav}
-            onChange={(e) => setOnlyFav(e.target.checked)}
-            style={{ width: 'auto', marginRight: 8 }}
-          />
-          ❤️ Só favoritos
-        </label>
       </div>
 
       {loading ? (

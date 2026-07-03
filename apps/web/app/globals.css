@@ -1156,3 +1156,15 @@ button.card:active {
   background: var(--brand-tint);
   color: var(--brand);
 }
+
+/* Red "new content" dot on the header bell. */
+.dot-badge {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--surface);
+}
