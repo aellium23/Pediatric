@@ -1270,6 +1270,26 @@ function Thread({
           </button>
         ) : null}
       </div>
+      {/* What the family flagged in triage — the pediatrician must see it
+          before reading the question (and the parent sees what they sent). */}
+      {(() => {
+        const tri = consultation.triage as { redFlags?: string[]; severe?: boolean } | null;
+        if (!tri?.redFlags?.length) return null;
+        return (
+          <div className={`notice${tri.severe ? ' warn' : ''}`} style={{ marginTop: 10 }}>
+            <strong style={{ display: 'block', marginBottom: 6 }}>
+              Triagem da família{tri.severe ? ' — sinais graves assinalados ⚠️' : ''}
+            </strong>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+              {tri.redFlags.map((k) => (
+                <span key={k} className="pill warn">
+                  {RED_FLAGS.find((f) => f.key === k)?.label ?? k}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       {canClose && consultation.childId ? (
         <ChildSummary childId={consultation.childId} />
       ) : null}
