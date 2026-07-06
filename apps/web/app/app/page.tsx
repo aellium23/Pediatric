@@ -2523,6 +2523,13 @@ function HomeTab({
             →
           </button>
         </div>
+        {/* Direct path for parents who already know what they want — no need to
+            describe symptoms first. The assistant stays the hero above it. */}
+        <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
+          <button type="button" className="btn secondary" onClick={() => onGoConsult()}>
+            {tr('Falar com um pediatra')}
+          </button>
+        </div>
         {!result ? (
           <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
             {ASSIST_CHIPS.map((c) => (
