@@ -204,7 +204,7 @@ class AdminController {
   constructor(private readonly service: AdminService) {}
 
   @Get('metrics')
-  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE, Role.FINANCE, Role.SUPPORT)
+  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE, Role.FINANCE)
   metrics() {
     return this.service.metrics();
   }
