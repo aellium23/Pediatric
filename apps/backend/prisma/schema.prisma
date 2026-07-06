@@ -220,7 +220,11 @@ model PediatricianService {
   type           ServiceType
   priceCents     Int
   currency       String       @default("EUR")
+  // Refund guarantee ceiling (wall clock). Breach → automatic refund.
   slaHours       Int          @default(24)
+  // Aspirational reply time counted INSIDE message windows — what the
+  // marketplace advertises ("responde em ~4h em horário de mensagens").
+  targetHours    Int          @default(4)
   scopeText      String?
   active         Boolean      @default(true)
 
@@ -251,7 +255,10 @@ model Consultation {
   scopeSnapshot  String?
   priceCents     Int
   currency       String             @default("EUR")
-  slaDueAt       DateTime?
+  slaDueAt       DateTime? // refund-guarantee ceiling (wall clock)
+  // Honest reply expectation computed from the pediatrician's message
+  // windows at open time — shown to the family, never a refund trigger.
+  expectedReplyAt DateTime?
   scheduledAt    DateTime?
   triage         Json?
   episodeId      String?
@@ -278,6 +285,8 @@ model Message {
   consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   senderUserId   String
   body           String       // AES-256-GCM ciphertext
+  // Clinical photos: array of AES-256-GCM-encrypted data-URL strings (≤3).
+  attachments    Json?
   aiGenerated    Boolean      @default(false)
   createdAt      DateTime     @default(now())
 
@@ -393,15 +402,21 @@ model Review {
 }
 
 // ── Scheduling & Video ───────────────────────────────
+enum AvailabilityKind {
+  VIDEO    // bookable video slots
+  MESSAGES // "message hours": drives the expected-reply estimate, not booking
+}
+
 model Availability {
-  id             String    @id @default(uuid())
+  id             String           @id @default(uuid())
   pediatricianId String
-  weekday        Int       // 0=Sunday .. 6=Saturday
-  startMinute    Int       // minutes from midnight
+  kind           AvailabilityKind @default(VIDEO)
+  weekday        Int              // 0=Sunday .. 6=Saturday
+  startMinute    Int              // minutes from midnight
   endMinute      Int
-  slotMinutes    Int       @default(20)
+  slotMinutes    Int              @default(20) // ignored for MESSAGES
   // Concrete calendar date (midnight UTC). Null = weekly recurring template.
-  // On a date with dated blocks, only those count; the template is the fallback.
+  // On a date with dated blocks (same kind), only those count; the template is the fallback.
   date           DateTime?
 
   @@index([pediatricianId, weekday])

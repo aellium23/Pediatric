@@ -24,6 +24,10 @@ function build(over: { prisma?: Record<string, any> } = {}) {
       ]),
     },
     payment: { count: jest.fn().mockResolvedValue(1) },
+    availability: {
+      count: jest.fn().mockResolvedValue(0),
+      createMany: jest.fn().mockResolvedValue({ count: 5 }),
+    },
     family: { count: jest.fn().mockResolvedValue(7) },
     child: { count: jest.fn().mockResolvedValue(9) },
     verificationDocument: { update: jest.fn().mockResolvedValue({ id: 'd1' }) },
@@ -68,6 +72,15 @@ describe('AdminService', () => {
       const data = prisma.pediatrician.update.mock.calls[0][0].data;
       expect(data.status).toBe(PediatricianStatus.ACTIVE);
       expect(data.licenseVerifiedAt).toBeInstanceOf(Date);
+      // Default message hours (Mon–Fri 9h–19h) are seeded on first activation.
+      expect(prisma.availability.createMany).toHaveBeenCalled();
+    });
+
+    it('verify keeps existing message hours untouched', async () => {
+      const { service, prisma } = build();
+      prisma.availability.count.mockResolvedValue(3);
+      await service.verifyPediatrician('p1');
+      expect(prisma.availability.createMany).not.toHaveBeenCalled();
     });
 
     it('suspend sets the pediatrician SUSPENDED', async () => {

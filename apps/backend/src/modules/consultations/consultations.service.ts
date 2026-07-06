@@ -13,6 +13,7 @@ import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsService } from '../payments/payments.service';
 import { AiService } from '../ai/ai.module';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
+import { computeExpectedReplyAt } from '../scheduling/expected-reply';
 import {
   ConsultationClosedEvent,
   ConsultationExpiredEvent,
@@ -66,6 +67,19 @@ export class ConsultationsService {
     }
     const slaDueAt = new Date(Date.now() + service.slaHours * 3600 * 1000);
 
+    // Honest reply expectation for async consultations: targetHours counted
+    // inside the pediatrician's MESSAGES windows, never beyond the refund
+    // ceiling. Video is scheduled, so it has no reply expectation.
+    let expectedReplyAt: Date | null = null;
+    if (service.type !== ServiceType.VIDEO) {
+      const windows = await this.prisma.availability.findMany({
+        where: { pediatricianId: service.pediatricianId },
+        select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
+      });
+      expectedReplyAt = computeExpectedReplyAt(windows, service.targetHours, new Date());
+      if (!expectedReplyAt || expectedReplyAt > slaDueAt) expectedReplyAt = slaDueAt;
+    }
+
     const consultation = await this.prisma.consultation.create({
       data: {
         familyId: child.familyId,
@@ -77,6 +91,7 @@ export class ConsultationsService {
         currency: service.currency,
         scopeSnapshot: service.scopeText,
         slaDueAt,
+        expectedReplyAt,
         // Triage answers are special-category health data — encrypted at rest
         // like message bodies and the clinical summary.
         triage: dto.triage
@@ -211,6 +226,7 @@ export class ConsultationsService {
         answeredAt: true,
         closedAt: true,
         slaDueAt: true,
+        expectedReplyAt: true,
       },
     });
     return {
@@ -300,6 +316,11 @@ export class ConsultationsService {
       id: m.id,
       senderUserId: m.senderUserId,
       body: this.crypto.decryptSafe(m.body),
+      attachments: Array.isArray(m.attachments)
+        ? (m.attachments as string[])
+            .map((a) => this.crypto.decryptSafe(a))
+            .filter((a): a is string => !!a)
+        : undefined,
       aiGenerated: m.aiGenerated,
       createdAt: m.createdAt,
     }));
@@ -340,7 +361,17 @@ export class ConsultationsService {
     if (!writable.includes(consultation.status)) {
       throw new BadRequestException('Esta consulta está encerrada — já não recebe mensagens.');
     }
-    const message = await this.persistMessage(consultationId, userId, dto.body);
+    const body = dto.body?.trim() ?? '';
+    const attachments = dto.attachments ?? [];
+    if (!body && !attachments.length) {
+      throw new BadRequestException('A mensagem precisa de texto ou de uma foto.');
+    }
+    for (const a of attachments) {
+      if (!a.startsWith('data:image/')) {
+        throw new BadRequestException('Apenas fotos são suportadas de momento.');
+      }
+    }
+    const message = await this.persistMessage(consultationId, userId, body, attachments);
 
     // Pediatrician's first reply moves the consultation to ANSWERED (SLA met).
     const isPediatrician = consultation.pediatrician.userId === userId;
@@ -464,9 +495,23 @@ export class ConsultationsService {
     return overdue.length + noShows.length;
   }
 
-  private async persistMessage(consultationId: string, userId: string, body: string) {
+  private async persistMessage(
+    consultationId: string,
+    userId: string,
+    body: string,
+    attachments: string[] = [],
+  ) {
     const message = await this.prisma.message.create({
-      data: { consultationId, senderUserId: userId, body: this.crypto.encrypt(body)! },
+      data: {
+        consultationId,
+        senderUserId: userId,
+        body: this.crypto.encrypt(body)!,
+        // Clinical photos are special-category health data — same encryption
+        // at rest as bodies/triage/summary.
+        attachments: attachments.length
+          ? (attachments.map((a) => this.crypto.encrypt(a)!) as Prisma.InputJsonValue)
+          : undefined,
+      },
     });
     this.events.emit(
       'message.created',

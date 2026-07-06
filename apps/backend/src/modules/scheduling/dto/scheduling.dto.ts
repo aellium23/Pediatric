@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsUUID,
@@ -10,6 +11,14 @@ import {
 } from 'class-validator';
 
 export class SetAvailabilityDto {
+  @ApiPropertyOptional({
+    enum: ['VIDEO', 'MESSAGES'],
+    description: 'VIDEO = bookable slots (default); MESSAGES = message hours (reply expectation)',
+  })
+  @IsOptional()
+  @IsIn(['VIDEO', 'MESSAGES'])
+  kind?: 'VIDEO' | 'MESSAGES';
+
   @ApiPropertyOptional({
     minimum: 0,
     maximum: 6,

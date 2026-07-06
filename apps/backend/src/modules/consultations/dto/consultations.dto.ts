@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsObject,
   IsOptional,
   IsString,
@@ -34,10 +36,21 @@ export class StartConsultationDto {
 }
 
 export class SendMessageDto {
-  @ApiProperty()
+  @ApiProperty({ required: false, description: 'Optional when attachments are sent.' })
+  @IsOptional()
   @IsString()
   @MaxLength(4000)
-  body!: string;
+  body?: string;
+
+  // Clinical photos captured on the phone: client-downscaled JPEG data URLs
+  // (~1280px long edge). Encrypted at rest like message bodies.
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsString({ each: true })
+  @MaxLength(600_000, { each: true })
+  attachments?: string[];
 }
 
 export class SummaryTextDto {

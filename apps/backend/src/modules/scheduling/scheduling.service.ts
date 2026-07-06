@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { ConsentSubject, ConsultationStatus, Prisma, ServiceType } from '@prisma/client';
+import {
+  AvailabilityKind,
+  ConsentSubject,
+  ConsultationStatus,
+  Prisma,
+  ServiceType,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -32,6 +38,7 @@ export class SchedulingService {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
     const common = {
       pediatricianId: ped.id,
+      kind: (dto.kind ?? 'VIDEO') as AvailabilityKind,
       startMinute: dto.startMinute,
       endMinute: dto.endMinute,
       slotMinutes: dto.slotMinutes ?? 20,
@@ -79,15 +86,16 @@ export class SchedulingService {
     const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
     const weekday = dayStart.getUTCDay();
 
-    // Dated blocks override the weekly template for that day; the template
-    // only applies on days without any dated block.
+    // Only VIDEO blocks generate bookable slots. Dated blocks override the
+    // weekly template for that day; the template only applies on days
+    // without any dated block.
     const dated = await this.prisma.availability.findMany({
-      where: { pediatricianId, date: dayStart },
+      where: { pediatricianId, kind: AvailabilityKind.VIDEO, date: dayStart },
     });
     const blocks = dated.length
       ? dated
       : await this.prisma.availability.findMany({
-          where: { pediatricianId, weekday, date: null },
+          where: { pediatricianId, kind: AvailabilityKind.VIDEO, weekday, date: null },
         });
     const booked = await this.prisma.videoSession.findMany({
       where: {

@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PediatricianStatus, Prisma } from '@prisma/client';
+import { AvailabilityKind, PediatricianStatus, Prisma, ServiceType } from '@prisma/client';
+import { computeExpectedReplyAt } from '../scheduling/expected-reply';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../payments/stripe.service';
 import {
@@ -47,24 +48,40 @@ export class PediatriciansService {
         ratingAvg: true,
         services: {
           where: { active: true },
-          select: { id: true, type: true, priceCents: true, currency: true, slaHours: true },
+          select: {
+            id: true,
+            type: true,
+            priceCents: true,
+            currency: true,
+            slaHours: true,
+            targetHours: true,
+          },
         },
       },
       orderBy: { ratingAvg: 'desc' },
     });
 
     // Attach the weekdays each pediatrician has availability on (one query) so
-    // the marketplace can show "available" and the parent knows booking works.
-    const weekdays = await this.availableWeekdaysByPediatrician(peds.map((p) => p.id));
-    return peds.map((p) => ({ ...p, availableWeekdays: weekdays.get(p.id) ?? [] }));
+    // the marketplace can show "available" and the parent knows booking works,
+    // plus the message windows that back the "responde em ~Xh" label.
+    const ids = peds.map((p) => p.id);
+    const [weekdays, msgWindows] = await Promise.all([
+      this.availableWeekdaysByPediatrician(ids),
+      this.messageWindowsByPediatrician(ids),
+    ]);
+    return peds.map((p) => ({
+      ...p,
+      availableWeekdays: weekdays.get(p.id) ?? [],
+      messageWindows: msgWindows.get(p.id) ?? [],
+    }));
   }
 
-  /** Distinct availability weekdays per pediatrician, for the given ids. */
+  /** Distinct VIDEO availability weekdays per pediatrician, for the given ids. */
   private async availableWeekdaysByPediatrician(ids: string[]): Promise<Map<string, number[]>> {
     const out = new Map<string, number[]>();
     if (!ids.length) return out;
     const blocks = await this.prisma.availability.findMany({
-      where: { pediatricianId: { in: ids } },
+      where: { pediatricianId: { in: ids }, kind: AvailabilityKind.VIDEO },
       select: { pediatricianId: true, weekday: true },
     });
     for (const b of blocks) {
@@ -73,6 +90,26 @@ export class PediatriciansService {
       out.set(b.pediatricianId, set);
     }
     for (const [k, v] of out) out.set(k, v.sort((a, b) => a - b));
+    return out;
+  }
+
+  /** Weekly MESSAGES windows per pediatrician (template rows only) — powers
+   *  the marketplace "horário de mensagens" summary. */
+  private async messageWindowsByPediatrician(
+    ids: string[],
+  ): Promise<Map<string, { weekday: number; startMinute: number; endMinute: number }[]>> {
+    const out = new Map<string, { weekday: number; startMinute: number; endMinute: number }[]>();
+    if (!ids.length) return out;
+    const blocks = await this.prisma.availability.findMany({
+      where: { pediatricianId: { in: ids }, kind: AvailabilityKind.MESSAGES, date: null },
+      select: { pediatricianId: true, weekday: true, startMinute: true, endMinute: true },
+      orderBy: [{ weekday: 'asc' }, { startMinute: 'asc' }],
+    });
+    for (const b of blocks) {
+      const list = out.get(b.pediatricianId) ?? [];
+      list.push({ weekday: b.weekday, startMinute: b.startMinute, endMinute: b.endMinute });
+      out.set(b.pediatricianId, list);
+    }
     return out;
   }
 
@@ -92,13 +129,41 @@ export class PediatriciansService {
         ratingAvg: true,
         services: {
           where: { active: true },
-          select: { id: true, type: true, priceCents: true, currency: true, slaHours: true },
+          select: {
+            id: true,
+            type: true,
+            priceCents: true,
+            currency: true,
+            slaHours: true,
+            targetHours: true,
+          },
         },
       },
     });
     if (!ped) throw new NotFoundException('Pediatra não encontrado.');
-    const weekdays = await this.availableWeekdaysByPediatrician([ped.id]);
-    return { ...ped, availableWeekdays: weekdays.get(ped.id) ?? [] };
+    const [weekdays, msgWindows] = await Promise.all([
+      this.availableWeekdaysByPediatrician([ped.id]),
+      this.messageWindowsByPediatrician([ped.id]),
+    ]);
+    // Server-computed reply preview ("resposta prevista até…") for the async
+    // service — never client/free text, so it cannot be gamed.
+    const msgService = ped.services.find((s) => s.type === ServiceType.MESSAGE);
+    let expectedReplyPreview: Date | null = null;
+    if (msgService) {
+      const rows = await this.prisma.availability.findMany({
+        where: { pediatricianId: ped.id },
+        select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
+      });
+      expectedReplyPreview = computeExpectedReplyAt(rows, msgService.targetHours, new Date());
+      const cap = new Date(Date.now() + msgService.slaHours * 3600 * 1000);
+      if (!expectedReplyPreview || expectedReplyPreview > cap) expectedReplyPreview = cap;
+    }
+    return {
+      ...ped,
+      availableWeekdays: weekdays.get(ped.id) ?? [],
+      messageWindows: msgWindows.get(ped.id) ?? [],
+      expectedReplyPreview,
+    };
   }
 
   async getMe(userId: string) {

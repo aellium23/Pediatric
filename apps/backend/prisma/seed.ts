@@ -117,6 +117,19 @@ async function seedPediatricians() {
     await prisma.availability.createMany({
       data: p.days.map((wd) => ({
         pediatricianId: ped.id,
+        kind: 'VIDEO' as const,
+        weekday: wd,
+        startMinute: p.band[0],
+        endMinute: p.band[1],
+        slotMinutes: 20,
+      })),
+    });
+    // Message hours mirror the same band — drives the honest reply estimate
+    // ("responde em ~4h em horário de mensagens").
+    await prisma.availability.createMany({
+      data: p.days.map((wd) => ({
+        pediatricianId: ped.id,
+        kind: 'MESSAGES' as const,
         weekday: wd,
         startMinute: p.band[0],
         endMinute: p.band[1],

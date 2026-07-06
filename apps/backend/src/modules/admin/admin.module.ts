@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
-import { PediatricianStatus, PaymentStatus, Role } from '@prisma/client';
+import { AvailabilityKind, PediatricianStatus, PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Roles } from '../../common/security/decorators';
 
@@ -140,10 +140,27 @@ export class AdminService {
   }
 
   async verifyPediatrician(id: string) {
-    return this.prisma.pediatrician.update({
+    const ped = await this.prisma.pediatrician.update({
       where: { id },
       data: { status: PediatricianStatus.ACTIVE, licenseVerifiedAt: new Date() },
     });
+    // Sensible default message hours (Mon–Fri 9h–19h) so the reply estimate
+    // never starts empty — the pediatrician can edit them in the agenda.
+    const hasWindows = await this.prisma.availability.count({
+      where: { pediatricianId: id, kind: AvailabilityKind.MESSAGES },
+    });
+    if (!hasWindows) {
+      await this.prisma.availability.createMany({
+        data: [1, 2, 3, 4, 5].map((weekday) => ({
+          pediatricianId: id,
+          kind: AvailabilityKind.MESSAGES,
+          weekday,
+          startMinute: 9 * 60,
+          endMinute: 19 * 60,
+        })),
+      });
+    }
+    return ped;
   }
 
   async suspendPediatrician(id: string) {

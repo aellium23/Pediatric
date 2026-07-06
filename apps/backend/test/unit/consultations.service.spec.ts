@@ -96,6 +96,42 @@ describe('ConsultationsService', () => {
     expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
+  it('sendMessage() rejects an empty message (no text, no photos)', async () => {
+    const { service, prisma } = build();
+    await expect(service.sendMessage('ped-user', 'c1', { body: '  ' } as any)).rejects.toThrow(
+      'precisa de texto ou de uma foto',
+    );
+    expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it('sendMessage() rejects non-image attachments', async () => {
+    const { service, prisma } = build();
+    await expect(
+      service.sendMessage('ped-user', 'c1', {
+        body: 'vídeo',
+        attachments: ['data:video/mp4;base64,AAAA'],
+      } as any),
+    ).rejects.toThrow('Apenas fotos');
+    expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it('sendMessage() encrypts photo attachments at rest', async () => {
+    const { service, prisma } = build();
+    prisma.message.create.mockResolvedValue({ id: 'm1', createdAt: new Date() });
+    await service.sendMessage('ped-user', 'c1', {
+      body: 'foto da borbulha',
+      attachments: ['data:image/jpeg;base64,AAAA'],
+    } as any);
+    expect(prisma.message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          body: 'enc(foto da borbulha)',
+          attachments: ['enc(data:image/jpeg;base64,AAAA)'],
+        }),
+      }),
+    );
+  });
+
   it('expireOverdue() refunds and expires consultations past SLA', async () => {
     const { service, prisma, payments, events } = build();
     const count = await service.expireOverdue();
