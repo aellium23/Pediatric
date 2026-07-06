@@ -82,6 +82,14 @@ const STATUS_PT: Record<string, string> = {
   REFUNDED: 'Reembolsada',
   DISPUTED: 'Em disputa',
 };
+/** Search-normalize: lowercase + strip accents, so "Ines" matches "Inês". */
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 function statusLabel(s: string): string {
   return STATUS_PT[s] ?? s;
 }
@@ -3219,15 +3227,16 @@ function ConsultTab({
     );
   }
 
-  const q = search.trim().toLowerCase();
+  const q = norm(search.trim());
   // Live as-you-type filter over what a parent would actually type: the
   // doctor's NAME first, then translated specialty, region, language, bio.
+  // Accent/case-insensitive: "ines" finds "Inês".
   const shown = (onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds).filter(
     (p) =>
       !q ||
-      `${p.displayName ?? ''} ${p.specialties.map((s) => tr(specLabel(s))).join(' ')} ${p.region ?? ''} ${p.languages.join(' ')} ${p.bio ?? ''}`
-        .toLowerCase()
-        .includes(q),
+      norm(
+        `${p.displayName ?? ''} ${p.specialties.map((s) => tr(specLabel(s))).join(' ')} ${p.region ?? ''} ${p.languages.join(' ')} ${p.bio ?? ''}`,
+      ).includes(q),
   );
 
   return (
@@ -4771,23 +4780,39 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Pediatrician: Agenda ─────────────────────────
-// Visual "semana-tipo" (weekly template) — the calendar shows 07:00–22:00.
+// Real availability calendar (month / week / day), Google Calendar-inspired.
+// All date math is UTC to match the backend: blocks are UTC-minute-based and a
+// day's key is the UTC date string YYYY-MM-DD. Effective availability for a day:
+// dated blocks win; otherwise the weekly-template blocks for that weekday apply.
 const AGC_START_H = 7;
 const AGC_END_H = 22;
 const AGC_DAYS = [1, 2, 3, 4, 5, 6, 0]; // Monday-first week
 const AGC_SPAN = (AGC_END_H - AGC_START_H) * 60;
+const DAY_MS = 86_400_000;
+function utcToday(): number {
+  const n = new Date();
+  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+}
+const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+const mondayOf = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS;
+const fmtUTC = (t: number, opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat(appLocale(), { ...opts, timeZone: 'UTC' }).format(t);
 
 function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [rows, setRows] = useState<AvailabilityDto[]>([]);
-  const [mode, setMode] = useState<'week' | 'day'>('week');
-  const [day, setDay] = useState(1);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [weekday, setWeekday] = useState(1);
+  const [view, setView] = useState<'month' | 'week' | 'day'>('week');
+  const [cursor, setCursor] = useState(utcToday); // UTC midnight of the focused day
+  const [sel, setSel] = useState<{ id: string; t: number } | null>(null);
+  const [qa, setQa] = useState<number | null>(null); // quick-add: UTC day, or null
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('13:00');
+  const [repeat, setRepeat] = useState(1);
+  const [twd, setTwd] = useState(1); // legacy weekly-template form
+  const [tStart, setTStart] = useState('09:00');
+  const [tEnd, setTEnd] = useState('13:00');
   const [busy, setBusy] = useState(false);
+  const today = utcToday();
 
   async function load() {
     try {
@@ -4801,17 +4826,12 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function add() {
+  async function add(data: { date?: string; repeatWeeks?: number; weekday?: number; startMinute: number; endMinute: number }) {
     setBusy(true);
     try {
-      await Api.addAvailability({
-        weekday,
-        startMinute: toMin(start),
-        endMinute: toMin(end),
-        slotMinutes: 20,
-      });
+      await Api.addAvailability({ ...data, slotMinutes: 20 });
       onMsg(tr('Disponibilidade adicionada ✓'));
-      setFormOpen(false);
+      setQa(null);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4823,7 +4843,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     setBusy(true);
     try {
       await Api.deleteAvailability(id);
-      setSelected(null);
+      setSel(null);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4832,42 +4852,152 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
-  /** Tapping an empty hour pre-fills the inline form (slot size stays 20 min). */
-  function quickAdd(d: number, startMin: number, endMin: number) {
-    setWeekday(d);
-    setStart(hhmm(startMin));
-    setEnd(hhmm(endMin));
-    setFormOpen(true);
+  /** Effective blocks for a UTC day: dated blocks override the weekly template. */
+  function effective(t: number): { blocks: AvailabilityDto[]; dated: boolean } {
+    const key = isoDay(t);
+    const byStart = (a: AvailabilityDto, b: AvailabilityDto) => a.startMinute - b.startMinute;
+    const dated = rows.filter((r) => r.date && r.date.slice(0, 10) === key);
+    if (dated.length) return { blocks: dated.sort(byStart), dated: true };
+    const wd = new Date(t).getUTCDay();
+    return { blocks: rows.filter((r) => !r.date && r.weekday === wd).sort(byStart), dated: false };
+  }
+  function openQuickAdd(t: number, s: number, e: number) {
+    setQa(t);
+    setStart(hhmm(s));
+    setEnd(hhmm(e));
+    setRepeat(1);
+    setSel(null);
+  }
+  function nav(dir: -1 | 1) {
+    setSel(null);
+    if (view === 'month') {
+      const d = new Date(cursor);
+      setCursor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + dir, 1));
+    } else setCursor(cursor + dir * (view === 'week' ? 7 : 1) * DAY_MS);
   }
 
   const hours = Array.from({ length: AGC_END_H - AGC_START_H }, (_, i) => AGC_START_H + i);
-  const sel = rows.find((a) => a.id === selected) ?? null;
-  const dayRows = rows.filter((a) => a.weekday === day).sort((a, b) => a.startMinute - b.startMinute);
-  const hourFree = (d: number, h: number) =>
-    !rows.some((a) => a.weekday === d && a.startMinute < (h + 1) * 60 && a.endMinute > h * 60);
+  const week0 = mondayOf(cursor);
+  const weekDays = Array.from({ length: 7 }, (_, i) => week0 + i * DAY_MS);
+  const cur = new Date(cursor);
+  const gridStart = mondayOf(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), 1));
+  const nextMonth = Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1);
+  const monthCells = Array.from(
+    { length: Math.ceil((nextMonth - gridStart) / DAY_MS / 7) * 7 },
+    (_, i) => gridStart + i * DAY_MS,
+  );
+  const narrow = Array.from({ length: 7 }, (_, i) => fmtUTC(Date.UTC(2024, 0, 1 + i), { weekday: 'narrow' }));
+  const wkEnd = week0 + 6 * DAY_MS;
+  const period =
+    view === 'month'
+      ? fmtUTC(cursor, { month: 'long', year: 'numeric' })
+      : view === 'week'
+        ? new Date(week0).getUTCMonth() === new Date(wkEnd).getUTCMonth()
+          ? `${new Date(week0).getUTCDate()}–${fmtUTC(wkEnd, { day: 'numeric', month: 'short', year: 'numeric' })}`
+          : `${fmtUTC(week0, { day: 'numeric', month: 'short' })} – ${fmtUTC(wkEnd, { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : fmtUTC(cursor, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const selRow = sel ? (rows.find((r) => r.id === sel.id) ?? null) : null;
+  const dayEff = effective(cursor);
+  const tmplRows = rows
+    .filter((r) => !r.date)
+    .sort((a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7) || a.startMinute - b.startMinute);
+
+  const details =
+    selRow && sel ? (
+      <div className="card" style={{ marginTop: 10 }}>
+        <strong>{fmtUTC(sel.t, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> ·{' '}
+        {hhmm(selRow.startMinute)}–{hhmm(selRow.endMinute)}
+        <div className="muted">
+          {selRow.date ? tr('Dia específico') : tr('Recorrente (semana-tipo)')} · {tr('slots')} {selRow.slotMinutes} min
+        </div>
+        {!selRow.date ? (
+          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            ⚠️ {tr('Bloco semanal recorrente — remover apaga-o em TODAS as semanas.')}
+          </p>
+        ) : null}
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="btn danger small" onClick={() => del(selRow.id)} disabled={busy}>
+            {tr('Remover')}
+          </button>
+          <button className="btn secondary small" onClick={() => setSel(null)}>
+            {tr('Fechar')}
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   return (
     <div className="section">
-      <h2>{tr('Disponibilidade (vídeo)')}</h2>
-      {rows.length === 0 ? (
-        <p className="muted">{tr('Sem blocos definidos. Os pais só veem horários nos dias que definires.')}</p>
-      ) : null}
-      <div className="seg" role="tablist" style={{ margin: '8px 0' }}>
-        <button className={mode === 'week' ? 'active' : ''} onClick={() => setMode('week')}>
-          {tr('Semana')}
-        </button>
-        <button className={mode === 'day' ? 'active' : ''} onClick={() => setMode('day')}>
-          {tr('Dia')}
-        </button>
+      <h2>{tr('Agenda de disponibilidade')}</h2>
+      <div className="agcal-toolbar">
+        <div className="seg" role="tablist">
+          {(['month', 'week', 'day'] as const).map((v) => (
+            <button key={v} className={view === v ? 'active' : ''} onClick={() => { setView(v); setSel(null); }}>
+              {tr(v === 'month' ? 'Mês' : v === 'week' ? 'Semana' : 'Dia')}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 4 }}>
+          <button className="btn secondary small" aria-label={tr('Anterior')} onClick={() => nav(-1)}>
+            ‹
+          </button>
+          <button className="btn secondary small" onClick={() => { setCursor(today); setSel(null); }}>
+            {tr('Hoje')}
+          </button>
+          <button className="btn secondary small" aria-label={tr('Seguinte')} onClick={() => nav(1)}>
+            ›
+          </button>
+        </div>
+        <strong className="agcal-period">{period}</strong>
       </div>
 
-      {mode === 'week' ? (
+      {rows.length === 0 && qa === null ? (
+        <div className="card" style={{ margin: '8px 0' }}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {tr('Ainda sem disponibilidade. Toca num dia ou numa hora vazia do calendário para adicionar os teus horários.')}
+          </p>
+          <button className="btn" onClick={() => openQuickAdd(today, 9 * 60, 13 * 60)}>
+            ＋ {tr('Adicionar disponibilidade')}
+          </button>
+        </div>
+      ) : null}
+
+      {view === 'month' ? (
+        <div className="agcal-month">
+          {narrow.map((n, i) => (
+            <span key={i} className="agcal-mwd" aria-hidden="true">
+              {n}
+            </span>
+          ))}
+          {monthCells.map((t) => {
+            const eff = effective(t);
+            const out = new Date(t).getUTCMonth() !== cur.getUTCMonth();
+            return (
+              <button
+                key={t}
+                type="button"
+                className={`agcal-mday${out ? ' out' : ''}${t < today ? ' past' : ''}${t === today ? ' today' : ''}`}
+                aria-label={fmtUTC(t, { weekday: 'long', day: 'numeric', month: 'long' })}
+                onClick={() => { setCursor(t); setView('day'); setSel(null); }}
+              >
+                <span className="num">{new Date(t).getUTCDate()}</span>
+                {eff.blocks.slice(0, 3).map((b) => (
+                  <span key={b.id} className={`agcal-mbar${eff.dated ? '' : ' tmpl'}`} />
+                ))}
+                {eff.blocks.length > 3 ? <span className="agcal-mmore">+{eff.blocks.length - 3}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {view === 'week' ? (
         <>
           <div className="agcal-head" aria-hidden="true">
             <span className="agcal-axislbl" />
-            {AGC_DAYS.map((d) => (
-              <span key={d} className="agcal-daylbl">
-                {tr(WEEKDAYS[d])}
+            {weekDays.map((t) => (
+              <span key={t} className={`agcal-daylbl${t === today ? ' today' : ''}`}>
+                {fmtUTC(t, { weekday: 'short', day: 'numeric' })}
               </span>
             ))}
           </div>
@@ -4879,128 +5009,108 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                 </span>
               ))}
             </div>
-            {AGC_DAYS.map((d) => (
-              <div key={d} className="agcal-col">
-                {hours.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    className="agcal-cell"
-                    disabled={busy}
-                    aria-label={`${tr('Adicionar bloco')} · ${tr(WEEKDAYS[d])} ${hhmm(h * 60)}–${hhmm((h + 1) * 60)}`}
-                    onClick={() => quickAdd(d, h * 60, (h + 1) * 60)}
-                  />
-                ))}
-                {rows
-                  .filter((a) => a.weekday === d)
-                  .map((a) => {
+            {weekDays.map((t) => {
+              const eff = effective(t);
+              const dLbl = fmtUTC(t, { weekday: 'short', day: 'numeric' });
+              return (
+                <div key={t} className={`agcal-col${t === today ? ' today' : ''}${t < today ? ' past' : ''}`}>
+                  {hours.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      className="agcal-cell"
+                      disabled={busy}
+                      aria-label={`${tr('Adicionar disponibilidade')} · ${dLbl} ${hhmm(h * 60)}–${hhmm((h + 1) * 60)}`}
+                      onClick={() => openQuickAdd(t, h * 60, (h + 1) * 60)}
+                    />
+                  ))}
+                  {eff.blocks.map((a) => {
                     const s = Math.max(a.startMinute, AGC_START_H * 60);
                     const e = Math.min(a.endMinute, AGC_END_H * 60);
                     if (e <= s) return null;
+                    const isSel = sel?.id === a.id && sel.t === t;
                     return (
                       <button
                         key={a.id}
                         type="button"
-                        className={`agcal-block${selected === a.id ? ' selected' : ''}`}
+                        className={`agcal-block${eff.dated ? '' : ' tmpl'}${isSel ? ' selected' : ''}`}
                         style={{
                           top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
                           height: `${((e - s) / AGC_SPAN) * 100}%`,
                         }}
-                        aria-label={`${tr(WEEKDAYS[a.weekday])} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)}`}
-                        onClick={() => setSelected(selected === a.id ? null : a.id)}
+                        aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)}${eff.dated ? '' : ` · ${tr('recorrente')}`}`}
+                        onClick={() => setSel(isSel ? null : { id: a.id, t })}
                       >
                         {hhmm(a.startMinute)}
+                        {!eff.dated ? <span className="agcal-rec">{tr('recorrente')}</span> : null}
                       </button>
                     );
                   })}
-              </div>
-            ))}
-          </div>
-          {sel ? (
-            <div className="card" style={{ marginTop: 10 }}>
-              <strong>{tr(WEEKDAYS[sel.weekday])}</strong> · {hhmm(sel.startMinute)}–{hhmm(sel.endMinute)}
-              <div className="muted">
-                {tr('slots')} {sel.slotMinutes} min
-              </div>
-              <div className="row" style={{ marginTop: 8 }}>
-                <button className="btn danger small" onClick={() => del(sel.id)} disabled={busy}>
-                  {tr('Remover')}
-                </button>
-                <button className="btn secondary small" onClick={() => setSelected(null)}>
-                  {tr('Fechar')}
-                </button>
-              </div>
-            </div>
-          ) : rows.length ? (
-            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-              {tr('Toca num bloco para ver detalhes, ou numa hora vazia para adicionar.')}
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '0 0 8px' }}>
-            {AGC_DAYS.map((d) => (
-              <button key={d} className={`chip${day === d ? ' active' : ''}`} onClick={() => setDay(d)}>
-                {tr(WEEKDAYS[d])}
-              </button>
-            ))}
-          </div>
-          {dayRows.length ? (
-            <div className="grid">
-              {dayRows.map((a) => (
-                <div key={a.id} className="card">
-                  <strong>
-                    {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
-                  </strong>
-                  <div className="muted">
-                    {tr('slots')} {a.slotMinutes} min
-                  </div>
-                  <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
-                    {tr('Remover')}
-                  </button>
                 </div>
-              ))}
+              );
+            })}
+          </div>
+          {details ??
+            (rows.length ? (
+              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                {tr('Toca num bloco para ver detalhes, ou numa hora vazia para adicionar.')}
+              </p>
+            ) : null)}
+        </>
+      ) : null}
+
+      {view === 'day' ? (
+        <>
+          {dayEff.blocks.length ? (
+            <div className="grid">
+              {dayEff.blocks.map((a) => {
+                const isSel = sel?.id === a.id && sel.t === cursor;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={`card agcal-daycard${dayEff.dated ? '' : ' tmpl'}${isSel ? ' selected' : ''}`}
+                    onClick={() => setSel(isSel ? null : { id: a.id, t: cursor })}
+                  >
+                    <strong>
+                      {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
+                    </strong>
+                    <div className="muted">
+                      {dayEff.dated ? tr('Dia específico') : tr('recorrente')} · {tr('slots')} {a.slotMinutes} min
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <p className="muted">{tr('Sem blocos neste dia.')}</p>
           )}
+          {details}
           <h3 style={{ marginTop: 12 }}>{tr('Horas livres — toca para adicionar')}</h3>
           <div className="agcal-freelist">
             {hours
-              .filter((h) => hourFree(day, h))
+              .filter((h) => !dayEff.blocks.some((a) => a.startMinute < (h + 1) * 60 && a.endMinute > h * 60))
               .map((h) => (
                 <button
                   key={h}
                   type="button"
                   className="agcal-freerow"
                   disabled={busy}
-                  onClick={() => quickAdd(day, h * 60, (h + 1) * 60)}
+                  onClick={() => openQuickAdd(cursor, h * 60, (h + 1) * 60)}
                 >
                   + {hhmm(h * 60)}–{hhmm((h + 1) * 60)}
                 </button>
               ))}
           </div>
         </>
-      )}
+      ) : null}
 
-      {formOpen ? (
+      {qa !== null ? (
         <div className="card section">
-          <h3>{tr('Adicionar bloco')}</h3>
-          <label className="muted">
-            {tr('Dia')}:
-            <select
-              value={weekday}
-              onChange={(e) => setWeekday(Number(e.target.value))}
-              style={{ marginLeft: 8 }}
-            >
-              {WEEKDAYS.map((d, i) => (
-                <option key={i} value={i}>
-                  {tr(d)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <h3>{tr('Adicionar disponibilidade')}</h3>
+          <p style={{ margin: '4px 0' }}>
+            <strong>{fmtUTC(qa, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+          </p>
           <div className="row" style={{ marginTop: 8 }}>
             <label className="muted">
               {tr('Início')} <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -5009,23 +5119,79 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               {tr('Fim')} <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </label>
           </div>
+          <label className="muted" style={{ display: 'block', marginTop: 8 }}>
+            {tr('Repetir')}:
+            <select value={repeat} onChange={(e) => setRepeat(Number(e.target.value))} style={{ marginLeft: 8 }}>
+              <option value={1}>{tr('Só este dia')}</option>
+              <option value={2}>{tr('2 semanas')}</option>
+              <option value={4}>{tr('4 semanas')}</option>
+              <option value={8}>{tr('8 semanas')}</option>
+              <option value={12}>{tr('12 semanas')}</option>
+            </select>
+          </label>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
             {tr('Consultas em slots de 20 min.')}
           </p>
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn" onClick={add} disabled={busy}>
-              {tr('Adicionar bloco')}
+            <button
+              className="btn"
+              onClick={() => add({ date: isoDay(qa), repeatWeeks: repeat, startMinute: toMin(start), endMinute: toMin(end) })}
+              disabled={busy}
+            >
+              {tr('Adicionar disponibilidade')}
             </button>
-            <button className="btn secondary" onClick={() => setFormOpen(false)} disabled={busy}>
+            <button className="btn secondary" onClick={() => setQa(null)} disabled={busy}>
               {tr('Cancelar')}
             </button>
           </div>
         </div>
-      ) : (
-        <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setFormOpen(true)}>
-          ＋ {tr('Adicionar bloco')}
-        </button>
-      )}
+      ) : null}
+
+      <details className="card agcal-tmplsec">
+        <summary>{tr('Semana-tipo (recorrente)')}</summary>
+        <p className="muted" style={{ fontSize: 12 }}>
+          {tr('Blocos que se repetem todas as semanas. Num dia com blocos específicos, só esses contam.')}
+        </p>
+        {tmplRows.length ? (
+          tmplRows.map((a) => (
+            <div key={a.id} className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+              <span>
+                {tr(WEEKDAYS[a.weekday])} · {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
+              </span>
+              <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
+                {tr('Remover')}
+              </button>
+            </div>
+          ))
+        ) : (
+          <p className="muted">{tr('Sem blocos recorrentes.')}</p>
+        )}
+        <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+          <label className="muted">
+            {tr('Dia')}:
+            <select value={twd} onChange={(e) => setTwd(Number(e.target.value))} style={{ marginLeft: 8 }}>
+              {AGC_DAYS.map((i) => (
+                <option key={i} value={i}>
+                  {tr(WEEKDAYS[i])}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="muted">
+            {tr('Início')} <input type="time" value={tStart} onChange={(e) => setTStart(e.target.value)} />
+          </label>
+          <label className="muted">
+            {tr('Fim')} <input type="time" value={tEnd} onChange={(e) => setTEnd(e.target.value)} />
+          </label>
+          <button
+            className="btn secondary small"
+            onClick={() => add({ weekday: twd, startMinute: toMin(tStart), endMinute: toMin(tEnd) })}
+            disabled={busy}
+          >
+            {tr('Adicionar bloco')}
+          </button>
+        </div>
+      </details>
     </div>
   );
 }
@@ -7139,9 +7305,9 @@ function SupportPedsTab({ onMsg }: { onMsg: (m: string) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const needle = q.trim().toLowerCase();
+  const needle = norm(q.trim());
   const shown = rows.filter(
-    (p) => !needle || `${p.displayName ?? ''} ${p.user?.email ?? ''} ${p.licenseNumber}`.toLowerCase().includes(needle),
+    (p) => !needle || norm(`${p.displayName ?? ''} ${p.user?.email ?? ''} ${p.licenseNumber}`).includes(needle),
   );
 
   return (
@@ -7454,10 +7620,10 @@ function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
     ...CONTENT_SEGMENTS.map((s) => s.key).filter((k) => present[k]),
     ...Object.keys(present).filter((k) => !CONTENT_SEGMENTS.some((s) => s.key === k)),
   ];
-  const needle = q.trim().toLowerCase();
+  const needle = norm(q.trim());
   const matches = (a: ArticleCard) =>
     (!cat || a.category === cat) &&
-    (!needle || `${a.title} ${a.body}`.toLowerCase().includes(needle));
+    (!needle || norm(`${a.title} ${a.body}`).includes(needle));
   const filtered = items.filter(matches);
 
   function Card({ a }: { a: ArticleCard }) {

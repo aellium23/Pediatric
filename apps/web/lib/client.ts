@@ -273,6 +273,8 @@ export interface AvailabilityDto {
   startMinute: number;
   endMinute: number;
   slotMinutes: number;
+  /** ISO datetime (midnight UTC) for a concrete dated block; null/absent = weekly-template block. */
+  date?: string | null;
 }
 
 export interface NotificationDto {
@@ -424,7 +426,14 @@ export const Api = {
     request(`/referrals/${id}/opinion`, { method: 'POST', body: JSON.stringify({ opinion }) }),
 
   availability: () => request('/scheduling/availability/me') as Promise<AvailabilityDto[]>,
-  addAvailability: (data: { weekday: number; startMinute: number; endMinute: number; slotMinutes?: number }) =>
+  addAvailability: (data: {
+    weekday?: number; // weekly-template block (omit when date is sent — derived server-side)
+    date?: string; // YYYY-MM-DD — concrete dated block
+    repeatWeeks?: number; // 1-12: with date, repeat on the same weekday for N weeks
+    startMinute: number;
+    endMinute: number;
+    slotMinutes?: number;
+  }) =>
     request('/scheduling/availability', { method: 'POST', body: JSON.stringify(data) }),
   deleteAvailability: (id: string) =>
     request(`/scheduling/availability/${id}`, { method: 'DELETE' }),

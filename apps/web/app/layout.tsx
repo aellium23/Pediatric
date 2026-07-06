@@ -16,6 +16,14 @@ export const metadata: Metadata = {
     'O pediatra de confiança, à distância de uma mensagem. Seguro, privado e compliant. Uma solução DES.',
   applicationName: 'HOC',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HOC' },
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {
