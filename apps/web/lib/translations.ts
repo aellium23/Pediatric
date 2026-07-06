@@ -10,6 +10,10 @@
  */
 export const TR: Record<'en' | 'es', Record<string, string>> = {
   en: {
+    "A escrever…": "Typing…",
+    "Escreve a tua resposta…": "Type your reply…",
+    "Recomeçar": "Start over",
+    "Numa queda, vigia se bateu com a cabeça, se vomitou, se está muito sonolento ou com dor que não passa — nesses casos procura ajuda com urgência. Se está bem e ativo, vigia nas próximas horas. Um pediatra pode orientar-te.": "After a fall, watch for a head bump, vomiting, unusual drowsiness or pain that won't ease — in those cases seek help urgently. If they're well and active, keep an eye out over the next few hours. A paediatrician can guide you.",
     "Assistente HOC": "HOC Assistant",
     "Em que posso ajudar?": "How can I help?",
     "Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.": "Describe what's going on with your child. I'll give you first guidance and route you to the right paediatrician.",
@@ -1056,6 +1060,10 @@ export const TR: Record<'en' | 'es', Record<string, string>> = {
     "Ainda sem atividade neste período — o gráfico aparece com as primeiras consultas.": "No activity in this period yet — the chart appears with the first consultations.",
   },
   es: {
+    "A escrever…": "Escribiendo…",
+    "Escreve a tua resposta…": "Escribe tu respuesta…",
+    "Recomeçar": "Empezar de nuevo",
+    "Numa queda, vigia se bateu com a cabeça, se vomitou, se está muito sonolento ou com dor que não passa — nesses casos procura ajuda com urgência. Se está bem e ativo, vigia nas próximas horas. Um pediatra pode orientar-te.": "Tras una caída, vigila si se golpeó la cabeza, si vomitó, si está muy somnoliento o con dolor que no cede — en esos casos busca ayuda con urgencia. Si está bien y activo, obsérvalo las próximas horas. Un pediatra puede orientarte.",
     "Assistente HOC": "Asistente HOC",
     "Em que posso ajudar?": "¿En qué puedo ayudar?",
     "Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.": "Describe qué le pasa a tu hijo. Te doy una primera orientación y te derivo al pediatra adecuado.",

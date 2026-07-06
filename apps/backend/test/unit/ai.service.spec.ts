@@ -154,4 +154,59 @@ describe('AiService', () => {
       expect(out).toBe('Orientação base.');
     });
   });
+
+  describe('assistChat (multi-turn Home)', () => {
+    it('sends the full conversation with the chat system prompt when enabled', async () => {
+      const ai = withKey('sk-ant-test');
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [{ type: 'text', text: 'Como é que ele caiu?' }] }),
+        text: async () => '',
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const out = await ai.assistChat({
+        messages: [
+          { role: 'user', text: 'o meu filho caiu' },
+          { role: 'assistant', text: 'Conta-me mais.' },
+          { role: 'user', text: 'bateu o braço' },
+        ],
+        specialty: 'Pediatria geral',
+      });
+      expect(out).toBe('Como é que ele caiu?');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.system).toContain('conversar');
+      expect(body.system).toContain('Pediatria geral'); // specialty context appended
+      expect(body.messages).toEqual([
+        { role: 'user', content: 'o meu filho caiu' },
+        { role: 'assistant', content: 'Conta-me mais.' },
+        { role: 'user', content: 'bateu o braço' },
+      ]);
+    });
+
+    it('returns empty in demo mode (no key) so the client falls back', async () => {
+      const ai = withKey(undefined);
+      const fetchMock = jest.fn();
+      (globalThis as any).fetch = fetchMock;
+      const out = await ai.assistChat({ messages: [{ role: 'user', text: 'tosse' }] });
+      expect(out).toBe('');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not call out when the last turn is the assistant, not the parent', async () => {
+      const ai = withKey('sk-ant-test');
+      const fetchMock = jest.fn();
+      (globalThis as any).fetch = fetchMock;
+      const out = await ai.assistChat({
+        messages: [
+          { role: 'user', text: 'olá' },
+          { role: 'assistant', text: 'Em que posso ajudar?' },
+        ],
+      });
+      expect(out).toBe('');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

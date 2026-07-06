@@ -8,7 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/security/decorators';
 
@@ -54,6 +54,22 @@ export class AiService {
     'surgirem sinais graves indica sempre procurar ajuda urgente (112 ou ' +
     'SNS 24). Devolve APENAS o texto reescrito, sem preâmbulos.';
 
+  // Multi-turn variant: the assistant may ask ONE short clarifying question at
+  // a time, then guide and route. Same safety rules as ASSIST_SYSTEM.
+  private static readonly ASSIST_CHAT_SYSTEM =
+    'És o assistente de triagem de uma app de telepediatria (HOC), a conversar ' +
+    'com um pai/mãe. Objetivo: perceber a preocupação, dar orientação geral ' +
+    'segura e encaminhar para o pediatra certo. Podes fazer NO MÁXIMO uma ' +
+    'pergunta breve de cada vez para clarificar; assim que tiveres o essencial, ' +
+    'dá uma orientação curta e sugere falar com um pediatra. Responde SEMPRE na ' +
+    'língua do pai (português, inglês ou espanhol), em 2 a 3 frases curtas, com ' +
+    'tom calmo e empático. REGRAS ABSOLUTAS: não diagnostiques; não indiques ' +
+    'medicamentos, doses nem tratamentos; não prometas resultados; mantém sempre ' +
+    'a indicação de falar com um pediatra; se surgirem sinais graves ' +
+    '(dificuldade a respirar, convulsões, lábios azulados, prostração, ' +
+    'traumatismo importante) diz para procurar ajuda urgente (112 ou SNS 24). ' +
+    'Devolve APENAS a tua resposta, sem preâmbulos.';
+
   /** Whether a real Anthropic key is configured. */
   get enabled(): boolean {
     return this.apiKey.length > 0;
@@ -90,8 +106,42 @@ export class AiService {
     return out || base;
   }
 
-  /** Single Anthropic Messages call, with timeout and safe error logging. */
-  private async callMessages(system: string, user: string, maxTokens: number): Promise<string> {
+  /**
+   * Multi-turn Home assistant. `messages` is the running conversation. Detects
+   * nothing itself — the client's deterministic layer handles red-flag
+   * escalation; this only carries the empathetic dialogue. Returns '' in demo
+   * mode (no key) or when the last turn isn't the parent's, so the client can
+   * fall back to its deterministic reply.
+   */
+  async assistChat(input: {
+    messages: { role: string; text: string }[];
+    specialty?: string | null;
+  }): Promise<string> {
+    const raw = Array.isArray(input.messages) ? input.messages : [];
+    const msgs = raw
+      .filter((m) => m && typeof m.text === 'string' && m.text.trim())
+      .slice(-12) // bound the context window
+      .map((m) => ({
+        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content: m.text.trim().slice(0, 1000),
+      }));
+    if (!this.enabled || !msgs.length || msgs[msgs.length - 1].role !== 'user') return '';
+    let system = AiService.ASSIST_CHAT_SYSTEM;
+    if (input.specialty) system += ` A especialidade sugerida até agora é: ${input.specialty}.`;
+    return this.callRaw(system, msgs, 400);
+  }
+
+  /** Single-user-turn Messages call. */
+  private callMessages(system: string, user: string, maxTokens: number): Promise<string> {
+    return this.callRaw(system, [{ role: 'user', content: user }], maxTokens);
+  }
+
+  /** Anthropic Messages call from a full turn list, with timeout + safe logging. */
+  private async callRaw(
+    system: string,
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    maxTokens: number,
+  ): Promise<string> {
     if (!this.enabled) {
       throw new ServiceUnavailableException('AI not configured (set ANTHROPIC_API_KEY)');
     }
@@ -115,7 +165,7 @@ export class AiService {
           model: this.model,
           max_tokens: maxTokens,
           system,
-          messages: [{ role: 'user', content: user }],
+          messages,
         }),
       })) as { ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown> };
     } catch (err) {
@@ -166,6 +216,18 @@ class AssistDto {
   specialty?: string;
 }
 
+class AssistChatDto {
+  @ApiProperty({ description: 'Running conversation ({ role, text })' })
+  @IsArray()
+  messages!: { role: string; text: string }[];
+
+  @ApiProperty({ required: false, description: 'Suggested specialty label' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  specialty?: string;
+}
+
 @ApiTags('ai')
 @ApiBearerAuth()
 @Controller('ai')
@@ -180,6 +242,17 @@ class AiController {
   @Roles(Role.PARENT)
   async assist(@Body() dto: AssistDto): Promise<{ text: string }> {
     const text = await this.ai.assistGuidance(dto);
+    return { text };
+  }
+
+  /**
+   * Multi-turn Home assistant. Parent-only. Returns { text: '' } in demo mode
+   * (no key) so the client falls back to its deterministic reply.
+   */
+  @Post('assist-chat')
+  @Roles(Role.PARENT)
+  async assistChat(@Body() dto: AssistChatDto): Promise<{ text: string }> {
+    const text = await this.ai.assistChat(dto);
     return { text };
   }
 }

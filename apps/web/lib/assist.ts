@@ -63,6 +63,7 @@ const ROUTING: { specialty: string; topic: string; terms: string[] }[] = [
   { specialty: 'cardiology', topic: 'cardiac', terms: ['coracao', 'sopro', 'palpitac', 'bate muito depressa', 'heart', 'murmur', 'palpitat', 'corazon', 'soplo'] },
   { specialty: 'neonatology', topic: 'newborn', terms: ['recem-nascido', 'recem nascido', 'bebe de dias', 'bebe recem', 'newborn', 'recien nacido'] },
   { specialty: 'sleep', topic: 'sleep', terms: ['sono', 'nao dorme', 'dificuldade a dormir', 'insonia', 'acorda a noite', 'sleep', 'insomnia', 'sueno', 'no duerme'] },
+  { specialty: 'general', topic: 'fall', terms: ['caiu', 'queda', 'tombo', 'levou uma queda', 'bateu', 'fell', 'fall down', 'se cayo', 'caida', 'golpe'] },
   { specialty: 'general', topic: 'fever', terms: ['febre', 'temperatura', 'fever', 'fiebre'] },
   { specialty: 'general', topic: 'cold', terms: ['constipa', 'gripe', 'nariz entupido', 'garganta', 'cold', 'flu', 'sore throat', 'resfriad', 'gripa', 'garganta'] },
   { specialty: 'general', topic: 'vaccine', terms: ['vacina', 'vacinac', 'boletim de vacinas', 'vaccine', 'vacuna'] },

@@ -2399,6 +2399,8 @@ const ASSIST_COPY: Record<string, string> = {
   vaccine: 'Posso ajudar a esclarecer o plano de vacinas. Um pediatra confirma o que falta e quando.',
   growth:
     'Para dúvidas de crescimento, o registo de peso e altura ajuda. Vê as curvas na ficha da criança; um pediatra interpreta contigo.',
+  fall:
+    'Numa queda, vigia se bateu com a cabeça, se vomitou, se está muito sonolento ou com dor que não passa — nesses casos procura ajuda com urgência. Se está bem e ativo, vigia nas próximas horas. Um pediatra pode orientar-te.',
   general:
     'Conta-me um pouco mais — o que se passa e há quanto tempo. A partir daí encaminho-te para o pediatra certo.',
 };
@@ -2418,6 +2420,18 @@ const ASSIST_CHIPS: { label: string; fill: string }[] = [
 // other surfaces live in the bottom tab bar. Analysis is fully client-side
 // (lib/assist) so it works offline / without an AI key and nothing clinical
 // leaves the device until a consultation is actually started.
+// Parent Home — a conversational AI assistant ("Em que posso ajudar?"). The
+// parent describes the problem in natural language and can keep talking: the
+// assistant answers, may ask a short follow-up, and routes to the right
+// pediatrician when ready. Safety stays deterministic: every parent turn runs
+// through lib/assist, and any red flag shows the 112/SNS 24 escalation
+// immediately (never via the LLM). The LLM (server-side, only with a key) just
+// carries the empathetic dialogue; in demo mode it falls back to deterministic
+// guidance. Fully client-driven — nothing clinical leaves the device until a
+// consultation is actually started.
+type ChatMsg = { role: 'user' | 'assistant'; text: string };
+const SEV_RANK: Record<string, number> = { info: 0, caution: 1, emergency: 2 };
+
 function HomeTab({
   profile,
   onGo,
@@ -2432,55 +2446,71 @@ function HomeTab({
 }) {
   const { tr } = useT();
   const [consults, setConsults] = useState<ConsultationDto[]>([]);
-  const [articles, setArticles] = useState<ArticleCard[]>([]);
-  const [text, setText] = useState('');
-  const [result, setResult] = useState<AssistResult | null>(null);
-  // Optional warmer phrasing from the LLM (server-side, only when a key is set).
-  // The deterministic copy shows first; this replaces it if/when it arrives.
-  const [aiText, setAiText] = useState<string | null>(null);
+  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [spec, setSpec] = useState<string | null>(null);
+  const [severity, setSeverity] = useState<'info' | 'caution' | 'emergency' | null>(null);
   const askSeq = useRef(0);
+  const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     Api.myConsultations().then(setConsults).catch(() => {});
-    Api.articles().then(setArticles).catch(() => {});
   }, []);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [msgs, busy]);
 
   const answered = consults.filter((c) => c.status === 'ANSWERED');
   const firstName = (profile.name || '').split(' ')[0];
+  const started = msgs.length > 0;
+  const prefill = msgs.filter((m) => m.role === 'user').map((m) => m.text).join('. ');
 
-  function ask(q: string) {
-    const t = q.trim();
-    if (!t) return;
-    const r = assess(t);
-    setText(t);
-    setResult(r);
-    setAiText(null);
+  function send(raw: string) {
+    const t = raw.trim();
+    if (!t || busy) return;
+    const det = assess(t);
+    const nextSpec = det.specialty ?? spec;
+    const worse =
+      !severity || SEV_RANK[det.severity] > SEV_RANK[severity] ? det.severity : severity;
+    const history: ChatMsg[] = [...msgs, { role: 'user', text: t }];
+    setMsgs(history);
+    setInput('');
+    setSpec(nextSpec);
+    setSeverity(worse);
+    // Emergencies are handled deterministically — the red card renders from
+    // `severity`; never route them through the LLM.
+    if (det.severity === 'emergency') return;
+    setBusy(true);
     const seq = ++askSeq.current;
-    // Emergencies are handled entirely by the deterministic layer — never wait
-    // on (or route through) the LLM. For the rest, warm the tone if available;
-    // on 503 (demo mode) or any error, silently keep the deterministic copy.
-    if (r.severity !== 'emergency') {
-      const base = tr(ASSIST_COPY[r.topic] ?? ASSIST_COPY.general);
-      const spec = r.specialty ? tr(specLabel(r.specialty)) : undefined;
-      Api.aiAssist(t, base, spec)
-        .then((res) => {
-          if (askSeq.current === seq && res.text && res.text.trim() && res.text.trim() !== base) {
-            setAiText(res.text.trim());
-          }
-        })
-        .catch(() => {});
-    }
+    const fallback = tr(ASSIST_COPY[det.topic] ?? ASSIST_COPY.general);
+    Api.aiAssistChat(history, nextSpec ? tr(specLabel(nextSpec)) : undefined)
+      .then((res) => {
+        if (askSeq.current !== seq) return;
+        const text = (res.text || '').trim();
+        setMsgs((h) => [...h, { role: 'assistant', text: text || fallback }]);
+      })
+      .catch(() => {
+        if (askSeq.current !== seq) return;
+        setMsgs((h) => [...h, { role: 'assistant', text: fallback }]);
+      })
+      .finally(() => {
+        if (askSeq.current === seq) setBusy(false);
+      });
   }
 
-  const specName = result?.specialty ? tr(specLabel(result.specialty)) : tr('Pediatria geral');
-  const baseGuidance = result ? tr(ASSIST_COPY[result.topic] ?? ASSIST_COPY.general) : '';
-  const topicArticle = result
-    ? articles.find((a) => norm(`${a.title} ${a.category ?? ''}`).includes(norm(specName)))
-    : undefined;
+  function restart() {
+    askSeq.current++;
+    setMsgs([]);
+    setInput('');
+    setSpec(null);
+    setSeverity(null);
+    setBusy(false);
+  }
 
   return (
     <div className="section">
-      {answered.length > 0 ? (
+      {!started && answered.length > 0 ? (
         <button
           className="card"
           onClick={() => onOpenConsultation(answered[0].id)}
@@ -2495,63 +2525,55 @@ function HomeTab({
         </button>
       ) : null}
 
-      <div style={{ textAlign: 'center', marginTop: '6vh' }}>
-        <div className="muted" style={{ fontSize: 13 }}>{tr('Assistente HOC')}</div>
-        <h1 style={{ fontSize: 26, margin: '6px 0 4px', lineHeight: 1.2 }}>
-          {firstName ? `${tr('Olá')}, ${firstName}. ` : ''}
-          {tr('Em que posso ajudar?')}
-        </h1>
-        <p className="muted" style={{ margin: '0 auto 16px', maxWidth: 460 }}>
-          {tr('Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.')}
-        </p>
-      </div>
-
-      <form onSubmit={(e) => { e.preventDefault(); ask(text); }} style={{ maxWidth: 560, margin: '0 auto' }}>
-        <div style={{ position: 'relative' }}>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                ask(text);
-              }
-            }}
-            placeholder={tr('Ex.: febre há 2 dias, 3 anos, e está muito queixoso')}
-            rows={2}
-            style={{ width: '100%', borderRadius: 16, padding: '14px 54px 14px 16px', resize: 'none', fontSize: 16 }}
-          />
-          <button
-            type="submit"
-            className="btn"
-            aria-label={tr('Perguntar')}
-            style={{ position: 'absolute', right: 8, bottom: 10, borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
-          >
-            →
-          </button>
+      {!started ? (
+        <div style={{ textAlign: 'center', marginTop: '5vh' }}>
+          <div className="muted" style={{ fontSize: 13 }}>{tr('Assistente HOC')}</div>
+          <h1 style={{ fontSize: 26, margin: '6px 0 4px', lineHeight: 1.2 }}>
+            {firstName ? `${tr('Olá')}, ${firstName}. ` : ''}
+            {tr('Em que posso ajudar?')}
+          </h1>
+          <p className="muted" style={{ margin: '0 auto 16px', maxWidth: 460 }}>
+            {tr('Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.')}
+          </p>
         </div>
-        {/* Direct path for parents who already know what they want — no need to
-            describe symptoms first. The assistant stays the hero above it. */}
-        <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
-          <button type="button" className="btn secondary" onClick={() => onGoConsult()}>
-            {tr('Falar com um pediatra')}
-          </button>
-        </div>
-        {!result ? (
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
-            {ASSIST_CHIPS.map((c) => (
-              <button key={c.label} type="button" className="chip" onClick={() => ask(tr(c.fill))}>
-                {tr(c.label)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </form>
+      ) : null}
 
-      {result ? (
-        <div style={{ maxWidth: 560, margin: '16px auto 0' }}>
-          {result.severity === 'emergency' ? (
-            <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14' }}>
+      {/* Conversation thread. */}
+      {started ? (
+        <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {msgs.map((m, i) =>
+            m.role === 'user' ? (
+              <div
+                key={i}
+                style={{
+                  alignSelf: 'flex-end',
+                  maxWidth: '85%',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  borderRadius: '14px 14px 4px 14px',
+                  padding: '9px 12px',
+                }}
+              >
+                {m.text}
+              </div>
+            ) : (
+              <div
+                key={i}
+                className="card"
+                style={{ alignSelf: 'flex-start', maxWidth: '90%', borderRadius: '14px 14px 14px 4px', margin: 0 }}
+              >
+                {m.text}
+              </div>
+            ),
+          )}
+          {busy ? (
+            <div className="card muted" style={{ alignSelf: 'flex-start', borderRadius: '14px 14px 14px 4px', margin: 0 }}>
+              {tr('A escrever…')}
+            </div>
+          ) : null}
+
+          {severity === 'emergency' ? (
+            <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14', margin: 0 }}>
               <strong style={{ fontSize: 16 }}>{tr('Isto pode ser urgente')}</strong>
               <p style={{ margin: '6px 0 10px' }}>{tr(ASSIST_COPY.emergency)}</p>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -2571,41 +2593,71 @@ function HomeTab({
                 </a>
               </div>
             </div>
-          ) : (
-            <div
-              className="card"
-              style={result.severity === 'caution' ? { borderColor: '#e9c46a', background: '#fdf4dd', color: '#3d2f00' } : undefined}
-            >
-              <div className="muted" style={{ fontSize: 12, marginBottom: 2 }}>{tr('Primeira orientação')}</div>
-              <p style={{ margin: '0 0 10px' }}>{aiText ?? baseGuidance}</p>
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="btn" onClick={() => onGoConsult(result.specialty ?? undefined, text)}>
-                  {result.severity === 'caution' ? tr('Falar com um pediatra hoje') : tr('Falar com um pediatra')}
-                </button>
-                {result.specialty ? (
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    {tr('Sugestão:')} {specName}
-                  </span>
-                ) : null}
-              </div>
-              {topicArticle ? (
-                <button className="btn secondary small" onClick={() => onGo('content')} style={{ marginTop: 8 }}>
-                  {tr('Ler no Saber+')} · {topicArticle.title}
-                </button>
-              ) : null}
-            </div>
-          )}
-          <p className="muted" style={{ fontSize: 12, margin: '8px 4px 0' }}>
-            {tr('Isto é uma orientação geral e não substitui uma avaliação médica.')}
-          </p>
+          ) : null}
+          <div ref={endRef} />
+        </div>
+      ) : null}
+
+      {/* Composer — always present, so the conversation can continue. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(input);
+        }}
+        style={{ maxWidth: 640, margin: started ? '12px auto 0' : '0 auto' }}
+      >
+        <div style={{ position: 'relative' }}>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send(input);
+              }
+            }}
+            placeholder={started ? tr('Escreve a tua resposta…') : tr('Ex.: febre há 2 dias, 3 anos, e está muito queixoso')}
+            rows={2}
+            style={{ width: '100%', borderRadius: 16, padding: '14px 54px 14px 16px', resize: 'none', fontSize: 16 }}
+          />
           <button
-            className="btn secondary small"
-            onClick={() => { setResult(null); setText(''); setAiText(null); }}
-            style={{ marginTop: 8 }}
+            type="submit"
+            className="btn"
+            aria-label={tr('Perguntar')}
+            disabled={busy || !input.trim()}
+            style={{ position: 'absolute', right: 8, bottom: 10, borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
           >
-            {tr('Nova pergunta')}
+            →
           </button>
         </div>
+      </form>
+
+      {/* Routing + secondary actions. */}
+      <div className="row" style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <button type="button" className={started ? 'btn' : 'btn secondary'} onClick={() => onGoConsult(spec ?? undefined, prefill)}>
+          {tr('Falar com um pediatra')}
+        </button>
+        {started ? (
+          <button type="button" className="btn secondary" onClick={restart}>
+            {tr('Recomeçar')}
+          </button>
+        ) : null}
+      </div>
+
+      {!started ? (
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+          {ASSIST_CHIPS.map((c) => (
+            <button key={c.label} type="button" className="chip" onClick={() => send(tr(c.fill))}>
+              {tr(c.label)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {started ? (
+        <p className="muted" style={{ fontSize: 12, textAlign: 'center', margin: '10px auto 0', maxWidth: 640 }}>
+          {tr('Isto é uma orientação geral e não substitui uma avaliação médica.')}
+        </p>
       ) : null}
 
       <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 24 }}>

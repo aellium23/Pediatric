@@ -476,6 +476,12 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ message, baseGuidance, specialty }),
     }) as Promise<{ text: string }>,
+  // Multi-turn Home assistant. Returns { text: '' } in demo mode (no AI key).
+  aiAssistChat: (messages: { role: 'user' | 'assistant'; text: string }[], specialty?: string) =>
+    request('/ai/assist-chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages, specialty }),
+    }) as Promise<{ text: string }>,
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,
