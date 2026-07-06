@@ -97,6 +97,21 @@ function friendlyError(status: number, body: string): string {
   return serverMsg || `Erro (${status}).`;
 }
 
+/** Consultation a schedule change would cancel (409 payload of availability edits). */
+export interface AffectedConsultation {
+  consultationId: string;
+  scheduledAt: string;
+  childInitials: string;
+}
+
+/** Error thrown by request(): the friendly message plus the parsed backend body. */
+export interface ApiError extends Error {
+  status?: number;
+  body?: unknown;
+  /** Present on 409s from availability changes that would cancel bookings. */
+  affected?: AffectedConsultation[];
+}
+
 function doFetch(path: string, init: RequestInit, timeoutMs = ATTEMPT_TIMEOUT_MS): Promise<Response> {
   const token = getToken();
   const ctrl = new AbortController();
@@ -166,7 +181,19 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('hoc:logout'));
     }
     const text = await res.text().catch(() => '');
-    throw new Error(friendlyError(res.status, text));
+    // Attach the parsed body so callers can react to structured payloads
+    // (e.g. 409 `affected` lists from availability edits) — the message
+    // stays the friendly human line.
+    const err = new Error(friendlyError(res.status, text)) as ApiError;
+    err.status = res.status;
+    try {
+      const parsed = JSON.parse(text) as { affected?: AffectedConsultation[] };
+      err.body = parsed;
+      if (Array.isArray(parsed?.affected)) err.affected = parsed.affected;
+    } catch {
+      /* non-JSON error body — message alone is enough */
+    }
+    throw err;
   }
   if (res.status === 204) return null;
   // Parse defensively: a sleeping/booting backend (or a proxy) can answer 200
@@ -214,6 +241,8 @@ export interface ConsultationDto {
   episodeId?: string | null;
   childId?: string | null;
   scheduledAt?: string | null;
+  /** On REFUNDED rows: why (e.g. 'pediatrician_unavailable' → rebook CTAs). */
+  refundReason?: string | null;
   triage?: Record<string, unknown> | null;
   child?: { id: string; name: string; birthDate?: string } | null;
   pediatrician?: { displayName: string | null; specialties: string[] } | null;
@@ -454,8 +483,21 @@ export const Api = {
     kind?: 'VIDEO' | 'MESSAGES'; // default VIDEO (bookable slots) — MESSAGES = message hours
   }) =>
     request('/scheduling/availability', { method: 'POST', body: JSON.stringify(data) }),
-  deleteAvailability: (id: string) =>
-    request(`/scheduling/availability/${id}`, { method: 'DELETE' }),
+  updateAvailability: (
+    id: string,
+    data: {
+      startMinute: number;
+      endMinute: number;
+      kind?: 'VIDEO' | 'MESSAGES';
+      /** Recurring blocks only: 'all' edits the template, 'day' (with date) just that date. */
+      scope?: 'all' | 'day';
+      date?: string; // YYYY-MM-DD — required with scope 'day'
+      /** Retry flag: cancel+refund the affected consultations and apply the change. */
+      confirm?: boolean;
+    },
+  ) => request(`/scheduling/availability/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAvailability: (id: string, confirm?: boolean) =>
+    request(`/scheduling/availability/${id}${confirm ? '?confirm=true' : ''}`, { method: 'DELETE' }),
 
   // Notifications (all roles)
   notifications: () => request('/notifications') as Promise<NotificationDto[]>,

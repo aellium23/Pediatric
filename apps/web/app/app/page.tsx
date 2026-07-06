@@ -17,6 +17,7 @@ import {
   type PedMeDto,
   type ServiceDto,
   type AvailabilityDto,
+  type AffectedConsultation,
   type NotificationDto,
   type AdminMetrics,
   type FinanceSeriesDto,
@@ -959,6 +960,10 @@ export default function MultiProfileApp() {
             onMsg={setMsg}
             focusId={focusConsult}
             onFocusConsumed={() => setFocusConsult(null)}
+            onGoConsults={() => {
+              setMsg('');
+              setTab('consult');
+            }}
           />
         ) : null}
         {tab === 'myaccount' ? (
@@ -1900,6 +1905,12 @@ function Thread({
         <div className="muted">
           {euro(consultation.priceCents)} · {tr('aberta')} {when(consultation.openedAt)}
         </div>
+        {consultation.status === 'REFUNDED' &&
+        consultation.refundReason === 'pediatrician_unavailable' ? (
+          <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+            {tr('Cancelada por indisponibilidade do pediatra · valor reembolsado')}
+          </div>
+        ) : null}
         {canCancel &&
         consultation.expectedReplyAt &&
         (consultation.status === 'OPEN' || consultation.status === 'TRIAGE') ? (
@@ -4268,10 +4279,13 @@ function MyConsultsTab({
   onMsg,
   focusId,
   onFocusConsumed,
+  onGoConsults,
 }: {
   onMsg: (m: string) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
+  /** Navigate to the "Consultar" tab (choose another pediatrician after a cancellation). */
+  onGoConsults?: () => void;
 }) {
   const { tr } = useT();
   const [rows, setRows] = useState<ConsultationDto[]>([]);
@@ -4281,6 +4295,8 @@ function MyConsultsTab({
   const [again, setAgain] = useState<{ childId: string; serviceId: string; pedId: string } | null>(
     null,
   );
+  // Rebook after a doctor-side cancellation: video booking with the same doctor + child.
+  const [rebook, setRebook] = useState<{ ped: PediatricianDetail; childId: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -4317,6 +4333,50 @@ function MyConsultsTab({
       onMsg(`Erro: ${String(e)}`);
     }
   }
+
+  /** "Remarcar": open the booking flow for the same pediatrician + child. */
+  async function startRebook(c: ConsultationDto) {
+    if (!c.pediatricianId || !c.childId) return onGoConsults?.();
+    try {
+      const d = (await Api.pedDetail(c.pediatricianId)) as PediatricianDetail;
+      if (!d.services.some((s) => s.type === 'VIDEO')) {
+        onMsg(tr('Sem horários nos próximos dias. Este pediatra ainda não tem agenda aberta.'));
+        return onGoConsults?.();
+      }
+      setOpen(null);
+      setRebook({ ped: d, childId: c.childId });
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+
+  /** Cancelled by the doctor's availability change — refunded, invite to rebook. */
+  const pedUnavailable = (c: ConsultationDto) =>
+    c.status === 'REFUNDED' && c.refundReason === 'pediatrician_unavailable';
+
+  if (rebook)
+    return (
+      <BookVideo
+        ped={rebook.ped}
+        childId={rebook.childId}
+        onBack={() => setRebook(null)}
+        onDone={(consultationId) => {
+          setRebook(null);
+          onMsg(tr('Videoconsulta marcada ✓'));
+          void (async () => {
+            try {
+              const list = await Api.myConsultations();
+              setRows(list);
+              const target = consultationId ? list.find((c) => c.id === consultationId) : undefined;
+              if (target) setOpen(target);
+            } catch {
+              /* best-effort refresh */
+            }
+          })();
+        }}
+        onMsg={onMsg}
+      />
+    );
 
   if (again)
     return (
@@ -4398,7 +4458,12 @@ function MyConsultsTab({
               ) : (
                 <div className="muted">{when(c.openedAt)}</div>
               )}
-              <div className="row" style={{ marginTop: 8 }}>
+              {pedUnavailable(c) ? (
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  {tr('Cancelada por indisponibilidade do pediatra · valor reembolsado')}
+                </div>
+              ) : null}
+              <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
                 <button className="btn small" onClick={() => setOpen(c)}>
                   {tr('Abrir')}
                 </button>
@@ -4406,6 +4471,20 @@ function MyConsultsTab({
                   <button className="btn small secondary" onClick={() => setReviewing(c)}>
                     {tr('⭐ Avaliar')}
                   </button>
+                ) : null}
+                {pedUnavailable(c) ? (
+                  <>
+                    {c.pediatricianId && c.childId ? (
+                      <button className="btn small" onClick={() => void startRebook(c)}>
+                        {tr('Remarcar')}
+                      </button>
+                    ) : null}
+                    {onGoConsults ? (
+                      <button className="btn small secondary" onClick={onGoConsults}>
+                        {tr('Escolher outro pediatra')}
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </div>
@@ -5383,6 +5462,18 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [tEnd, setTEnd] = useState('13:00');
   const [tKind, setTKind] = useState<'VIDEO' | 'MESSAGES'>('VIDEO');
   const [busy, setBusy] = useState(false);
+  // Inline edit of the selected block (pre-filled from it when opened).
+  const [edit, setEdit] = useState(false);
+  const [eStart, setEStart] = useState('09:00');
+  const [eEnd, setEEnd] = useState('13:00');
+  const [eKind, setEKind] = useState<'VIDEO' | 'MESSAGES'>('VIDEO');
+  const [eScope, setEScope] = useState<'all' | 'day'>('all'); // recurring blocks only
+  // 409 from edit/remove: consultations the change would cancel — the doctor
+  // must explicitly confirm (families are then refunded + invited to rebook).
+  const [conflict, setConflict] = useState<{
+    affected: AffectedConsultation[];
+    retry: () => void;
+  } | null>(null);
   // Kind filter for month/week (day always shows everything — it's the
   // editing surface). Persisted like the other pedia_* preferences.
   const [agKind, setAgKind] = useState<'all' | 'VIDEO' | 'MESSAGES'>('all');
@@ -5417,6 +5508,10 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Selecting a different block (or clearing) always leaves edit mode.
+  useEffect(() => {
+    setEdit(false);
+  }, [sel]);
 
   async function add(data: { date?: string; repeatWeeks?: number; weekday?: number; startMinute: number; endMinute: number; kind?: 'VIDEO' | 'MESSAGES' }) {
     setBusy(true);
@@ -5431,14 +5526,61 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
       setBusy(false);
     }
   }
-  async function del(id: string) {
+  async function del(id: string, confirm = false) {
     setBusy(true);
     try {
-      await Api.deleteAvailability(id);
+      await Api.deleteAvailability(id, confirm);
+      if (confirm) onMsg(tr('Alteração aplicada — famílias notificadas e reembolsadas ✓'));
+      setConflict(null);
+      setSel(null);
+      setEdit(false);
+      await load();
+    } catch (e) {
+      const affected = (e as { affected?: AffectedConsultation[] }).affected;
+      if (affected?.length) setConflict({ affected, retry: () => void del(id, true) });
+      else onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Open the inline edit form pre-filled with the selected block. */
+  function openEdit(a: AvailabilityDto) {
+    setEStart(hhmm(a.startMinute));
+    setEEnd(hhmm(a.endMinute));
+    setEKind(a.kind ?? 'VIDEO');
+    setEScope('all');
+    setEdit(true);
+  }
+
+  async function saveEdit(id: string, t: number, recurring: boolean, confirm = false) {
+    setBusy(true);
+    try {
+      await Api.updateAvailability(id, {
+        startMinute: toMin(eStart),
+        endMinute: toMin(eEnd),
+        kind: eKind,
+        // Scope only applies to recurring blocks: 'day' materializes just the
+        // selected date; dated blocks are edited directly.
+        ...(recurring
+          ? { scope: eScope, ...(eScope === 'day' ? { date: isoDay(t) } : {}) }
+          : {}),
+        ...(confirm ? { confirm: true } : {}),
+      });
+      onMsg(
+        confirm
+          ? tr('Alteração aplicada — famílias notificadas e reembolsadas ✓')
+          : tr('Bloco atualizado ✓'),
+      );
+      setConflict(null);
+      setEdit(false);
       setSel(null);
       await load();
     } catch (e) {
-      onMsg(`Erro: ${String(e)}`);
+      const affected = (e as { affected?: AffectedConsultation[] }).affected;
+      if (affected?.length)
+        setConflict({ affected, retry: () => void saveEdit(id, t, recurring, true) });
+      else onMsg(`Erro: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -5512,33 +5654,145 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   const details =
     selRow && sel ? (
-      <div className="card" style={{ marginTop: 10 }}>
-        <strong>{fmtUTC(sel.t, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> ·{' '}
-        {hhmm(selRow.startMinute)}–{hhmm(selRow.endMinute)}
-        <div style={{ marginTop: 2 }}>{kindLabel(selRow)}</div>
-        <div className="muted">
-          {selRow.date ? tr('Dia específico') : tr('Recorrente (semana-tipo)')}
-          {isMsg(selRow) ? '' : ` · ${tr('slots')} ${selRow.slotMinutes} min`}
-        </div>
-        {!selRow.date ? (
-          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            ⚠️ {tr('Bloco semanal recorrente — remover apaga-o em TODAS as semanas.')}
+      edit ? (
+        <div className="card section" style={{ marginTop: 10 }}>
+          <h3>{tr('Editar bloco')}</h3>
+          <p style={{ margin: '4px 0' }}>
+            <strong>{fmtUTC(sel.t, { weekday: 'long', day: 'numeric', month: 'long' })}</strong>
           </p>
-        ) : null}
-        <div className="row" style={{ marginTop: 8 }}>
-          <button className="btn danger small" onClick={() => del(selRow.id)} disabled={busy}>
-            {tr('Remover')}
-          </button>
-          <button className="btn secondary small" onClick={() => setSel(null)}>
-            {tr('Fechar')}
-          </button>
+          <div className="seg" role="radiogroup" aria-label={tr('Tipo de bloco')} style={{ marginTop: 8 }}>
+            <button
+              role="radio"
+              aria-checked={eKind === 'VIDEO'}
+              className={eKind === 'VIDEO' ? 'active' : ''}
+              onClick={() => setEKind('VIDEO')}
+            >
+              🎥 {tr('Vídeo')}
+            </button>
+            <button
+              role="radio"
+              aria-checked={eKind === 'MESSAGES'}
+              className={eKind === 'MESSAGES' ? 'active' : ''}
+              onClick={() => setEKind('MESSAGES')}
+            >
+              💬 {tr('Mensagens')}
+            </button>
+          </div>
+          <div className="row" style={{ marginTop: 8 }}>
+            <label className="muted">
+              {tr('Início')} <input type="time" value={eStart} onChange={(e) => setEStart(e.target.value)} />
+            </label>
+            <label className="muted">
+              {tr('Fim')} <input type="time" value={eEnd} onChange={(e) => setEEnd(e.target.value)} />
+            </label>
+          </div>
+          {!selRow.date ? (
+            <div className="seg" role="radiogroup" aria-label={tr('Aplicar a')} style={{ marginTop: 8 }}>
+              <button
+                role="radio"
+                aria-checked={eScope === 'all'}
+                className={eScope === 'all' ? 'active' : ''}
+                onClick={() => setEScope('all')}
+              >
+                {tr('Todas as semanas')}
+              </button>
+              <button
+                role="radio"
+                aria-checked={eScope === 'day'}
+                className={eScope === 'day' ? 'active' : ''}
+                onClick={() => setEScope('day')}
+              >
+                {tr('Só este dia')}
+              </button>
+            </div>
+          ) : null}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button
+              className="btn small"
+              onClick={() => void saveEdit(selRow.id, sel.t, !selRow.date)}
+              disabled={busy}
+            >
+              {tr('Guardar')}
+            </button>
+            <button className="btn secondary small" onClick={() => setEdit(false)} disabled={busy}>
+              {tr('Cancelar')}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ marginTop: 10 }}>
+          <strong>{fmtUTC(sel.t, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> ·{' '}
+          {hhmm(selRow.startMinute)}–{hhmm(selRow.endMinute)}
+          <div style={{ marginTop: 2 }}>{kindLabel(selRow)}</div>
+          <div className="muted">
+            {selRow.date ? tr('Dia específico') : tr('Recorrente (semana-tipo)')}
+            {isMsg(selRow) ? '' : ` · ${tr('slots')} ${selRow.slotMinutes} min`}
+          </div>
+          {!selRow.date ? (
+            <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+              ⚠️ {tr('Bloco semanal recorrente — remover apaga-o em TODAS as semanas.')}
+            </p>
+          ) : null}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn secondary small" onClick={() => openEdit(selRow)} disabled={busy}>
+              {tr('Editar')}
+            </button>
+            <button className="btn danger small" onClick={() => del(selRow.id)} disabled={busy}>
+              {tr('Remover')}
+            </button>
+            <button className="btn secondary small" onClick={() => setSel(null)}>
+              {tr('Fechar')}
+            </button>
+          </div>
+        </div>
+      )
     ) : null;
 
   return (
     <div className="section">
       <h2>{tr('Agenda de disponibilidade')}</h2>
+      {/* Shared by edit & remove: the change would cancel booked consultations —
+          the doctor confirms explicitly, families get refunded + rebook invites. */}
+      {conflict ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={tr('Esta alteração afeta consultas marcadas')}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(8, 10, 18, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div className="card" style={{ maxWidth: 420, width: '100%' }}>
+            <strong>⚠️ {tr('Esta alteração afeta consultas marcadas')}</strong>
+            <div style={{ margin: '8px 0' }}>
+              {conflict.affected.map((a) => (
+                <div key={a.consultationId} className="row" style={{ padding: '3px 0', gap: 8 }}>
+                  <span className="pill">{a.childInitials}</span>
+                  <span>{when(a.scheduledAt)}</span>
+                </div>
+              ))}
+            </div>
+            <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+              {tr('As famílias serão reembolsadas na totalidade e convidadas a remarcar — com o mesmo pediatra noutro horário ou com outro.')}
+            </p>
+            <div className="row">
+              <button className="btn danger small" onClick={() => conflict.retry()} disabled={busy}>
+                {tr('Confirmar indisponibilidade')}
+              </button>
+              <button className="btn secondary small" onClick={() => setConflict(null)} disabled={busy}>
+                {tr('Cancelar')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="agcal-toolbar">
         <div className="seg" role="tablist">
           {(['month', 'week', 'day'] as const).map((v) => (
