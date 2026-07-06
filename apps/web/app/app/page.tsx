@@ -1017,7 +1017,15 @@ export default function MultiProfileApp() {
             onOpenConsultation={openConsultation}
           />
         ) : null}
-        {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
+        {tab === 'children' ? (
+          <ChildrenTab
+            onMsg={setMsg}
+            onGo={(k) => {
+              setMsg('');
+              setTab(k);
+            }}
+          />
+        ) : null}
         {tab === 'consult' ? (
           <ConsultTab
             onMsg={setMsg}
@@ -1335,7 +1343,7 @@ function tabsFor(role: string): { key: string; label: string }[] {
   if (role === 'PARENT')
     return [
       { key: 'home', label: 'Início' },
-      { key: 'consult', label: 'Consultar' },
+      { key: 'consult', label: 'Pediatras' },
       { key: 'myconsults', label: 'Consultas' },
       { key: 'children', label: 'Crianças' },
       { key: 'myaccount', label: 'Conta' },
@@ -1403,7 +1411,7 @@ const HELP: Record<string, { title: string; intro: string; items: HelpItem[] }> 
     ],
   },
   consult: {
-    title: 'Consultar',
+    title: 'Pediatras',
     intro: 'Escolhe um pediatra verificado e envia a tua questão.',
     items: [
       { icon: '🩺', title: 'Escolher pediatra', desc: 'Compara especialidade, avaliações e preços de cada um.' },
@@ -2902,36 +2910,6 @@ function HomeTab({
               </button>
             ))}
           </div>
-
-          {/* Saber+ entry point — the parent's way into the article library. */}
-          <button
-            className="card"
-            onClick={() => onGo('content')}
-            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', marginTop: 16 }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                flex: '0 0 auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--surface-2, rgba(120,140,180,.12))',
-                fontSize: 18,
-              }}
-            >
-              📚
-            </span>
-            <span style={{ minWidth: 0 }}>
-              <strong style={{ display: 'block' }}>{tr('Saber+')}</strong>
-              <span className="muted" style={{ fontSize: 13 }}>
-                {tr('Artigos de saúde infantil validados por pediatras.')}
-              </span>
-            </span>
-          </button>
         </>
       ) : null}
 
@@ -2950,7 +2928,7 @@ function HomeTab({
 }
 
 // ───────────────────────── Parent: Children ─────────────────────────
-function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
+function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: string) => void }) {
   const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [name, setName] = useState('');
@@ -2996,6 +2974,37 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   return (
     <div className="section">
       <h2>{tr('As crianças')}</h2>
+
+      {/* Saber+ lives here — the "learn about my child's health" context. */}
+      <button
+        className="card"
+        onClick={() => onGo('content')}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', marginBottom: 12 }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            flex: '0 0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--surface-2, rgba(120,140,180,.12))',
+            fontSize: 18,
+          }}
+        >
+          📚
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <strong style={{ display: 'block' }}>{tr('Saber+')}</strong>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {tr('Artigos de saúde infantil validados por pediatras.')}
+          </span>
+        </span>
+      </button>
+
       {children.length === 0 ? (
         <p className="muted">{tr('Vamos começar pelo teu filho — adiciona-o para guardar vacinas, crescimento e consultas num só sítio.')}</p>
       ) : (
