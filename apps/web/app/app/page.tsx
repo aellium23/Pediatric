@@ -5317,7 +5317,20 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [tEnd, setTEnd] = useState('13:00');
   const [tKind, setTKind] = useState<'VIDEO' | 'MESSAGES'>('VIDEO');
   const [busy, setBusy] = useState(false);
+  // Kind filter for month/week (day always shows everything — it's the
+  // editing surface). Persisted like the other pedia_* preferences.
+  const [agKind, setAgKind] = useState<'all' | 'VIDEO' | 'MESSAGES'>('all');
   const today = utcToday();
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' && localStorage.getItem('pedia_ag_kind');
+    if (saved === 'VIDEO' || saved === 'MESSAGES' || saved === 'all') setAgKind(saved);
+  }, []);
+  function pickAgKind(k: 'all' | 'VIDEO' | 'MESSAGES') {
+    setAgKind(k);
+    setSel(null);
+    if (typeof window !== 'undefined') localStorage.setItem('pedia_ag_kind', k);
+  }
 
   async function load() {
     try {
@@ -5360,6 +5373,8 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   /** Rows default to VIDEO — older backends may omit the kind entirely. */
   const isMsg = (a: AvailabilityDto) => (a.kind ?? 'VIDEO') === 'MESSAGES';
   const kindLabel = (a: AvailabilityDto) => (isMsg(a) ? `💬 ${tr('Mensagens')}` : `🎥 ${tr('Vídeo')}`);
+  const visBlocks = (blocks: AvailabilityDto[]) =>
+    agKind === 'all' ? blocks : blocks.filter((b) => (isMsg(b) ? 'MESSAGES' : 'VIDEO') === agKind);
 
   /**
    * Effective blocks for a UTC day. The dated-override rule is applied PER
@@ -5385,6 +5400,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     setEnd(hhmm(e));
     setRepeat(1);
     setSel(null);
+    if (agKind !== 'all') setKind(agKind); // the active filter is the likely intent
   }
   function nav(dir: -1 | 1) {
     setSel(null);
@@ -5470,9 +5486,40 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         </div>
         <strong className="agcal-period">{period}</strong>
       </div>
-      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
-        {tr('Dourado = vídeo · Azul = mensagens')}
-      </p>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '0 0 8px' }}>
+        <div className="seg" role="radiogroup" aria-label={tr('Tipo de bloco')}>
+          <button
+            role="radio"
+            aria-checked={agKind === 'all'}
+            className={agKind === 'all' ? 'active' : ''}
+            onClick={() => pickAgKind('all')}
+          >
+            {tr('Tudo')}
+          </button>
+          <button
+            role="radio"
+            aria-checked={agKind === 'VIDEO'}
+            className={`agseg-v${agKind === 'VIDEO' ? ' active' : ''}`}
+            onClick={() => pickAgKind('VIDEO')}
+          >
+            {tr('Vídeo')}
+          </button>
+          <button
+            role="radio"
+            aria-checked={agKind === 'MESSAGES'}
+            className={`agseg-m${agKind === 'MESSAGES' ? ' active' : ''}`}
+            onClick={() => pickAgKind('MESSAGES')}
+          >
+            {tr('Mensagens')}
+          </button>
+        </div>
+        <button
+          className="btn secondary small"
+          onClick={() => openQuickAdd(view === 'week' && today >= week0 && today <= wkEnd ? today : view === 'week' ? week0 : cursor, 9 * 60, 13 * 60)}
+        >
+          ＋ {tr('Adicionar')}
+        </button>
+      </div>
 
       {rows.length === 0 && qa === null ? (
         <div className="card" style={{ margin: '8px 0' }}>
@@ -5504,10 +5551,12 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                 onClick={() => { setCursor(t); setView('day'); setSel(null); }}
               >
                 <span className="num">{new Date(t).getUTCDate()}</span>
-                {eff.blocks.slice(0, 3).map((b) => (
-                  <span key={b.id} className={`agcal-mbar${b.date ? '' : ' tmpl'}${isMsg(b) ? ' msg' : ''}`} />
+                {visBlocks(eff.blocks).slice(0, 3).map((b) => (
+                  <span key={b.id} className={`agcal-mbar${isMsg(b) ? ' msg' : ''}`} />
                 ))}
-                {eff.blocks.length > 3 ? <span className="agcal-mmore">+{eff.blocks.length - 3}</span> : null}
+                {visBlocks(eff.blocks).length > 3 ? (
+                  <span className="agcal-mmore">+{visBlocks(eff.blocks).length - 3}</span>
+                ) : null}
               </button>
             );
           })}
@@ -5516,12 +5565,18 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {view === 'week' ? (
         <>
-          <div className="agcal-head" aria-hidden="true">
-            <span className="agcal-axislbl" />
+          <div className="agcal-head">
+            <span className="agcal-axislbl" aria-hidden="true" />
             {weekDays.map((t) => (
-              <span key={t} className={`agcal-daylbl${t === today ? ' today' : ''}`}>
+              <button
+                key={t}
+                type="button"
+                className={`agcal-daylbl${t === today ? ' today' : ''}`}
+                aria-label={`${fmtUTC(t, { weekday: 'long', day: 'numeric', month: 'long' })} · ${tr('Dia')}`}
+                onClick={() => { setCursor(t); setView('day'); setSel(null); }}
+              >
                 {fmtUTC(t, { weekday: 'short', day: 'numeric' })}
-              </span>
+              </button>
             ))}
           </div>
           <div className="agcal-grid">
@@ -5548,11 +5603,13 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                     />
                   ))}
                   {(() => {
-                    // Video and message blocks often share the same hours —
-                    // give each kind its own lane so labels never overlap.
+                    // Week view optimizes scanning, not per-block labels: solid
+                    // fills, side-by-side lanes when both kinds share hours, and
+                    // no in-block text in "Tudo" (color/position carry it).
+                    const blocks = visBlocks(eff.blocks);
                     const lanes =
-                      eff.blocks.some((b) => isMsg(b)) && eff.blocks.some((b) => !isMsg(b));
-                    return eff.blocks.map((a) => {
+                      blocks.some((b) => isMsg(b)) && blocks.some((b) => !isMsg(b));
+                    return blocks.map((a) => {
                       const s = Math.max(a.startMinute, AGC_START_H * 60);
                       const e = Math.min(a.endMinute, AGC_END_H * 60);
                       if (e <= s) return null;
@@ -5561,21 +5618,20 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                         <button
                           key={a.id}
                           type="button"
-                          className={`agcal-block${a.date ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
+                          className={`agcal-block${a.date ? ' dated' : ''}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
                           style={{
                             top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
                             height: `${((e - s) / AGC_SPAN) * 100}%`,
                             ...(lanes
                               ? isMsg(a)
-                                ? { left: '52%', right: 2 }
-                                : { left: 2, right: '52%' }
+                                ? { left: '51%', right: 2 }
+                                : { left: 2, right: '51%' }
                               : {}),
                           }}
                           aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)} · ${isMsg(a) ? tr('Mensagens') : tr('Vídeo')}${a.date ? '' : ` · ${tr('recorrente')}`}`}
                           onClick={() => setSel(isSel ? null : { id: a.id, t })}
                         >
-                          {isMsg(a) ? '💬 ' : ''}{hhmm(a.startMinute)}
-                          {!a.date ? <span className="agcal-rec">{tr('recorrente')}</span> : null}
+                          {agKind !== 'all' ? hhmm(a.startMinute) : null}
                         </button>
                       );
                     });
@@ -5584,6 +5640,20 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               );
             })}
           </div>
+          {agKind !== 'all' &&
+          rows.length > 0 &&
+          weekDays.every((t) => visBlocks(effective(t).blocks).length === 0) ? (
+            <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {agKind === 'VIDEO'
+                  ? tr('Sem blocos de vídeo nesta semana.')
+                  : tr('Sem blocos de mensagens nesta semana.')}
+              </span>
+              <button className="chip" onClick={() => pickAgKind('all')}>
+                {tr('Mostrar tudo')}
+              </button>
+            </div>
+          ) : null}
           {details ??
             (rows.length ? (
               <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
@@ -5664,6 +5734,23 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
             >
               💬 {tr('Mensagens')}
             </button>
+          </div>
+          {/* Founder ask: períodos como atalho — precisão continua nos campos. */}
+          <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {([
+              ['Manhã', 9 * 60, 13 * 60],
+              ['Tarde', 14 * 60, 19 * 60],
+              ['Noite', 19 * 60, 22 * 60],
+            ] as const).map(([label, s, e]) => (
+              <button
+                key={label}
+                type="button"
+                className={`chip${start === hhmm(s) && end === hhmm(e) ? ' active' : ''}`}
+                onClick={() => { setStart(hhmm(s)); setEnd(hhmm(e)); }}
+              >
+                {tr(label)} {hhmm(s)}–{hhmm(e)}
+              </button>
+            ))}
           </div>
           <div className="row" style={{ marginTop: 8 }}>
             <label className="muted">

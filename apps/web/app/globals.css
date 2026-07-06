@@ -1290,30 +1290,14 @@ button.card:active {
   font-weight: 700;
 }
 .agcal-mbar {
-  height: 4px;
-  border-radius: 2px;
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  margin-top: 2px;
   background: var(--accent);
 }
-.agcal-mbar.tmpl {
-  background: repeating-linear-gradient(45deg, var(--border-strong) 0 3px, transparent 3px 6px);
-}
-/* MESSAGES blocks (message hours) — blue/info, vs gold for video. */
 .agcal-mbar.msg {
   background: var(--info);
-}
-.agcal-mbar.msg.tmpl {
-  background: repeating-linear-gradient(45deg, var(--info) 0 3px, transparent 3px 6px);
-}
-.agcal-mmore {
-  font-size: 10px;
-  color: var(--muted);
-}
-.agcal-head {
-  display: flex;
-  gap: 2px;
-}
-.agcal-axislbl {
-  flex: 0 0 40px;
 }
 .agcal-daylbl {
   flex: 1 1 0;
@@ -1321,7 +1305,31 @@ button.card:active {
   text-align: center;
   font-size: 12px;
   color: var(--muted);
-  padding-bottom: 2px;
+  padding: 0 0 2px;
+  /* It's a button now: tapping a day jumps to the Day view. */
+  border: 0;
+  background: transparent;
+  min-height: 40px;
+  cursor: pointer;
+  border-radius: var(--r-xs);
+}
+.agcal-daylbl:hover,
+.agcal-daylbl:focus-visible {
+  background: var(--brand-tint);
+}
+/* Color-dot legend inside the kind-filter seg. */
+.agseg-v::before,
+.agseg-m::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  background: var(--accent);
+}
+.agseg-m::before {
+  background: var(--info);
 }
 .agcal-grid {
   display: flex;
@@ -1331,6 +1339,11 @@ button.card:active {
 .agcal-axis {
   flex: 0 0 40px;
   position: relative;
+}
+@media (max-width: 540px) {
+  .agcal-axis {
+    flex-basis: 34px;
+  }
 }
 .agcal-axis span {
   position: absolute;
@@ -1370,22 +1383,35 @@ button.card:active {
   position: absolute;
   left: 2px;
   right: 2px;
-  border: 1px solid var(--accent);
-  background: var(--accent-tint);
+  border: 0;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 10px;
   line-height: 1.2;
   padding: 2px 3px;
   text-align: left;
   overflow: hidden;
   cursor: pointer;
-  /* Buttons vertically center their content by default — pin the label to
-     the top so side-by-side video/message blocks never write over each other. */
+  /* Pin labels to the top (buttons center content by default). */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
+}
+/* Dated exception = the thing to spot when scanning the week. */
+.agcal-block.dated {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.agcal-block.msg {
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+}
+.agcal-block.msg.dated {
+  box-shadow: inset 0 0 0 2px var(--info);
+}
+.agcal-block.msg.selected {
+  background: var(--info);
+  color: var(--surface);
 }
 .agcal-daylbl.today {
   color: var(--accent);
@@ -1396,34 +1422,6 @@ button.card:active {
 }
 .agcal-col.past {
   opacity: 0.75;
-}
-.agcal-block.tmpl {
-  border-style: dashed;
-  background: transparent;
-  opacity: 0.7;
-}
-.agcal-block.msg {
-  border-color: var(--info);
-  background: var(--info-bg);
-}
-.agcal-block.msg.tmpl {
-  background: transparent;
-}
-.agcal-block.msg.selected {
-  background: var(--info);
-  border-color: var(--info);
-  color: var(--surface);
-}
-.agcal-rec {
-  display: block;
-  font-size: 8px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.agcal-block.selected .agcal-rec {
-  color: inherit;
 }
 .agcal-daycard {
   text-align: left;
@@ -1445,6 +1443,7 @@ button.card:active {
   background: var(--info-bg);
   border-color: var(--info);
 }
+
 .agcal-tmplsec {
   margin-top: 14px;
 }
