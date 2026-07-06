@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { TR } from './translations';
 
 export type Lang = 'pt' | 'en' | 'es';
 
@@ -14,6 +15,7 @@ const DICTS: Record<Lang, Dict> = {
     'landing.cta': 'Entrar na app (escolher perfil)',
     'app.sessionAs': 'Sessão como',
     'app.switchProfile': 'Trocar perfil',
+    'tab.home': 'Início',
     'tab.children': 'Crianças',
     'tab.consult': 'Consultar',
     'tab.myconsults': 'Consultas',
@@ -21,6 +23,8 @@ const DICTS: Record<Lang, Dict> = {
     'tab.myaccount': 'Conta',
     'tab.notif': 'Avisos',
     'tab.inbox': 'Caixa',
+    'tab.patients': 'Doentes',
+    'tab.referrals': '2ª opinião',
     'tab.agenda': 'Agenda',
     'tab.profile': 'Perfil',
     'tab.finance': 'Ganhos',
@@ -39,6 +43,7 @@ const DICTS: Record<Lang, Dict> = {
     'landing.cta': 'Enter the app (choose a profile)',
     'app.sessionAs': 'Signed in as',
     'app.switchProfile': 'Switch profile',
+    'tab.home': 'Home',
     'tab.children': 'Children',
     'tab.consult': 'Find care',
     'tab.myconsults': 'Visits',
@@ -46,6 +51,8 @@ const DICTS: Record<Lang, Dict> = {
     'tab.myaccount': 'Account',
     'tab.notif': 'Alerts',
     'tab.inbox': 'Inbox',
+    'tab.patients': 'Patients',
+    'tab.referrals': '2nd opinion',
     'tab.agenda': 'Schedule',
     'tab.profile': 'Profile',
     'tab.finance': 'Earnings',
@@ -64,6 +71,7 @@ const DICTS: Record<Lang, Dict> = {
     'landing.cta': 'Entrar en la app (elegir perfil)',
     'app.sessionAs': 'Sesión como',
     'app.switchProfile': 'Cambiar perfil',
+    'tab.home': 'Inicio',
     'tab.children': 'Niños',
     'tab.consult': 'Consultar',
     'tab.myconsults': 'Consultas',
@@ -71,6 +79,8 @@ const DICTS: Record<Lang, Dict> = {
     'tab.myaccount': 'Cuenta',
     'tab.notif': 'Avisos',
     'tab.inbox': 'Bandeja',
+    'tab.patients': 'Pacientes',
+    'tab.referrals': '2ª opinión',
     'tab.agenda': 'Agenda',
     'tab.profile': 'Perfil',
     'tab.finance': 'Ingresos',
@@ -84,38 +94,96 @@ const DICTS: Record<Lang, Dict> = {
   },
 };
 
+/** Date/number locale that follows the chosen language. */
+export const LOCALES: Record<Lang, string> = { pt: 'pt-PT', en: 'en-GB', es: 'es-ES' };
+
+// Module-level mirror so non-React helpers (date formatters) can read the
+// active locale; the provider keeps it in sync.
+let activeLang: Lang = 'pt';
+export function appLocale(): string {
+  return LOCALES[activeLang];
+}
+/** Module-level tr for non-React code (API client error messages). */
+export function trs(pt: string): string {
+  if (activeLang === 'pt') return pt;
+  return TR[activeLang][pt] ?? pt;
+}
+
 interface I18n {
   lang: Lang;
   setLang: (l: Lang) => void;
+  /** Key-based lookup (landing, tab labels). */
   t: (key: string, fallback?: string) => string;
+  /**
+   * Source-string lookup: the Portuguese copy in the code IS the key.
+   * Unknown strings fall back to Portuguese — the app never breaks.
+   */
+  tr: (pt: string) => string;
 }
 
 const Ctx = createContext<I18n>({
   lang: 'pt',
   setLang: () => {},
   t: (k, f) => f ?? k,
+  tr: (s) => s,
 });
 
-// The app is Portuguese-only for now. The EN/ES dictionaries only ever covered
-// the bottom-nav labels, so exposing a switcher promised a translation that
-// didn't exist. We keep the i18n plumbing (and the dictionaries) for when full
-// localization lands, but force pt and hide the switcher until then.
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const lang: Lang = 'pt';
-  const setLang = (_l: Lang) => {
-    /* single-language for now */
-  };
-  function t(key: string, fallback?: string): string {
-    return DICTS.pt[key] ?? fallback ?? key;
+  const [lang, setLangState] = useState<Lang>('pt');
+
+  useEffect(() => {
+    const saved = (typeof window !== 'undefined' && localStorage.getItem('pedia_lang')) as Lang | null;
+    if (saved === 'en' || saved === 'es' || saved === 'pt') {
+      setLangState(saved);
+      activeLang = saved;
+      document.documentElement.lang = saved;
+    }
+  }, []);
+
+  function setLang(l: Lang) {
+    setLangState(l);
+    activeLang = l;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pedia_lang', l);
+      document.documentElement.lang = l;
+    }
   }
-  return <Ctx.Provider value={{ lang, setLang, t }}>{children}</Ctx.Provider>;
+
+  function t(key: string, fallback?: string): string {
+    return DICTS[lang][key] ?? DICTS.pt[key] ?? fallback ?? key;
+  }
+  function tr(pt: string): string {
+    if (lang === 'pt') return pt;
+    return TR[lang][pt] ?? pt;
+  }
+  return <Ctx.Provider value={{ lang, setLang, t, tr }}>{children}</Ctx.Provider>;
 }
 
 export function useT(): I18n {
   return useContext(Ctx);
 }
 
-// Hidden while the app is Portuguese-only (see LanguageProvider).
+/** Segmented PT/EN/ES picker (Settings → Idioma). */
 export function LanguageSwitcher() {
-  return null;
+  const { lang, setLang } = useT();
+  const items: { code: Lang; label: string }[] = [
+    { code: 'pt', label: '🇵🇹 Português' },
+    { code: 'en', label: '🇬🇧 English' },
+    { code: 'es', label: '🇪🇸 Español' },
+  ];
+  return (
+    <div className="seg" role="radiogroup" aria-label="Idioma">
+      {items.map((it) => (
+        <button
+          key={it.code}
+          role="radio"
+          aria-checked={lang === it.code}
+          className={lang === it.code ? 'active' : ''}
+          onClick={() => setLang(it.code)}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
 }
