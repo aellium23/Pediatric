@@ -6532,20 +6532,22 @@ function FinanceTab({ onMsg }: { onMsg: (m: string) => void }) {
       ) : (
         // Hold the previous render at reduced opacity while refetching — no flash.
         <div style={{ opacity: loading ? 0.6 : 1 }}>
+          {/* Uber-style framing (founder decision): the headline is what the
+              doctor EARNED. Commission stays in the statement and in the
+              commission invoices — where accounting needs it — not as a KPI. */}
           <div className="grid">
-            <div className="card">
-              <div className="muted">{tr('Líquido recebido')}</div>
-              <strong style={{ fontSize: 22 }}>{euro(f.netCents)}</strong>
-            </div>
-            <div className="card">
-              <div className="muted">{tr('Comissão plataforma')}</div>
-              <strong style={{ fontSize: 22 }}>{euro(f.commissionCents)}</strong>
+            <div className="card accent">
+              <div className="muted">{tr('Os teus ganhos')}</div>
+              <strong style={{ fontSize: 26 }}>{euro(f.netCents)}</strong>
             </div>
             <div className="card">
               <div className="muted">{tr('Consultas liquidadas')}</div>
               <strong style={{ fontSize: 22 }}>{f.consultationsSettled}</strong>
             </div>
           </div>
+          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            {tr('O detalhe por consulta (incluindo a comissão de serviço, dedutível) está no extrato e nas faturas de comissão.')}
+          </p>
           <p className="muted" style={{ fontSize: 13 }}>
             {tr('Os valores ficam a zero até existir')} <code>STRIPE_SECRET_KEY</code>{' '}
             {tr('e a consulta ser fechada com pagamento.')}
