@@ -386,6 +386,10 @@ input[type="time"]::-webkit-datetime-edit-fields-wrapper {
   background: var(--fill);
   color: var(--muted);
 }
+.pill.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
 
 .card {
   border: 1px solid var(--border);

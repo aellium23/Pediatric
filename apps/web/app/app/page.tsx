@@ -636,6 +636,11 @@ export default function MultiProfileApp() {
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
   const [unread, setUnread] = useState(0);
+  // Per-page help guide (bottom sheet for the active tab).
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    setHelpOpen(false);
+  }, [tab]);
   useEffect(() => {
     if (!profile) return;
     Api.notifications()
@@ -782,6 +787,7 @@ export default function MultiProfileApp() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <HelpButton tab={tab} onOpen={() => setHelpOpen(true)} />
           <button
             className="iconbtn"
             aria-label={unread > 0 ? `${tr('Avisos')} — ${unread} ${tr('por ler')}` : tr('Avisos')}
@@ -905,6 +911,18 @@ export default function MultiProfileApp() {
           </button>
         ))}
       </nav>
+
+      {helpOpen && HELP[tab] ? (
+        <HelpSheet
+          tabKey={tab}
+          onClose={() => setHelpOpen(false)}
+          onGo={(k) => {
+            setSettingsOpen(false);
+            setMsg('');
+            setTab(k);
+          }}
+        />
+      ) : null}
 
       <Emergency />
     </main>
@@ -1034,6 +1052,13 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
         <circle cx="6.5" cy="16" r="2.2" />
       </>
     ),
+    help: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.4 9.3a2.6 2.6 0 1 1 3.9 2.3c-.9.5-1.3 1-1.3 2" />
+        <path d="M12 16.8h.01" />
+      </>
+    ),
   };
   // Backoffice tabs reuse existing glyphs.
   const alias: Record<string, string> = {
@@ -1150,6 +1175,243 @@ function tabsFor(role: string): { key: string; label: string }[] {
     ];
   if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF') return [{ key: 'clinic', label: 'Clínica' }];
   return [{ key: 'account', label: 'Conta' }];
+}
+
+// ───────────────────────── Per-page help guide ─────────────────────────
+// Keyed by tab key (see tabsFor). PT strings here are the translation keys;
+// they are tr()-wrapped at render time in HelpSheet.
+interface HelpItem {
+  icon: string;
+  title: string;
+  desc: string;
+  go?: string;
+}
+const HELP: Record<string, { title: string; intro: string; items: HelpItem[] }> = {
+  // Parent tabs
+  home: {
+    title: 'Início',
+    intro: 'O essencial da saúde dos teus filhos, num só ecrã.',
+    items: [
+      { icon: '💬', title: 'Falar com um pediatra', desc: 'Envia uma questão ou marca uma videoconsulta.', go: 'consult' },
+      { icon: '📅', title: 'Próxima videoconsulta', desc: 'Se tiveres uma marcada, aparece em "A seguir".' },
+      { icon: '✉️', title: 'Resposta nova', desc: 'Quando o pediatra responde, surge aqui um cartão para leres.' },
+      { icon: '🧒', title: 'As crianças', desc: 'Vacinas, crescimento e histórico de cada criança.', go: 'children' },
+      { icon: '🔔', title: 'Avisos no sino', desc: 'O ponto vermelho no sino indica novidades por ler.' },
+      { icon: '🆘', title: 'Botão SOS', desc: 'Numa emergência, liga de imediato ao 112 ou SNS 24.' },
+    ],
+  },
+  consult: {
+    title: 'Consultar',
+    intro: 'Escolhe um pediatra verificado e envia a tua questão.',
+    items: [
+      { icon: '🩺', title: 'Escolher pediatra', desc: 'Compara especialidade, avaliações e preços de cada um.' },
+      { icon: '📝', title: 'Triagem rápida', desc: 'Diz-nos como está a criança; sinais graves são destacados.' },
+      { icon: '💬', title: 'Enviar questão', desc: 'Escreve a dúvida e recebes resposta dentro do prazo.' },
+      { icon: '🎥', title: 'Marcar videoconsulta', desc: 'Escolhe um horário livre na agenda do pediatra.' },
+      { icon: '📂', title: 'Acompanhar resposta', desc: 'Segue a conversa na lista de consultas.', go: 'myconsults' },
+    ],
+  },
+  myconsults: {
+    title: 'Consultas',
+    intro: 'Todas as tuas consultas, das mais recentes às antigas.',
+    items: [
+      { icon: '💬', title: 'Abrir uma consulta', desc: 'Toca num cartão para ler e continuar a conversa.' },
+      { icon: '🎥', title: 'Entrar no vídeo', desc: 'À hora marcada, o botão da chamada aparece na consulta.' },
+      { icon: '📄', title: 'Resumo do pediatra', desc: 'No fim, o pediatra deixa uma nota clínica para a família.' },
+      { icon: '⭐', title: 'Avaliar', desc: 'Depois de fechada, avalia a consulta e o pediatra.' },
+      { icon: '➕', title: 'Nova questão', desc: 'Precisas de falar de novo? Começa outra consulta.', go: 'consult' },
+    ],
+  },
+  children: {
+    title: 'Crianças',
+    intro: 'O boletim de saúde digital de cada criança, sempre à mão.',
+    items: [
+      { icon: '👶', title: 'Adicionar criança', desc: 'Nome e data de nascimento chegam para começar.' },
+      { icon: '📈', title: 'Crescimento', desc: 'Regista peso e altura e acompanha as curvas.' },
+      { icon: '💉', title: 'Vacinas', desc: 'Acompanha o plano de vacinação da criança.' },
+      { icon: '💊', title: 'Alergias e medicação', desc: 'Mantém a lista atualizada — o pediatra vê-a na consulta.' },
+      { icon: '🗓️', title: 'Linha do tempo', desc: 'Histórico de episódios, sinais do dia e consultas.' },
+    ],
+  },
+  myaccount: {
+    title: 'Conta',
+    intro: 'Os teus dados, o plano e a privacidade da família.',
+    items: [
+      { icon: '👤', title: 'O teu perfil', desc: 'Atualiza o nome e os dados de contacto.' },
+      { icon: '💳', title: 'Plano', desc: 'Vê, muda ou cancela a tua subscrição.' },
+      { icon: '🧾', title: 'Faturas', desc: 'Consulta as faturas das consultas e do plano.' },
+      { icon: '🔒', title: 'Privacidade (RGPD)', desc: 'Gere consentimentos, exporta dados ou apaga a conta.' },
+    ],
+  },
+  // Pediatrician tabs
+  inbox: {
+    title: 'Caixa',
+    intro: 'As consultas das famílias chegam aqui, prontas a responder.',
+    items: [
+      { icon: '⚠️', title: 'Sinais de alarme primeiro', desc: 'Casos com sinais graves ficam destacados no topo.' },
+      { icon: '🎥', title: 'Vídeos de hoje', desc: 'As videoconsultas marcadas para hoje aparecem em destaque.' },
+      { icon: '⏱️', title: 'Prazo de resposta', desc: 'Cada questão mostra o limite (SLA) para responderes.' },
+      { icon: '💬', title: 'Responder e fechar', desc: 'Abre o cartão, responde e fecha quando terminares.' },
+      { icon: '✅', title: 'Respondidas à parte', desc: 'As que aguardam a família ficam numa lista separada.' },
+      { icon: '📆', title: 'Filtros de data', desc: 'Filtra por Hoje, 7 dias, 30 dias ou Tudo.' },
+    ],
+  },
+  patients: {
+    title: 'Doentes',
+    intro: 'As crianças que já acompanhaste, com o processo completo.',
+    items: [
+      { icon: '🧒', title: 'Lista de doentes', desc: 'Todas as crianças das tuas consultas, por família.' },
+      { icon: '📄', title: 'Processo clínico', desc: 'Alergias, medicação, vacinas e crescimento partilhados.' },
+      { icon: '🕐', title: 'Histórico de consultas', desc: 'Revê conversas e resumos anteriores de cada criança.' },
+    ],
+  },
+  agenda: {
+    title: 'Agenda',
+    intro: 'Define quando estás disponível para videoconsultas.',
+    items: [
+      { icon: '🗓️', title: 'Blocos semanais', desc: 'Cria blocos de disponibilidade por dia da semana.' },
+      { icon: '➕', title: 'Adicionar horas', desc: 'Toca numa hora livre para a abrir às famílias.' },
+      { icon: '🎥', title: 'Marcações', desc: 'As famílias só marcam dentro dos teus blocos.' },
+      { icon: '🗑️', title: 'Remover blocos', desc: 'Fecha horários que já não queres oferecer.' },
+    ],
+  },
+  profile: {
+    title: 'Perfil',
+    intro: 'O teu cartão público e as ferramentas de trabalho.',
+    items: [
+      { icon: '👤', title: 'Bio e especialidade', desc: 'O que as famílias veem ao escolher-te.' },
+      { icon: '💶', title: 'Serviços e preços', desc: 'Define tipos de consulta, preço e prazo (SLA).' },
+      { icon: '📎', title: 'Documentos', desc: 'Envia a cédula e credenciais para verificação.' },
+      { icon: '📚', title: 'Publicar no Saber+', desc: 'Escreve artigos; são revistos antes de publicar.' },
+      { icon: '🔒', title: 'Subscrição e privacidade', desc: 'Gere o plano, as faturas e os teus dados.' },
+    ],
+  },
+  finance: {
+    title: 'Ganhos',
+    intro: 'O que recebes das consultas, sem surpresas.',
+    items: [
+      { icon: '💶', title: 'Líquido recebido', desc: 'O teu valor após a comissão da plataforma.' },
+      { icon: '🧾', title: 'Extrato', desc: 'Movimento a movimento, consulta a consulta.' },
+      { icon: '📆', title: 'Períodos', desc: 'Filtra por hoje, mês, trimestre ou ano.' },
+    ],
+  },
+  referrals: {
+    title: '2ª opinião',
+    intro: 'Pede ou dá pareceres a colegas sobre casos teus.',
+    items: [
+      { icon: '📥', title: 'Recebidos', desc: 'Pedidos de colegas: aceita e dá a tua opinião.' },
+      { icon: '📤', title: 'Enviados', desc: 'Acompanha os pareceres que pediste.' },
+      { icon: '➕', title: 'Pedir parecer', desc: 'Escolhe uma consulta tua, o colega e o contexto.' },
+      { icon: '🔒', title: 'Confidencial', desc: 'O contexto clínico é cifrado e fica entre médicos.' },
+    ],
+  },
+};
+
+function HelpSheet({
+  tabKey,
+  onClose,
+  onGo,
+}: {
+  tabKey: string;
+  onClose: () => void;
+  onGo: (k: string) => void;
+}) {
+  const { tr } = useT();
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const guide = HELP[tabKey];
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  if (!guide) return null;
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr('Guia desta página')}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '70vh', overflowY: 'auto' }}
+      >
+        <div className="sheet-grip" />
+        <h2 style={{ marginTop: 4 }}>
+          {tr('Guia desta página')} · {tr(guide.title)}
+        </h2>
+        <p className="muted">{tr(guide.intro)}</p>
+        <div className="list" style={{ marginTop: 10 }}>
+          {guide.items.map((it) => {
+            const inner = (
+              <>
+                <span className="avatar sm" aria-hidden style={{ fontSize: 16 }}>
+                  {it.icon}
+                </span>
+                <span className="lrow-main">
+                  <strong>{tr(it.title)}</strong>
+                  <span className="muted">{tr(it.desc)}</span>
+                </span>
+                {it.go ? <span className="chev">›</span> : null}
+              </>
+            );
+            return it.go ? (
+              <button
+                key={it.title}
+                className="lrow"
+                onClick={() => {
+                  onGo(it.go!);
+                  onClose();
+                }}
+              >
+                {inner}
+              </button>
+            ) : (
+              <div key={it.title} className="lrow" style={{ cursor: 'default' }}>
+                {inner}
+              </div>
+            );
+          })}
+        </div>
+        <button
+          ref={closeRef}
+          className="btn secondary small"
+          onClick={onClose}
+          style={{ marginTop: 12 }}
+        >
+          {tr('Fechar')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// "?" header button — only for tabs that have a guide. Shows a red dot until
+// the guide is opened once (same localStorage pattern as 'pedia_onboarded').
+function HelpButton({ tab, onOpen }: { tab: string; onOpen: () => void }) {
+  const { tr } = useT();
+  const [seen, setSeen] = useState(true);
+  useEffect(() => {
+    setSeen(localStorage.getItem('pedia_help_seen') === '1');
+  }, []);
+  if (!HELP[tab]) return null;
+  return (
+    <button
+      className="iconbtn"
+      aria-label={tr('Guia desta página')}
+      style={{ position: 'relative' }}
+      onClick={() => {
+        localStorage.setItem('pedia_help_seen', '1');
+        setSeen(true);
+        onOpen();
+      }}
+    >
+      <TabIcon name="help" />
+      {!seen ? <span className="dot-badge" aria-hidden /> : null}
+    </button>
+  );
 }
 
 // ───────────────────────── Thread (shared) ─────────────────────────
@@ -5703,6 +5965,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
           </strong>
         </div>
       </div>
+      <ContentReviewQueue onMsg={onMsg} />
       <div className="card section">
         <h3>{tr('Utilizadores por perfil')}</h3>
         {Object.entries(m.usersByRole).map(([k, v]) => (
@@ -7043,6 +7306,8 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
         </div>
       ) : null}
 
+      {isAdmin ? <ContentReviewQueue onMsg={onMsg} /> : null}
+
       <h3 style={{ marginTop: 18 }}>{tr('Pediatras')}</h3>
       {data.pediatricians.length === 0 ? (
         <p className="muted">{tr('Sem pediatras associados.')}</p>
@@ -7297,12 +7562,28 @@ function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Content authoring (pediatrician/admin) ─────────────────────────
+// Editorial states of a Saber+ article (fallback for articles created before
+// the review flow: published → PUBLISHED, otherwise DRAFT).
+const ARTICLE_STATUS_PT: Record<string, { label: string; pill: string }> = {
+  DRAFT: { label: 'rascunho', pill: 'pill muted' },
+  PENDING_REVIEW: { label: 'em revisão', pill: 'pill' },
+  PUBLISHED: { label: 'publicado', pill: 'pill ok' },
+  REJECTED: { label: 'rejeitado', pill: 'pill danger' },
+};
+function articleStatus(a: ArticleCard): { label: string; pill: string } {
+  const s = a.status ?? (a.published ? 'PUBLISHED' : 'DRAFT');
+  return ARTICLE_STATUS_PT[s] ?? { label: s, pill: 'pill muted' };
+}
+
 function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [mine, setMine] = useState<ArticleCard[]>([]);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('geral');
   const [body, setBody] = useState('');
+  // When set, we are re-editing a rejected article: submit PATCHes it back
+  // into review instead of creating a new one.
+  const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -7317,14 +7598,21 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function publish() {
+  function clearForm() {
+    setTitle('');
+    setCategory('geral');
+    setBody('');
+    setEditId(null);
+  }
+
+  async function submit() {
     if (!title || !body) return onMsg(tr('Indica título e texto.'));
     setBusy(true);
     try {
-      await Api.createArticle({ title, body, category, published: true });
-      setTitle('');
-      setBody('');
-      onMsg(tr('Artigo publicado ✓'));
+      if (editId) await Api.updateArticle(editId, { title, body, category, published: true });
+      else await Api.createArticle({ title, body, category, published: true });
+      clearForm();
+      onMsg(tr('Artigo submetido para revisão ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -7333,29 +7621,205 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
+  function startEdit(a: ArticleCard) {
+    setEditId(a.id);
+    setTitle(a.title);
+    setCategory(a.category);
+    setBody(a.body);
+  }
+
   return (
-    <div className="section">
-      <h3>{tr('Conteúdos')}</h3>
+    <div className="section" id="publicar-saber">
+      <h3>{tr('Publicar no Saber+')}</h3>
+      <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
+        {tr('Os artigos são revistos pela equipa clínica antes de ficarem disponíveis no Saber+.')}
+      </p>
       {mine.length > 0 ? (
         <div className="grid">
-          {mine.map((a) => (
-            <div key={a.id} className="card">
-              <span className={a.published ? 'pill ok' : 'pill muted'}>
-                {a.published ? tr('publicado') : tr('rascunho')}
-              </span>
-              <strong>{a.title}</strong>
-            </div>
-          ))}
+          {mine.map((a) => {
+            const st = articleStatus(a);
+            return (
+              <div key={a.id} className="card">
+                <span className={st.pill}>{tr(st.label)}</span>
+                <div style={{ marginTop: 4 }}>
+                  <strong>{a.title}</strong>
+                </div>
+                {a.status === 'REJECTED' && a.reviewNote ? (
+                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                    {tr('Nota da revisão')}: {a.reviewNote}
+                  </div>
+                ) : null}
+                {a.status === 'REJECTED' ? (
+                  <button
+                    className="btn secondary small"
+                    style={{ marginTop: 6 }}
+                    onClick={() => startEdit(a)}
+                    disabled={busy}
+                  >
+                    {tr('Reeditar e resubmeter')}
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
       <div className="card section">
+        {editId ? (
+          <p className="muted" style={{ fontSize: 13, margin: '0 0 6px' }}>
+            {tr('A reeditar um artigo rejeitado — ao submeter volta para revisão.')}
+          </p>
+        ) : null}
         <input placeholder={tr('Título')} value={title} onChange={(e) => setTitle(e.target.value)} />
         <input placeholder={tr('Categoria')} value={category} onChange={(e) => setCategory(e.target.value)} />
         <textarea placeholder={tr('Texto…')} value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
-        <button className="btn" onClick={publish} disabled={busy}>
-          {tr('Publicar artigo')}
-        </button>
+        <div className="row">
+          <button className="btn" onClick={submit} disabled={busy}>
+            {tr('Submeter para revisão')}
+          </button>
+          {editId ? (
+            <button className="btn secondary" onClick={clearForm} disabled={busy}>
+              {tr('Cancelar')}
+            </button>
+          ) : null}
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Editorial review queue (clinic/platform admins) ─────────────────────────
+function ContentReviewQueue({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
+  const [pending, setPending] = useState<ArticleCard[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  // Keep the section visible (with an empty note) once it had items this
+  // session, so approving the last article doesn't make the heading vanish.
+  const [hadItems, setHadItems] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState('');
+
+  async function load() {
+    try {
+      const rows = await Api.contentPending();
+      setPending(rows);
+      if (rows.length > 0) setHadItems(true);
+    } catch {
+      /* sem permissão ou erro — a secção fica escondida */
+    } finally {
+      setLoaded(true);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function approve(id: string) {
+    setBusy(id);
+    try {
+      await Api.approveArticle(id);
+      onMsg(tr('Artigo aprovado e publicado ✓'));
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function reject(id: string) {
+    setBusy(id);
+    try {
+      await Api.rejectArticle(id, note.trim() || undefined);
+      onMsg(tr('Artigo rejeitado.'));
+      setRejectingId(null);
+      setNote('');
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  if (!loaded || (pending.length === 0 && !hadItems)) return null;
+  return (
+    <div className="section">
+      <h3>
+        {tr('Conteúdos para revisão')}{' '}
+        <span className={pending.length ? 'pill warn' : 'pill muted'}>{pending.length}</span>
+      </h3>
+      {pending.length === 0 ? (
+        <p className="muted">{tr('Sem conteúdos por rever')}</p>
+      ) : (
+        <div className="grid">
+          {pending.map((a) => (
+            <div key={a.id} className="card">
+              <span className="pill">{a.category}</span>
+              <div style={{ marginTop: 4 }}>
+                <strong>{a.title}</strong>
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {tr('Submetido a')}{' '}
+                {new Date(a.createdAt).toLocaleDateString(appLocale(), {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </div>
+              <details style={{ marginTop: 6 }}>
+                <summary className="muted" style={{ cursor: 'pointer' }}>{tr('Ver texto')}</summary>
+                <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, marginTop: 6 }}>{a.body}</p>
+              </details>
+              {rejectingId === a.id ? (
+                <div style={{ marginTop: 8 }}>
+                  <input
+                    placeholder={tr('Nota para o autor (opcional)')}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                  <div className="row" style={{ marginTop: 6 }}>
+                    <button
+                      className="btn danger small"
+                      onClick={() => void reject(a.id)}
+                      disabled={busy === a.id}
+                    >
+                      {tr('Confirmar rejeição')}
+                    </button>
+                    <button
+                      className="btn secondary small"
+                      onClick={() => {
+                        setRejectingId(null);
+                        setNote('');
+                      }}
+                      disabled={busy === a.id}
+                    >
+                      {tr('Cancelar')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="btn small" onClick={() => void approve(a.id)} disabled={busy === a.id}>
+                    {tr('Aprovar')}
+                  </button>
+                  <button
+                    className="btn danger small"
+                    onClick={() => {
+                      setRejectingId(a.id);
+                      setNote('');
+                    }}
+                    disabled={busy === a.id}
+                  >
+                    {tr('Rejeitar')}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

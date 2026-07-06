@@ -468,6 +468,18 @@ export const Api = {
   myArticles: () => request('/content/mine') as Promise<ArticleCard[]>,
   createArticle: (data: { title: string; body: string; category?: string; published?: boolean }) =>
     request('/content', { method: 'POST', body: JSON.stringify(data) }),
+  updateArticle: (
+    id: string,
+    data: { title?: string; body?: string; category?: string; published?: boolean },
+  ) => request(`/content/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  // Editorial review (PLATFORM_ADMIN / CLINIC_ADMIN)
+  contentPending: () => request('/content/review/pending') as Promise<ArticleCard[]>,
+  approveArticle: (id: string) => request(`/content/${id}/approve`, { method: 'POST' }),
+  rejectArticle: (id: string, note?: string) =>
+    request(`/content/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {}),
+    }),
 
   // Privacy / GDPR
   consents: () => request('/privacy/consents') as Promise<ConsentRow[]>,
@@ -578,6 +590,9 @@ export interface ArticleCard {
   category: string;
   body: string;
   published?: boolean;
+  status?: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED';
+  reviewNote?: string;
+  reviewedAt?: string;
   createdAt: string;
 }
 
