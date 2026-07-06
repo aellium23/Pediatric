@@ -44,6 +44,9 @@ model User {
   mfaEnabled    Boolean       @default(false)
   photoUrl      String? // small avatar (client-resized data URL or S3 URL)
   preferredPayment String? // 'card' | 'mbway' | 'apple_pay' | 'google_pay'
+  // Fiscal ID (NIF) — only for consumer invoices with NIF ("fatura com NIF").
+  // Optional and stored in the clear: it is billing data, not health data.
+  nif           String?
   locale        String        @default("pt-PT")
   countryCode   String        @default("PT")
   status        String        @default("active")
@@ -115,6 +118,11 @@ model Family {
   name          String
   primaryUserId String
   countryCode   String         @default("PT")
+  // Analytics granularity only (market supply/demand) — NOT a full address.
+  // region is a canonical district/island from PT_REGIONS; postalCode is the
+  // 4-digit PT postal prefix. Both optional and self-declared.
+  region        String?
+  postalCode    String?
   createdAt     DateTime       @default(now())
 
   members  FamilyMember[]
@@ -144,6 +152,8 @@ model Child {
   photoUrl      String? // small avatar (client-resized data URL or S3 URL)
   // Clinical-sensitive: AES-256-GCM ciphertext (allergies, meds, conditions)
   healthProfile String?
+  // SNS/utente number — health-adjacent identifier, AES-256-GCM ciphertext, optional.
+  snsNumber     String?
   createdAt     DateTime  @default(now())
 
   consultations Consultation[]
@@ -494,6 +504,8 @@ model Clinic {
   id          String   @id @default(uuid())
   name        String
   taxId       String?
+  // ERS (Entidade Reguladora da Saúde) registration number of the provider.
+  ersRegistration String?
   countryCode String   @default("PT")
   createdAt   DateTime @default(now())
 

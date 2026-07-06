@@ -12,14 +12,38 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
-import { AvailabilityKind, PediatricianStatus, PaymentStatus, Role } from '@prisma/client';
+import {
+  AvailabilityKind,
+  PediatricianStatus,
+  PaymentStatus,
+  Role,
+  ServiceType,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { normalizeRegion } from '../../common/regions';
 import { Roles } from '../../common/security/decorators';
 
 class ChangeRoleDto {
   @ApiProperty({ enum: Role })
   @IsEnum(Role)
   role!: Role;
+}
+
+// Row shapes of GET /admin/market (exported so declaration emit can name them).
+export interface MarketRegionRow {
+  region: string;
+  families: number;
+  children: number;
+  consultations: number;
+  activePediatricians: number;
+  offeredHoursWeek: number;
+}
+
+export interface MarketSpecialtyRow {
+  specialty: string;
+  consultations: number;
+  activePediatricians: number;
+  avgVideoLeadHours: number | null;
 }
 
 class ReviewDocDto {
@@ -127,6 +151,160 @@ export class AdminService {
       if (b) b.refundedCents += r.amountCents;
     }
     return { months: [...series.values()], currency: 'EUR' };
+  }
+
+  /**
+   * Market supply/demand analytics for expansion decisions.
+   *
+   * Honest mappings (know what each number really is):
+   * - Supply = ACTIVE pediatricians, bucketed by normalizeRegion(region) —
+   *   free-text service region mapped to a canonical district/island;
+   *   unmatched/missing → 'Sem região'.
+   * - offeredHoursWeek = the weekly recurring Availability template (date null,
+   *   not closed) in hours per region. VIDEO and MESSAGES windows both count:
+   *   each is a distinct offered service channel.
+   * - Demand by region comes from Family.region (self-declared; null →
+   *   'Sem região'); consultations are attributed to the family's region.
+   * - A consultation is attributed to its pediatrician's FIRST specialty (the
+   *   headline specialty); pediatricians count once per specialty they list.
+   * - avgVideoLeadHours = mean(scheduledAt − openedAt) over VIDEO consultations
+   *   in the window — booking lead time, not time-to-answer.
+   * - monthly buckets use Consultation.openedAt; newFamilies use
+   *   Family.createdAt. Months without movement still appear.
+   *
+   * Efficiency: families/pediatricians/window-consultations are bounded row
+   * sets at MVP scale, so we fetch narrow selections and aggregate in JS
+   * (child counts use a DB groupBy). Revisit with SQL GROUP BYs / a
+   * reporting table when volumes grow.
+   */
+  async market(months = 6) {
+    const take = Math.min(Math.max(Math.trunc(months) || 6, 1), 24);
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth() - (take - 1), 1);
+
+    const [families, childCounts, consultations, peds] = await Promise.all([
+      this.prisma.family.findMany({ select: { id: true, region: true, createdAt: true } }),
+      this.prisma.child.groupBy({ by: ['familyId'], _count: { _all: true } }),
+      this.prisma.consultation.findMany({
+        where: { openedAt: { gte: from } },
+        select: {
+          familyId: true,
+          pediatricianId: true,
+          type: true,
+          openedAt: true,
+          scheduledAt: true,
+        },
+      }),
+      this.prisma.pediatrician.findMany({
+        where: { status: PediatricianStatus.ACTIVE },
+        select: { id: true, region: true, specialties: true },
+      }),
+    ]);
+    const templates = peds.length
+      ? await this.prisma.availability.findMany({
+          where: { pediatricianId: { in: peds.map((p) => p.id) }, date: null, closed: false },
+          select: { pediatricianId: true, startMinute: true, endMinute: true },
+        })
+      : [];
+
+    const bucket = (region: string | null | undefined) => normalizeRegion(region) ?? 'Sem região';
+    const familyRegion = new Map(families.map((f) => [f.id, bucket(f.region)]));
+    const childrenByFamily = new Map(childCounts.map((c) => [c.familyId, c._count._all]));
+    const pedRegion = new Map(peds.map((p) => [p.id, bucket(p.region)]));
+    const pedFirstSpecialty = new Map(peds.map((p) => [p.id, p.specialties[0] ?? 'general']));
+
+    // ── Regions ──
+    const regionRows = new Map<string, MarketRegionRow>();
+    const regionRow = (region: string): MarketRegionRow => {
+      let row = regionRows.get(region);
+      if (!row) {
+        row = { region, families: 0, children: 0, consultations: 0, activePediatricians: 0, offeredHoursWeek: 0 };
+        regionRows.set(region, row);
+      }
+      return row;
+    };
+    for (const f of families) {
+      const row = regionRow(familyRegion.get(f.id) as string);
+      row.families += 1;
+      row.children += childrenByFamily.get(f.id) ?? 0;
+    }
+    for (const c of consultations) {
+      regionRow(familyRegion.get(c.familyId) ?? 'Sem região').consultations += 1;
+    }
+    for (const p of peds) {
+      regionRow(pedRegion.get(p.id) as string).activePediatricians += 1;
+    }
+    for (const t of templates) {
+      const row = regionRow(pedRegion.get(t.pediatricianId) ?? 'Sem região');
+      row.offeredHoursWeek += (t.endMinute - t.startMinute) / 60;
+    }
+    for (const row of regionRows.values()) {
+      row.offeredHoursWeek = Math.round(row.offeredHoursWeek * 10) / 10;
+    }
+
+    // ── Specialties ──
+    type SpecAcc = Omit<MarketSpecialtyRow, 'avgVideoLeadHours'> & {
+      leadSumHours: number;
+      leadCount: number;
+    };
+    const specRows = new Map<string, SpecAcc>();
+    const specRow = (specialty: string): SpecAcc => {
+      let row = specRows.get(specialty);
+      if (!row) {
+        row = { specialty, consultations: 0, activePediatricians: 0, leadSumHours: 0, leadCount: 0 };
+        specRows.set(specialty, row);
+      }
+      return row;
+    };
+    for (const p of peds) {
+      const specialties = p.specialties.length ? p.specialties : ['general'];
+      for (const s of specialties) specRow(s).activePediatricians += 1;
+    }
+    for (const c of consultations) {
+      const row = specRow(pedFirstSpecialty.get(c.pediatricianId) ?? 'general');
+      row.consultations += 1;
+      if (c.type === ServiceType.VIDEO && c.scheduledAt) {
+        const leadHours = (c.scheduledAt.getTime() - c.openedAt.getTime()) / 3_600_000;
+        if (leadHours >= 0) {
+          row.leadSumHours += leadHours;
+          row.leadCount += 1;
+        }
+      }
+    }
+
+    // ── Monthly ──
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const monthly = new Map<
+      string,
+      { month: string; consultations: number; newFamilies: number; byServiceType: Record<string, number> }
+    >();
+    for (let i = 0; i < take; i++) {
+      const d = new Date(from.getFullYear(), from.getMonth() + i, 1);
+      monthly.set(key(d), { month: key(d), consultations: 0, newFamilies: 0, byServiceType: {} });
+    }
+    for (const c of consultations) {
+      const b = monthly.get(key(c.openedAt));
+      if (!b) continue;
+      b.consultations += 1;
+      b.byServiceType[c.type] = (b.byServiceType[c.type] ?? 0) + 1;
+    }
+    for (const f of families) {
+      const b = monthly.get(key(f.createdAt));
+      if (b) b.newFamilies += 1;
+    }
+
+    return {
+      regions: [...regionRows.values()].sort((a, b) => b.families - a.families),
+      specialties: [...specRows.values()]
+        .map(({ leadSumHours, leadCount, ...rest }) => ({
+          ...rest,
+          avgVideoLeadHours: leadCount
+            ? Math.round((leadSumHours / leadCount) * 10) / 10
+            : null,
+        }))
+        .sort((a, b) => b.consultations - a.consultations),
+      monthly: [...monthly.values()],
+    };
   }
 
   /** Verification queue: pediatricians filtered by status (default PENDING). */
@@ -283,6 +461,12 @@ class AdminController {
   @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
   financeSeries(@Query('months') months?: string) {
     return this.service.financeSeries(months ? Number(months) : 12);
+  }
+
+  @Get('market')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  market(@Query('months') months?: string) {
+    return this.service.market(months ? Number(months) : 6);
   }
 
   @Get('pediatricians')

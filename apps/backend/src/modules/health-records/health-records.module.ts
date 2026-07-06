@@ -326,7 +326,16 @@ export class HealthRecordsService {
 
     events.sort((a, b) => b.at.getTime() - a.at.getTime());
     return {
-      child: { id: child.id, name: child.name, birthDate: child.birthDate, sex: child.sex },
+      child: {
+        id: child.id,
+        name: child.name,
+        birthDate: child.birthDate,
+        sex: child.sex,
+        // Boletim detail only: decrypted here for parents and pediatricians
+        // with clinical access (assertAccess above); list endpoints never
+        // decrypt or expose it.
+        snsNumber: this.crypto.decryptSafe(child.snsNumber),
+      },
       events: events.slice(0, 300),
     };
   }

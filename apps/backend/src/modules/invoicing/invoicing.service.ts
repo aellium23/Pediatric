@@ -36,6 +36,23 @@ export class InvoicingService {
     // the source of truth for what was actually billed).
     const grossCents = event.pediatricianAmount + event.platformFeeCents;
 
+    // Consumer-invoice recipient ("fatura com NIF"): Payment does not record
+    // which guardian actually paid, so the family's primary guardian — the
+    // account that owns the family and its payment method — is treated as the
+    // payer. When they have a NIF on file it (plus their name) goes on the
+    // medical-act invoice; otherwise an anonymous consumer invoice is issued,
+    // exactly as before.
+    const family = await this.prisma.family.findUnique({
+      where: { id: consultation.familyId },
+      select: { primaryUserId: true },
+    });
+    const payer = family
+      ? await this.prisma.user.findUnique({
+          where: { id: family.primaryUserId },
+          select: { nif: true, name: true },
+        })
+      : null;
+
     const issued = await this.billing.issueInvoice({
       consultationId: consultation.id,
       issuer: 'pediatrician',
@@ -43,6 +60,9 @@ export class InvoicingService {
       vatCents: 0,
       vatRegime: 'exempt',
       description: `Consulta de pediatria (${consultation.type})`,
+      ...(payer?.nif
+        ? { recipientNif: payer.nif, recipientName: payer.name ?? undefined }
+        : {}),
     });
 
     await this.prisma.invoice.create({

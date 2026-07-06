@@ -218,9 +218,22 @@ async function seedChild(
   return child;
 }
 
-async function ensureFamily(user: { id: string }, familyName: string, relationship = 'guardian') {
+// region: canonical PT_REGIONS entry — feeds the /admin/market demand view.
+// Demo parents keep nif null (the NIF-less default) and children keep
+// snsNumber null: both are optional self-service fields.
+async function ensureFamily(
+  user: { id: string },
+  familyName: string,
+  relationship = 'guardian',
+  region?: string,
+) {
   let family = await prisma.family.findFirst({ where: { primaryUserId: user.id } });
-  family ??= await prisma.family.create({ data: { name: familyName, primaryUserId: user.id } });
+  family ??= await prisma.family.create({
+    data: { name: familyName, primaryUserId: user.id, region },
+  });
+  if (region && family.region !== region) {
+    family = await prisma.family.update({ where: { id: family.id }, data: { region } });
+  }
   await prisma.familyMember.upsert({
     where: { familyId_userId: { familyId: family.id, userId: user.id } },
     create: { familyId: family.id, userId: user.id, relationship },
@@ -1180,7 +1193,7 @@ async function main(): Promise<void> {
 
   // ── Family Silva (Marta) — Tomás: normal growth, up-to-date ──
   const marta = await prisma.user.findUniqueOrThrow({ where: { email: 'marta@demo.pedia' } });
-  const silva = await ensureFamily(marta, 'Família Silva', 'mother');
+  const silva = await ensureFamily(marta, 'Família Silva', 'mother', 'Lisboa');
   await addGuardian(silva.id, 'nuno.silva@demo.pedia', 'Nuno Silva', 'father');
   const tomas = await seedChild(silva.id, 'Tomás', d('2021-06-01'), 'M', marta.id, {
     growth: [
@@ -1204,7 +1217,7 @@ async function main(): Promise<void> {
 
   // ── Family Costa (João) — Beatriz (asma) + Rodrigo (lactente saudável) ──
   const joao = await prisma.user.findUniqueOrThrow({ where: { email: 'joao@demo.pedia' } });
-  const costa = await ensureFamily(joao, 'Família Costa', 'father');
+  const costa = await ensureFamily(joao, 'Família Costa', 'father', 'Porto');
   await addGuardian(costa.id, 'sara.costa@demo.pedia', 'Sara Costa', 'mother');
   const beatriz = await seedChild(costa.id, 'Beatriz', d('2021-03-15'), 'F', joao.id, {
     growth: [
@@ -1245,7 +1258,7 @@ async function main(): Promise<void> {
 
   // ── Family Mendes (Sofia) — Leonor: excesso de peso + alergia a penicilina ──
   const sofia = await prisma.user.findUniqueOrThrow({ where: { email: 'sofia@demo.pedia' } });
-  const mendes = await ensureFamily(sofia, 'Família Mendes', 'mother');
+  const mendes = await ensureFamily(sofia, 'Família Mendes', 'mother', 'Faro');
   await addGuardian(mendes.id, 'hugo.mendes@demo.pedia', 'Hugo Mendes', 'father');
   const leonor = await seedChild(mendes.id, 'Leonor', d('2022-01-01'), 'F', sofia.id, {
     growth: [
@@ -1266,7 +1279,7 @@ async function main(): Promise<void> {
 
   // ── Family Rocha (Ricardo) — Afonso: crescimento insuficiente + vacinas em atraso ──
   const ricardo = await prisma.user.findUniqueOrThrow({ where: { email: 'ricardo@demo.pedia' } });
-  const rocha = await ensureFamily(ricardo, 'Família Rocha', 'father');
+  const rocha = await ensureFamily(ricardo, 'Família Rocha', 'father', 'Braga');
   await addGuardian(rocha.id, 'patricia.rocha@demo.pedia', 'Patrícia Rocha', 'mother');
   const afonso = await seedChild(rocha.id, 'Afonso', d('2023-12-01'), 'M', ricardo.id, {
     growth: [
@@ -1288,7 +1301,7 @@ async function main(): Promise<void> {
 
   // ── Family Pinto (Diana + Bruno) — Martim: febre prolongada em investigação ──
   const diana = await upsertUser('diana.pinto@demo.pedia', Role.PARENT, { name: 'Diana Pinto' });
-  const pinto = await ensureFamily(diana, 'Família Pinto', 'mother');
+  const pinto = await ensureFamily(diana, 'Família Pinto', 'mother', 'Açores');
   await addGuardian(pinto.id, 'bruno.pinto@demo.pedia', 'Bruno Pinto', 'father');
   const martim = await seedChild(pinto.id, 'Martim', d('2022-09-10'), 'M', diana.id, {
     growth: [
@@ -1308,7 +1321,7 @@ async function main(): Promise<void> {
 
   // ── Family Lopes (Inês L. + Rui) — Clara: dermatite atópica + alergia a ovo ──
   const inesL = await upsertUser('ines.lopes@demo.pedia', Role.PARENT, { name: 'Inês Lopes' });
-  const lopes = await ensureFamily(inesL, 'Família Lopes', 'mother');
+  const lopes = await ensureFamily(inesL, 'Família Lopes', 'mother', 'Madeira');
   await addGuardian(lopes.id, 'rui.lopes@demo.pedia', 'Rui Lopes', 'father');
   const clara = await seedChild(lopes.id, 'Clara', d('2023-04-20'), 'F', inesL.id, {
     growth: [

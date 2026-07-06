@@ -4,12 +4,19 @@ import { PaymentCapturedEvent } from '../../src/modules/consultations/events';
 function build(over: { prisma?: Record<string, any> } = {}) {
   const prisma: any = {
     consultation: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue({ id: 'c1', type: 'MESSAGE', priceCents: 4500, pediatricianId: 'ped1' }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'c1',
+        type: 'MESSAGE',
+        priceCents: 4500,
+        pediatricianId: 'ped1',
+        familyId: 'fam1',
+      }),
     },
     invoice: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     commissionInvoice: { create: jest.fn().mockResolvedValue({}) },
+    // Consumer-invoice recipient lookup: family's primary guardian, no NIF by default.
+    family: { findUnique: jest.fn().mockResolvedValue({ primaryUserId: 'u1' }) },
+    user: { findUnique: jest.fn().mockResolvedValue({ nif: null, name: 'Marta Silva' }) },
     ...over.prisma,
   };
   const billing = {
@@ -72,6 +79,37 @@ describe('InvoicingService.onPaymentCaptured', () => {
         }),
       }),
     );
+  });
+
+  it('passes the payer NIF and name to the medical-act invoice when on file', async () => {
+    const { service, billing } = build({
+      prisma: {
+        user: { findUnique: jest.fn().mockResolvedValue({ nif: '123456789', name: 'Marta Silva' }) },
+      },
+    });
+    await service.onPaymentCaptured(new PaymentCapturedEvent('c1', 900, 3600));
+    expect(billing.issueInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issuer: 'pediatrician',
+        recipientNif: '123456789',
+        recipientName: 'Marta Silva',
+      }),
+    );
+    // The commission invoice (to the pediatrician) must NOT carry the family NIF.
+    const commissionCall = billing.issueInvoice.mock.calls.find(
+      ([input]: any[]) => input.issuer === 'platform',
+    );
+    expect(commissionCall[0].recipientNif).toBeUndefined();
+  });
+
+  it('issues an anonymous consumer invoice when the payer has no NIF on file', async () => {
+    const { service, billing } = build();
+    await service.onPaymentCaptured(new PaymentCapturedEvent('c1', 900, 3600));
+    const medicalCall = billing.issueInvoice.mock.calls.find(
+      ([input]: any[]) => input.issuer === 'pediatrician',
+    );
+    expect(medicalCall[0].recipientNif).toBeUndefined();
+    expect(medicalCall[0].recipientName).toBeUndefined();
   });
 
   it('stores a gross that equals share + fee even if it diverges from priceCents', async () => {
