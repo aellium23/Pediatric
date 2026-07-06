@@ -774,7 +774,7 @@ export default function MultiProfileApp() {
           <div style={{ minWidth: 0 }}>
             <strong style={{ display: 'block', lineHeight: 1.1 }}>{profile.name}</strong>
             <span className="muted" style={{ fontSize: 12 }}>
-              {roleLabel(profile.role)}
+              {tr(roleLabel(profile.role))}
             </span>
           </div>
         </div>
@@ -1176,6 +1176,7 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
  * without leaving the thread. Collapsible; fails silent if unreachable.
  */
 function ChildSummary({ childId }: { childId: string }) {
+  const { tr } = useT();
   const [d, setD] = useState<HealthOverview | null>(null);
   const [open, setOpen] = useState(true);
   const [err, setErr] = useState(false);
@@ -1203,38 +1204,39 @@ function ChildSummary({ childId }: { childId: string }) {
         onClick={() => setOpen(!open)}
         style={{ display: 'block', width: '100%', textAlign: 'left', fontWeight: 600 }}
       >
-        {open ? '▾' : '▸'} Ficha da criança
+        {open ? '▾' : '▸'} {tr('Ficha da criança')}
       </button>
       {open ? (
         !d ? (
-          <span className="muted">A carregar…</span>
+          <span className="muted">{tr('A carregar…')}</span>
         ) : (
           <div style={{ fontSize: 14, marginTop: 6, display: 'grid', gap: 4 }}>
             <div>
-              <strong>Problemas ativos:</strong>{' '}
+              <strong>{tr('Problemas ativos')}:</strong>{' '}
               {problems.length ? problems.map((p) => p.title ?? '—').join(', ') : '—'}
             </div>
             <div>
-              <strong>Medicação:</strong>{' '}
+              <strong>{tr('Medicação')}:</strong>{' '}
               {meds.length
                 ? meds.map((m) => `${m.name ?? '—'}${m.dose ? ` (${m.dose})` : ''}`).join(', ')
                 : '—'}
             </div>
             <div>
-              <strong>Alergias:</strong>{' '}
+              <strong>{tr('Alergias')}:</strong>{' '}
               {(d.allergies ?? []).length
                 ? (d.allergies ?? []).map((a) => a.label ?? '—').join(', ')
-                : 'nenhuma registada'}
+                : tr('nenhuma registada')}
             </div>
             <div>
-              <strong>Vacinas:</strong> {vaccines.length} registada{vaccines.length === 1 ? '' : 's'}
+              <strong>{tr('Vacinas')}:</strong> {vaccines.length}{' '}
+              {vaccines.length === 1 ? tr('registada') : tr('registadas')}
             </div>
             <div>
-              <strong>Peso recente:</strong> {lastWeight != null ? `${lastWeight} kg` : '—'}
+              <strong>{tr('Peso recente')}:</strong> {lastWeight != null ? `${lastWeight} kg` : '—'}
             </div>
             {(d.vitals ?? [])[0] ? (
               <div>
-                <strong>Últimos vitais:</strong>{' '}
+                <strong>{tr('Últimos vitais')}:</strong>{' '}
                 {[
                   (d.vitals ?? [])[0].temperatureC != null ? `${(d.vitals ?? [])[0].temperatureC}ºC` : null,
                   (d.vitals ?? [])[0].heartRateBpm != null ? `${(d.vitals ?? [])[0].heartRateBpm} bpm` : null,
@@ -1297,7 +1299,7 @@ function Thread({
     try {
       await Api.setSummary(consultation.id, sumDraft);
       setEditSum(false);
-      onMsg('Resumo guardado ✓');
+      onMsg(tr('Resumo guardado ✓'));
       await loadSummary();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -1312,18 +1314,18 @@ function Thread({
     const triage = (consultation.triage ?? {}) as { redFlags?: unknown; severe?: unknown };
     const keys = Array.isArray(triage.redFlags) ? (triage.redFlags as string[]) : [];
     const flagLabels = keys
-      .map((k) => RED_FLAGS.find((f) => f.key === k)?.label ?? k)
+      .map((k) => tr(RED_FLAGS.find((f) => f.key === k)?.label ?? k))
       .filter(Boolean);
     const motivo = flagLabels.length
-      ? `Triagem assinalou: ${flagLabels.join('; ')}.`
-      : 'Sem sinais de alarme assinalados na triagem.';
-    const urgencia = triage.severe ? '\n⚠️ Triagem indicou sinais graves — avaliar prioridade.' : '';
+      ? `${tr('Triagem assinalou:')} ${flagLabels.join('; ')}.`
+      : tr('Sem sinais de alarme assinalados na triagem.');
+    const urgencia = triage.severe ? `\n${tr('⚠️ Triagem indicou sinais graves — avaliar prioridade.')}` : '';
     const tpl =
-      `Motivo / queixa:\n${motivo}${urgencia}\n\n` +
-      `Avaliação:\n- \n\n` +
-      `Orientação / plano:\n- \n\n` +
-      `Sinais de alarme a vigiar:\n- Recorrer a urgência se agravamento, febre persistente, recusa alimentar ou prostração.\n\n` +
-      `Seguimento:\n- `;
+      `${tr('Motivo / queixa:')}\n${motivo}${urgencia}\n\n` +
+      `${tr('Avaliação:')}\n- \n\n` +
+      `${tr('Orientação / plano:')}\n- \n\n` +
+      `${tr('Sinais de alarme a vigiar:')}\n- ${tr('Recorrer a urgência se agravamento, febre persistente, recusa alimentar ou prostração.')}\n\n` +
+      `${tr('Seguimento:')}\n- `;
     setSumDraft((prev) => (prev.trim() ? prev : tpl));
     setEditSum(true);
   }
@@ -1341,7 +1343,7 @@ function Thread({
     }
     const SR = getSpeechRecognition();
     if (!SR) {
-      onMsg('Este browser não suporta ditado por voz (tenta o Chrome).');
+      onMsg(tr('Este browser não suporta ditado por voz (tenta o Chrome).'));
       return;
     }
     const rec = new SR();
@@ -1357,7 +1359,7 @@ function Thread({
       if (finalText) setSumDraft((prev) => (prev.trim() ? `${prev} ${finalText}` : finalText));
     };
     rec.onerror = (e) => {
-      onMsg(`Ditado: ${e.error}`);
+      onMsg(`${tr('Ditado')}: ${e.error}`);
       setDictating(false);
     };
     rec.onend = () => {
@@ -1379,7 +1381,7 @@ function Thread({
   // Claude). Replaces the draft with the structured text for review; never auto-saves.
   async function structureWithAi() {
     if (!sumDraft.trim()) {
-      onMsg('Escreve ou dita a nota primeiro.');
+      onMsg(tr('Escreve ou dita a nota primeiro.'));
       return;
     }
     setBusy(true);
@@ -1387,9 +1389,9 @@ function Thread({
       const r = await Api.structureSummary(consultation.id, sumDraft);
       setSumDraft(r.text);
       setEditSum(true);
-      onMsg('Nota estruturada com IA — revê antes de guardar.');
+      onMsg(tr('Nota estruturada com IA — revê antes de guardar.'));
     } catch (e) {
-      onMsg(`IA indisponível: ${String(e)} (precisa de ANTHROPIC_API_KEY no backend)`);
+      onMsg(`${tr('IA indisponível:')} ${String(e)} ${tr('(precisa de ANTHROPIC_API_KEY no backend)')}`);
     } finally {
       setBusy(false);
     }
@@ -1528,7 +1530,7 @@ function Thread({
             rows={6}
           />
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn small secondary" onClick={genDraft} disabled={busy} title="Pré-preenche um esqueleto a partir da triagem">
+            <button className="btn small secondary" onClick={genDraft} disabled={busy} title={tr('Pré-preenche um esqueleto a partir da triagem')}>
               {tr('Gerar rascunho')}
             </button>
             {speechSupported ? (
@@ -1536,7 +1538,7 @@ function Thread({
                 className={dictating ? 'btn small danger' : 'btn small secondary'}
                 onClick={toggleDictation}
                 disabled={busy}
-                title="Dita a nota clínica por voz (transcrição no browser)"
+                title={tr('Dita a nota clínica por voz (transcrição no browser)')}
               >
                 {dictating ? tr('Parar ditado') : tr('Ditar nota')}
               </button>
@@ -1545,7 +1547,7 @@ function Thread({
               className="btn small secondary"
               onClick={structureWithAi}
               disabled={busy || !sumDraft.trim()}
-              title="Corrige e organiza a nota em SOAP com IA (revê antes de guardar)"
+              title={tr('Corrige e organiza a nota em SOAP com IA (revê antes de guardar)')}
             >
               {tr('Estruturar com IA')}
             </button>
@@ -3684,6 +3686,7 @@ type Colleague = { id: string; displayName?: string | null; bio?: string | null;
  * so the request is anchored to the patient/consultation in context.
  */
 function ReferralRequest({ consultationId, onMsg }: { consultationId: string; onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [open, setOpen] = useState(false);
   const [colleagues, setColleagues] = useState<Colleague[]>([]);
   const [toId, setToId] = useState('');
@@ -3702,11 +3705,11 @@ function ReferralRequest({ consultationId, onMsg }: { consultationId: string; on
     }
   }
   async function send() {
-    if (!toId || reason.trim().length < 3) return onMsg('Escolhe o colega e descreve o contexto.');
+    if (!toId || reason.trim().length < 3) return onMsg(tr('Escolhe o colega e descreve o contexto.'));
     setBusy(true);
     try {
       await Api.createReferral({ consultationId, toPediatricianId: toId, reason: reason.trim() });
-      onMsg('Pedido de 2ª opinião enviado ✓ — acompanha em “2ª opinião”.');
+      onMsg(tr('Pedido de 2ª opinião enviado ✓ — acompanha em “2ª opinião”.'));
       setDone(true);
       setOpen(false);
     } catch (e) {
@@ -3719,45 +3722,45 @@ function ReferralRequest({ consultationId, onMsg }: { consultationId: string; on
   if (done)
     return (
       <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-        ✓ 2ª opinião pedida sobre este doente — acompanha em “2ª opinião”.
+        {tr('✓ 2ª opinião pedida sobre este doente — acompanha em “2ª opinião”.')}
       </p>
     );
   if (!open)
     return (
       <button className="btn secondary small" onClick={() => void start()} style={{ marginTop: 8 }}>
-        🤝 Pedir 2ª opinião sobre este doente
+        {tr('🤝 Pedir 2ª opinião sobre este doente')}
       </button>
     );
   return (
     <div className="card section">
-      <strong>Pedir 2ª opinião a um colega</strong>
+      <strong>{tr('Pedir 2ª opinião a um colega')}</strong>
       <p className="muted" style={{ fontSize: 12, margin: '2px 0 6px' }}>
-        Sobre esta consulta. O contexto clínico é cifrado e enviado ao colega.
+        {tr('Sobre esta consulta. O contexto clínico é cifrado e enviado ao colega.')}
       </p>
-      <label className="muted">Colega</label>
+      <label className="muted">{tr('Colega')}</label>
       <select className="search" value={toId} onChange={(e) => setToId(e.target.value)}>
-        <option value="">Escolhe um pediatra…</option>
+        <option value="">{tr('Escolhe um pediatra…')}</option>
         {colleagues.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.displayName ?? specLabel(p.specialties?.[0])}
-            {p.specialties && p.specialties.length ? ` · ${specLabel(p.specialties[0])}` : ''}
+            {p.displayName ?? tr(specLabel(p.specialties?.[0]))}
+            {p.specialties && p.specialties.length ? ` · ${tr(specLabel(p.specialties[0]))}` : ''}
           </option>
         ))}
       </select>
-      <label className="muted">Contexto clínico (cifrado)</label>
+      <label className="muted">{tr('Contexto clínico (cifrado)')}</label>
       <textarea
         className="search"
         rows={4}
-        placeholder="Descreve o caso e a questão para o colega…"
+        placeholder={tr('Descreve o caso e a questão para o colega…')}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
       <div className="row" style={{ marginTop: 6 }}>
         <button className="btn small" onClick={() => void send()} disabled={busy}>
-          Enviar pedido
+          {tr('Enviar pedido')}
         </button>
         <button className="btn secondary small" onClick={() => setOpen(false)}>
-          Cancelar
+          {tr('Cancelar')}
         </button>
       </div>
     </div>
@@ -3774,6 +3777,7 @@ function refStatusLabel(s: ReferralDto['status']): string {
 }
 
 function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [view, setView] = useState<'incoming' | 'outgoing' | 'new'>('incoming');
   const [incoming, setIncoming] = useState<ReferralDto[]>([]);
   const [outgoing, setOutgoing] = useState<ReferralDto[]>([]);
@@ -3819,13 +3823,13 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
   async function send() {
     if (busy) return;
     if (!consultId || !toId || reason.trim().length < 3) {
-      onMsg('Escolhe a consulta, o colega e descreve o contexto.');
+      onMsg(tr('Escolhe a consulta, o colega e descreve o contexto.'));
       return;
     }
     setBusy(true);
     try {
       await Api.createReferral({ consultationId: consultId, toPediatricianId: toId, reason: reason.trim() });
-      onMsg('Pedido de 2ª opinião enviado.');
+      onMsg(tr('Pedido de 2ª opinião enviado.'));
       setReason('');
       setConsultId('');
       setToId('');
@@ -3856,13 +3860,13 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
     if (busy) return;
     const text = (opinions[id] ?? '').trim();
     if (text.length < 3) {
-      onMsg('Escreve a tua opinião.');
+      onMsg(tr('Escreve a tua opinião.'));
       return;
     }
     setBusy(true);
     try {
       await Api.submitReferralOpinion(id, text);
-      onMsg('Opinião enviada ao colega.');
+      onMsg(tr('Opinião enviada ao colega.'));
       await load();
     } catch (e) {
       onMsg(`Erro a enviar: ${String(e)}`);
@@ -3873,21 +3877,20 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div className="section">
-      <h2>Segunda opinião</h2>
+      <h2>{tr('Segunda opinião')}</h2>
       <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
-        Consulta entre médicos: pede o parecer de um colega sobre um caso teu, ou responde a quem te
-        pede. O contexto clínico é cifrado e o pedido parte sempre de uma das tuas consultas (do
-        doente) — em <strong>Pedir</strong>, escolhe a consulta e o colega.
+        {tr('Consulta entre médicos: pede o parecer de um colega sobre um caso teu, ou responde a quem te pede. O contexto clínico é cifrado e o pedido parte sempre de uma das tuas consultas (do doente) — em')}{' '}
+        <strong>{tr('Pedir')}</strong>{tr(', escolhe a consulta e o colega.')}
       </p>
       <div className="seg" role="tablist">
         <button className={view === 'incoming' ? 'active' : ''} onClick={() => setView('incoming')}>
-          Recebidos{incoming.length ? ` (${incoming.length})` : ''}
+          {tr('Recebidos')}{incoming.length ? ` (${incoming.length})` : ''}
         </button>
         <button className={view === 'outgoing' ? 'active' : ''} onClick={() => setView('outgoing')}>
-          Enviados{outgoing.length ? ` (${outgoing.length})` : ''}
+          {tr('Enviados')}{outgoing.length ? ` (${outgoing.length})` : ''}
         </button>
         <button className={view === 'new' ? 'active' : ''} onClick={() => void openNew()}>
-          Pedir
+          {tr('Pedir')}
         </button>
       </div>
 
@@ -3895,22 +3898,22 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {!loading && view === 'incoming' ? (
         incoming.length === 0 ? (
-          <EmptyState title="Sem pedidos" hint="Quando um colega te pedir uma opinião aparece aqui." />
+          <EmptyState title={tr('Sem pedidos')} hint={tr('Quando um colega te pedir uma opinião aparece aqui.')} />
         ) : (
           <div className="grid">
             {incoming.map((r) => (
               <div key={r.id} className="card">
                 <span className={statusPill(r.status === 'COMPLETED' ? 'CLOSED' : 'OPEN')}>
-                  {refStatusLabel(r.status)}
+                  {tr(refStatusLabel(r.status))}
                 </span>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{r.reason}</p>
                 {r.status === 'PENDING' ? (
                   <div className="row">
                     <button className="btn" disabled={busy} onClick={() => void respond(r.id, true)}>
-                      Aceitar
+                      {tr('Aceitar')}
                     </button>
                     <button className="btn secondary" disabled={busy} onClick={() => void respond(r.id, false)}>
-                      Recusar
+                      {tr('Recusar')}
                     </button>
                   </div>
                 ) : null}
@@ -3919,18 +3922,18 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
                     <textarea
                       className="search"
                       rows={4}
-                      placeholder="A tua opinião clínica…"
+                      placeholder={tr('A tua opinião clínica…')}
                       value={opinions[r.id] ?? ''}
                       onChange={(e) => setOpinions((o) => ({ ...o, [r.id]: e.target.value }))}
                     />
                     <button className="btn" disabled={busy} onClick={() => void submitOpinion(r.id)}>
-                      Enviar opinião
+                      {tr('Enviar opinião')}
                     </button>
                   </div>
                 ) : null}
                 {r.status === 'COMPLETED' && r.opinion ? (
                   <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>
-                    <strong>A tua opinião:</strong> {r.opinion}
+                    <strong>{tr('A tua opinião:')}</strong> {r.opinion}
                   </div>
                 ) : null}
               </div>
@@ -3941,23 +3944,23 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {!loading && view === 'outgoing' ? (
         outgoing.length === 0 ? (
-          <EmptyState title="Nada enviado" hint="Pede uma 2ª opinião a um colega no separador “Pedir”." />
+          <EmptyState title={tr('Nada enviado')} hint={tr('Pede uma 2ª opinião a um colega no separador “Pedir”.')} />
         ) : (
           <div className="grid">
             {outgoing.map((r) => (
               <div key={r.id} className="card">
                 <span className={statusPill(r.status === 'COMPLETED' ? 'CLOSED' : 'OPEN')}>
-                  {refStatusLabel(r.status)}
+                  {tr(refStatusLabel(r.status))}
                 </span>
                 <p style={{ whiteSpace: 'pre-wrap' }} className="muted">
                   {r.reason}
                 </p>
                 {r.opinion ? (
                   <div className="notice" style={{ whiteSpace: 'pre-wrap' }}>
-                    <strong>Opinião do colega:</strong> {r.opinion}
+                    <strong>{tr('Opinião do colega:')}</strong> {r.opinion}
                   </div>
                 ) : (
-                  <div className="muted">A aguardar resposta…</div>
+                  <div className="muted">{tr('A aguardar resposta…')}</div>
                 )}
               </div>
             ))}
@@ -3967,36 +3970,36 @@ function ReferralsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {view === 'new' ? (
         <div className="card">
-          <label className="muted">Doente / consulta</label>
+          <label className="muted">{tr('Doente / consulta')}</label>
           <select className="search" value={consultId} onChange={(e) => setConsultId(e.target.value)}>
-            <option value="">Escolhe o doente / consulta…</option>
+            <option value="">{tr('Escolhe o doente / consulta…')}</option>
             {myConsults.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.child?.name ? `${c.child.name} · ` : ''}
-                {svcLabel(c.type)} · {statusLabel(c.status)}
+                {tr(svcLabel(c.type))} · {tr(statusLabel(c.status))}
               </option>
             ))}
           </select>
-          <label className="muted">Colega</label>
+          <label className="muted">{tr('Colega')}</label>
           <select className="search" value={toId} onChange={(e) => setToId(e.target.value)}>
-            <option value="">Escolhe um pediatra…</option>
+            <option value="">{tr('Escolhe um pediatra…')}</option>
             {colleagues.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.displayName ?? specLabel(p.specialties?.[0])}
-                {p.specialties && p.specialties.length ? ` · ${specLabel(p.specialties[0])}` : ''}
+                {p.displayName ?? tr(specLabel(p.specialties?.[0]))}
+                {p.specialties && p.specialties.length ? ` · ${tr(specLabel(p.specialties[0]))}` : ''}
               </option>
             ))}
           </select>
-          <label className="muted">Contexto clínico (cifrado)</label>
+          <label className="muted">{tr('Contexto clínico (cifrado)')}</label>
           <textarea
             className="search"
             rows={5}
-            placeholder="Descreve o caso e a questão para o colega…"
+            placeholder={tr('Descreve o caso e a questão para o colega…')}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
           <button className="btn" disabled={busy} onClick={() => void send()}>
-            Enviar pedido
+            {tr('Enviar pedido')}
           </button>
         </div>
       ) : null}
@@ -4014,6 +4017,7 @@ function InboxTab({
   focusId?: string | null;
   onFocusConsumed?: () => void;
 }) {
+  const { tr } = useT();
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [recent, setRecent] = useState<ConsultationDto[]>([]);
   const [view, setView] = useState<'todo' | 'recent'>('todo');
@@ -4110,34 +4114,34 @@ function InboxTab({
     >
       {isSevere(c) ? (
         <span className="pill" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', marginRight: 6 }}>
-          ⚠️ Sinais de alarme
+          {tr('⚠️ Sinais de alarme')}
         </span>
       ) : null}
       {isUnanswered(c) ? (
         <span className="pill warn" style={{ marginRight: 6 }}>
-          Novo · por responder
+          {tr('Novo · por responder')}
         </span>
       ) : null}
-      <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+      <span className={statusPill(c.status)}>{tr(statusLabel(c.status))}</span>
       {c.type === 'VIDEO' ? (
-        <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
+        <span className="pill" style={{ marginLeft: 6 }}>🎥 {tr('Vídeo')}</span>
       ) : null}
       <div style={{ marginTop: 4 }}>
-        <strong>{c.child?.name ?? 'Doente'}</strong>
+        <strong>{c.child?.name ?? tr('Doente')}</strong>
         {c.child?.birthDate ? <span className="muted"> · {ageLabel(c.child.birthDate)}</span> : null} ·{' '}
         {euro(c.priceCents)}
       </div>
       {c.type === 'VIDEO' && c.scheduledAt ? (
         <div style={{ color: 'var(--brand)', fontSize: 13 }}>
           📅{' '}
-          {new Date(c.scheduledAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(c.scheduledAt).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}
           {' · '}
-          {new Date(c.scheduledAt).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
+          {new Date(c.scheduledAt).toLocaleDateString(appLocale(), { day: 'numeric', month: 'short' })}
         </div>
       ) : c.slaDueAt ? (
         <div className="muted">
-          Responder até{' '}
-          {new Date(c.slaDueAt).toLocaleString('pt-PT', {
+          {tr('Responder até')}{' '}
+          {new Date(c.slaDueAt).toLocaleString(appLocale(), {
             day: 'numeric',
             month: 'short',
             hour: '2-digit',
@@ -4150,13 +4154,13 @@ function InboxTab({
 
   return (
     <div className="section">
-      <h2>Caixa de entrada</h2>
+      <h2>{tr('Caixa de entrada')}</h2>
       <div className="seg" role="tablist" style={{ margin: '8px 0' }}>
         <button className={view === 'todo' ? 'active' : ''} onClick={() => setView('todo')}>
-          A responder{rows.length ? ` (${rows.length})` : ''}
+          {tr('A responder')}{rows.length ? ` (${rows.length})` : ''}
         </button>
         <button className={view === 'recent' ? 'active' : ''} onClick={() => setView('recent')}>
-          Recentes
+          {tr('Recentes')}
         </button>
       </div>
       <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '0 0 8px' }}>
@@ -4167,7 +4171,7 @@ function InboxTab({
           ['all', 'Tudo'],
         ] as const).map(([k, label]) => (
           <button key={k} className={`chip${period === k ? ' active' : ''}`} onClick={() => setPeriod(k)}>
-            {label}
+            {tr(label)}
           </button>
         ))}
       </div>
@@ -4176,8 +4180,8 @@ function InboxTab({
       ) : view === 'recent' ? (
         shownRecent.length === 0 ? (
           <EmptyState
-            title="Sem consultas anteriores"
-            hint={recent.length ? 'Nenhuma neste período.' : 'O histórico aparece aqui.'}
+            title={tr('Sem consultas anteriores')}
+            hint={recent.length ? tr('Nenhuma neste período.') : tr('O histórico aparece aqui.')}
           />
         ) : shownRecent.length <= 6 ? (
           <div className="grid">{shownRecent.map(consultCard)}</div>
@@ -4191,24 +4195,24 @@ function InboxTab({
         )
       ) : shownRows.length === 0 ? (
         <EmptyState
-          title={rows.length ? 'Sem consultas neste período' : 'Tudo em dia'}
+          title={rows.length ? tr('Sem consultas neste período') : tr('Tudo em dia')}
           hint={
             rows.length
-              ? 'Escolhe outro período para veres mais.'
-              : 'Assim que uma família enviar uma questão ou marcar uma consulta, aparece aqui.'
+              ? tr('Escolhe outro período para veres mais.')
+              : tr('Assim que uma família enviar uma questão ou marcar uma consulta, aparece aqui.')
           }
         />
       ) : (
         <>
           {videosToday.length ? (
             <>
-              <h3 style={{ marginTop: 8 }}>Videoconsultas de hoje</h3>
+              <h3 style={{ marginTop: 8 }}>{tr('Videoconsultas de hoje')}</h3>
               <div className="grid">{videosToday.map(consultCard)}</div>
             </>
           ) : null}
           {toAnswer.length ? (
             <>
-              <h3 style={{ marginTop: videosToday.length ? 16 : 8 }}>A responder</h3>
+              <h3 style={{ marginTop: videosToday.length ? 16 : 8 }}>{tr('A responder')}</h3>
               <div className="grid">{toAnswer.map(consultCard)}</div>
             </>
           ) : null}
@@ -4227,8 +4231,8 @@ function ageLabel(birthDate: string): string {
   if (months < 0) months = 0;
   const y = Math.floor(months / 12);
   const m = months % 12;
-  if (y === 0) return `${m} ${m === 1 ? 'mês' : 'meses'}`;
-  return m === 0 ? `${y} ${y === 1 ? 'ano' : 'anos'}` : `${y}a ${m}m`;
+  if (y === 0) return `${m} ${m === 1 ? trs('mês') : trs('meses')}`;
+  return m === 0 ? `${y} ${y === 1 ? trs('ano') : trs('anos')}` : `${y}${trs('a')} ${m}m`;
 }
 function ageMonths(birthDate: string): number {
   const b = new Date(birthDate);
@@ -4252,6 +4256,7 @@ function ChildChart({
   onBack: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [history, setHistory] = useState<ChildHistory | null>(null);
   const [health, setHealth] = useState<HealthOverview | null>(null);
   const [dueVax, setDueVax] = useState<{ abbr: string; name: string }[]>([]);
@@ -4301,7 +4306,7 @@ function ChildChart({
   return (
     <div className="section">
       <button className="link" onClick={onBack}>
-        ← Doentes
+        ← {tr('Doentes')}
       </button>
       <h2 style={{ marginTop: 8 }}>
         {childName} <span className="muted">· {ageLabel(birthDate)}</span>
@@ -4313,10 +4318,10 @@ function ChildChart({
         <>
           {overdueVax.length > 0 ? (
             <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
-              <strong>⚠️ Vacinas possivelmente em atraso</strong>
+              <strong>{tr('⚠️ Vacinas possivelmente em atraso')}</strong>
               <div className="muted" style={{ marginTop: 4 }}>
-                Para a idade ({ageLabel(birthDate)}), sem registo destas vacinas do PNV — confirmar
-                com o boletim:
+                {tr('Para a idade')} ({ageLabel(birthDate)}),{' '}
+                {tr('sem registo destas vacinas do PNV — confirmar com o boletim:')}
               </div>
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {overdueVax.map((v) => (
@@ -4329,9 +4334,9 @@ function ChildChart({
           ) : null}
           {health ? <GrowthAlert growth={health.growth} /> : null}
           <div className="card">
-            <strong>Problemas ativos</strong>
+            <strong>{tr('Problemas ativos')}</strong>
             {openProblems.length === 0 ? (
-              <div className="muted">Sem problemas em aberto.</div>
+              <div className="muted">{tr('Sem problemas em aberto.')}</div>
             ) : (
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {openProblems.map((e) => (
@@ -4345,9 +4350,9 @@ function ChildChart({
           </div>
 
           <div className="card">
-            <strong>Medicação ativa</strong>
+            <strong>{tr('Medicação ativa')}</strong>
             {activeMeds.length === 0 ? (
-              <div className="muted">Nenhuma.</div>
+              <div className="muted">{tr('Nenhuma.')}</div>
             ) : (
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {activeMeds.map((m) => (
@@ -4364,15 +4369,15 @@ function ChildChart({
 
           {growthPts.length >= 2 ? (
             <div className="card">
-              <strong>Peso (kg)</strong>
-              <GrowthChart points={growthPts} label="Peso" unit="kg" />
+              <strong>{tr('Peso (kg)')}</strong>
+              <GrowthChart points={growthPts} label={tr('Peso')} unit="kg" />
             </div>
           ) : null}
 
           <div className="card">
-            <strong>Vacinas registadas</strong>
+            <strong>{tr('Vacinas registadas')}</strong>
             {(health?.vaccines ?? []).length === 0 ? (
-              <div className="muted">Nenhuma.</div>
+              <div className="muted">{tr('Nenhuma.')}</div>
             ) : (
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {(health?.vaccines ?? []).map((v) => (
@@ -4385,19 +4390,19 @@ function ChildChart({
             )}
           </div>
 
-          <h3 style={{ marginTop: 16 }}>Histórico de consultas</h3>
+          <h3 style={{ marginTop: 16 }}>{tr('Histórico de consultas')}</h3>
           {(history?.consultations ?? []).length === 0 ? (
-            <EmptyState title="Sem consultas registadas" />
+            <EmptyState title={tr('Sem consultas registadas')} />
           ) : (
             <div className="grid">
               {(history?.consultations ?? []).map((c) => (
                 <div key={c.id} className="card">
-                  <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+                  <span className={statusPill(c.status)}>{tr(statusLabel(c.status))}</span>
                   <div>
-                    <strong>{svcLabel(c.type)}</strong> · {euro(c.priceCents)}
+                    <strong>{tr(svcLabel(c.type))}</strong> · {euro(c.priceCents)}
                   </div>
-                  <div className="muted">Aberta: {when(c.openedAt)}</div>
-                  {c.closedAt ? <div className="muted">Fechada: {when(c.closedAt)}</div> : null}
+                  <div className="muted">{tr('Aberta')}: {when(c.openedAt)}</div>
+                  {c.closedAt ? <div className="muted">{tr('Fechada')}: {when(c.closedAt)}</div> : null}
                 </div>
               ))}
             </div>
@@ -4409,6 +4414,7 @@ function ChildChart({
 }
 
 function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [families, setFamilies] = useState<PatientFamily[]>([]);
   const [loading, setLoading] = useState(true);
   const [picked, setPicked] = useState<{ id: string; name: string; birthDate: string } | null>(null);
@@ -4439,19 +4445,19 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div className="section">
-      <h2>Os meus doentes</h2>
-      <p className="muted">Agrupados por família — irmãos juntos. Toca numa criança para o registo.</p>
+      <h2>{tr('Os meus doentes')}</h2>
+      <p className="muted">{tr('Agrupados por família — irmãos juntos. Toca numa criança para o registo.')}</p>
       {loading ? (
         <Skeleton rows={2} />
       ) : families.length === 0 ? (
-        <EmptyState title="Ainda sem doentes" hint="Aparecem aqui as crianças que já consultaste." />
+        <EmptyState title={tr('Ainda sem doentes')} hint={tr('Aparecem aqui as crianças que já consultaste.')} />
       ) : (
         families.map((fam) => (
           <div key={fam.id} className="card" style={{ marginBottom: 12 }}>
             <strong>{fam.name}</strong>
             {fam.guardians && fam.guardians.length > 0 ? (
               <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                {fam.guardians.map((g) => `${guardianLabel(g.relationship)} ${g.name}`).join(' · ')}
+                {fam.guardians.map((g) => `${tr(guardianLabel(g.relationship))} ${g.name}`).join(' · ')}
               </div>
             ) : null}
             <div className="grid" style={{ marginTop: 8 }}>
@@ -4464,7 +4470,7 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
                 >
                   <strong>{c.name}</strong> <span className="muted">· {ageLabel(c.birthDate)}</span>
                   <div className="muted">
-                    {c.consultationCount} consulta{c.consultationCount === 1 ? '' : 's'} · última{' '}
+                    {c.consultationCount} {c.consultationCount === 1 ? tr('consulta') : tr('consultas')} · {tr('última')}{' '}
                     {when(c.lastConsultAt)}
                   </div>
                 </button>
@@ -4479,6 +4485,7 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
 
 // ───────────────────────── Pediatrician: Agenda ─────────────────────────
 function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [rows, setRows] = useState<AvailabilityDto[]>([]);
   const [weekday, setWeekday] = useState(1);
   const [start, setStart] = useState('09:00');
@@ -4506,7 +4513,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         endMinute: toMin(end),
         slotMinutes: 20,
       });
-      onMsg('Disponibilidade adicionada ✓');
+      onMsg(tr('Disponibilidade adicionada ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4528,28 +4535,28 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div className="section">
-      <h2>Disponibilidade (vídeo)</h2>
+      <h2>{tr('Disponibilidade (vídeo)')}</h2>
       {rows.length === 0 ? (
-        <p className="muted">Sem blocos definidos. Os pais só veem horários nos dias que definires.</p>
+        <p className="muted">{tr('Sem blocos definidos. Os pais só veem horários nos dias que definires.')}</p>
       ) : (
         <div className="grid">
           {rows.map((a) => (
             <div key={a.id} className="card">
-              <strong>{WEEKDAYS[a.weekday]}</strong>
+              <strong>{tr(WEEKDAYS[a.weekday])}</strong>
               <div className="muted">
-                {hhmm(a.startMinute)}–{hhmm(a.endMinute)} · slots {a.slotMinutes} min
+                {hhmm(a.startMinute)}–{hhmm(a.endMinute)} · {tr('slots')} {a.slotMinutes} min
               </div>
               <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
-                Remover
+                {tr('Remover')}
               </button>
             </div>
           ))}
         </div>
       )}
       <div className="card section">
-        <h3>Adicionar bloco</h3>
+        <h3>{tr('Adicionar bloco')}</h3>
         <label className="muted">
-          Dia:
+          {tr('Dia')}:
           <select
             value={weekday}
             onChange={(e) => setWeekday(Number(e.target.value))}
@@ -4557,21 +4564,21 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
           >
             {WEEKDAYS.map((d, i) => (
               <option key={i} value={i}>
-                {d}
+                {tr(d)}
               </option>
             ))}
           </select>
         </label>
         <div className="row" style={{ marginTop: 8 }}>
           <label className="muted">
-            Início <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            {tr('Início')} <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </label>
           <label className="muted">
-            Fim <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            {tr('Fim')} <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
         </div>
         <button className="btn" onClick={add} disabled={busy}>
-          Adicionar
+          {tr('Adicionar')}
         </button>
       </div>
     </div>
@@ -4580,6 +4587,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 
 // ───────────────────────── Pediatrician: Profile + services ─────────────────────────
 function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave: () => void }) {
+  const { tr } = useT();
   const [me, setMe] = useState<PedMeDto | null>(null);
   const [bio, setBio] = useState('');
   const [busy, setBusy] = useState(false);
@@ -4605,7 +4613,7 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
     setBusy(true);
     try {
       await Api.updateMe({ bio });
-      onMsg('Perfil atualizado ✓');
+      onMsg(tr('Perfil atualizado ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4621,7 +4629,7 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
         priceCents: Math.round(Number(sprice) * 100),
         slaHours: Number(ssla),
       });
-      onMsg('Serviço adicionado ✓');
+      onMsg(tr('Serviço adicionado ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4641,55 +4649,55 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
     }
   }
 
-  if (!me) return <p className="muted section">A carregar…</p>;
+  if (!me) return <p className="muted section">{tr('A carregar…')}</p>;
 
   return (
     <div className="section">
-      <h2>O meu perfil</h2>
+      <h2>{tr('O meu perfil')}</h2>
       <div className="card">
         {me.displayName ? <strong>{me.displayName}</strong> : null}
         <div style={{ marginTop: me.displayName ? 4 : 0 }}>
           <span className="pill ok">{me.status}</span> · ⭐ {me.ratingAvg.toFixed(1)} ·{' '}
-          {me.experienceYears ?? 0} anos
+          {me.experienceYears ?? 0} {tr('anos')}
         </div>
         <div className="muted">
-          {specLabel(me.specialties?.[0])} · {me.languages.join(' · ')}
+          {tr(specLabel(me.specialties?.[0]))} · {me.languages.join(' · ')}
         </div>
       </div>
       <div className="card section">
         <h3>Bio</h3>
         <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
         <button className="btn" onClick={saveBio} disabled={busy}>
-          Guardar
+          {tr('Guardar')}
         </button>
       </div>
 
-      <h3 style={{ marginTop: 20 }}>Serviços</h3>
+      <h3 style={{ marginTop: 20 }}>{tr('Serviços')}</h3>
       <div className="grid">
         {me.services.map((s: ServiceDto) => (
           <div key={s.id} className="card">
-            <strong>{svcLabel(s.type)}</strong> · {euro(s.priceCents)}
-            <div className="muted">SLA {s.slaHours}h{s.active === false ? ' · inativo' : ''}</div>
+            <strong>{tr(svcLabel(s.type))}</strong> · {euro(s.priceCents)}
+            <div className="muted">SLA {s.slaHours}h{s.active === false ? ` · ${tr('inativo')}` : ''}</div>
             <button className="btn danger small" onClick={() => delService(s.id)} disabled={busy}>
-              Remover
+              {tr('Remover')}
             </button>
           </div>
         ))}
       </div>
       <div className="card section">
-        <h3>Adicionar serviço</h3>
+        <h3>{tr('Adicionar serviço')}</h3>
         <label className="muted">
-          Tipo:
+          {tr('Tipo')}:
           <select value={stype} onChange={(e) => setStype(e.target.value)} style={{ marginLeft: 8 }}>
-            <option value="MESSAGE">Mensagem</option>
-            <option value="VIDEO">Vídeo</option>
-            <option value="SECOND_OPINION">Segunda opinião</option>
-            <option value="FOLLOW_UP">Seguimento</option>
+            <option value="MESSAGE">{tr('Mensagem')}</option>
+            <option value="VIDEO">{tr('Vídeo')}</option>
+            <option value="SECOND_OPINION">{tr('Segunda opinião')}</option>
+            <option value="FOLLOW_UP">{tr('Seguimento')}</option>
           </select>
         </label>
         <div className="row" style={{ marginTop: 8 }}>
           <label className="muted">
-            Preço €
+            {tr('Preço €')}
             <input
               type="number"
               value={sprice}
@@ -4708,7 +4716,7 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
           </label>
         </div>
         <button className="btn" onClick={addService} disabled={busy}>
-          Adicionar serviço
+          {tr('Adicionar serviço')}
         </button>
       </div>
 
@@ -4716,7 +4724,7 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
 
       <ContentAuthor onMsg={onMsg} />
 
-      <h3 style={{ marginTop: 20 }}>Subscrição</h3>
+      <h3 style={{ marginTop: 20 }}>{tr('Subscrição')}</h3>
       <SubscriptionSection onMsg={onMsg} />
       <InvoicesSection onMsg={onMsg} />
       <PrivacySection onMsg={onMsg} onLeave={onLeave} />
@@ -4743,6 +4751,7 @@ function docStatusLabel(s: string): string {
 }
 
 function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [docs, setDocs] = useState<VerificationDoc[]>([]);
   const [kind, setKind] = useState('cedula');
   const [fileName, setFileName] = useState('');
@@ -4762,13 +4771,13 @@ function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
 
   async function submit() {
     if (fileName.trim().length < 2) {
-      onMsg('Indica o nome do ficheiro.');
+      onMsg(tr('Indica o nome do ficheiro.'));
       return;
     }
     setBusy(true);
     try {
       await Api.submitDocument({ kind, fileName: fileName.trim() });
-      onMsg('Documento submetido para verificação ✓');
+      onMsg(tr('Documento submetido para verificação ✓'));
       setFileName('');
       await load();
     } catch (e) {
@@ -4780,47 +4789,45 @@ function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div className="card section">
-      <h3>Documentos de verificação</h3>
+      <h3>{tr('Documentos de verificação')}</h3>
       <p className="muted">
-        Submete a cédula profissional e outros comprovativos. A equipa de compliance analisa e
-        aprova. (O upload do ficheiro em si fica disponível quando o armazenamento seguro estiver
-        ativo.)
+        {tr('Submete a cédula profissional e outros comprovativos. A equipa de compliance analisa e aprova. (O upload do ficheiro em si fica disponível quando o armazenamento seguro estiver ativo.)')}
       </p>
       {docs.length > 0 ? (
         <div className="grid" style={{ marginBottom: 12 }}>
           {docs.map((d) => (
             <div key={d.id} className="card">
-              <span className={docStatusPill(d.status)}>{docStatusLabel(d.status)}</span>
+              <span className={docStatusPill(d.status)}>{tr(docStatusLabel(d.status))}</span>
               <div>
-                <strong>{DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</strong>
+                <strong>{tr(DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind)}</strong>
               </div>
               <div className="muted">{d.fileName}</div>
-              {d.note ? <div className="muted">Nota: {d.note}</div> : null}
+              {d.note ? <div className="muted">{tr('Nota')}: {d.note}</div> : null}
             </div>
           ))}
         </div>
       ) : (
-        <p className="muted">Ainda não submeteste documentos.</p>
+        <p className="muted">{tr('Ainda não submeteste documentos.')}</p>
       )}
       <label className="muted">
-        Tipo
+        {tr('Tipo')}
         <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ marginLeft: 8 }}>
           {DOC_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
-              {k.label}
+              {tr(k.label)}
             </option>
           ))}
         </select>
       </label>
       <input
         className="search"
-        placeholder="Nome do ficheiro (ex.: cedula-12345.pdf)"
+        placeholder={tr('Nome do ficheiro (ex.: cedula-12345.pdf)')}
         value={fileName}
         onChange={(e) => setFileName(e.target.value)}
         style={{ marginTop: 8 }}
       />
       <button className="btn" onClick={submit} disabled={busy} style={{ marginTop: 8 }}>
-        Submeter documento
+        {tr('Submeter documento')}
       </button>
     </div>
   );
