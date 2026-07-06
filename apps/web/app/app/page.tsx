@@ -2434,6 +2434,7 @@ const SEV_RANK: Record<string, number> = { info: 0, caution: 1, emergency: 2 };
 
 function HomeTab({
   profile,
+  onMsg,
   onGo,
   onGoConsult,
   onOpenConsultation,
@@ -2458,6 +2459,8 @@ function HomeTab({
   // Which answered consultations the parent has already read (keyed by the
   // answer's timestamp, so a NEW reply from the pediatrician re-alerts).
   const [readAnswers, setReadAnswers] = useState<Record<string, string>>({});
+  const [dictating, setDictating] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const askSeq = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -2484,6 +2487,51 @@ function HomeTab({
     }
     onOpenConsultation(c.id);
   }
+
+  // Voice dictation of the parent's message — same Web Speech API used by the
+  // pediatrician's note dictation. Appends the transcript to the composer; the
+  // recognition language follows the app locale.
+  const speechSupported = getSpeechRecognition() !== null;
+  function toggleDictation() {
+    if (dictating) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SR = getSpeechRecognition();
+    if (!SR) {
+      onMsg(tr('Este browser não suporta ditado por voz (tenta o Chrome).'));
+      return;
+    }
+    const loc = appLocale();
+    const rec = new SR();
+    rec.lang = loc.startsWith('es') ? 'es-ES' : loc.startsWith('en') ? 'en-US' : 'pt-PT';
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      }
+      finalText = finalText.trim();
+      if (finalText) setInput((prev) => (prev.trim() ? `${prev} ${finalText}` : finalText));
+    };
+    rec.onerror = (e) => {
+      onMsg(`${tr('Ditado')}: ${e.error}`);
+      setDictating(false);
+    };
+    rec.onend = () => {
+      setDictating(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = rec;
+    rec.start();
+    setDictating(true);
+  }
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   const answered = consults
     .filter((c) => c.status === 'ANSWERED')
@@ -2704,19 +2752,44 @@ function HomeTab({
             }}
             placeholder={started ? tr('Escreve a tua resposta…') : tr('Ex.: febre há 2 dias, 3 anos, e está muito queixoso')}
             rows={2}
-            style={{ width: '100%', borderRadius: 16, padding: '14px 54px 14px 16px', resize: 'none', fontSize: 16 }}
+            style={{ width: '100%', borderRadius: 16, padding: `14px ${speechSupported ? 96 : 54}px 14px 16px`, resize: 'none', fontSize: 16 }}
           />
-          <button
-            type="submit"
-            className="btn"
-            aria-label={tr('Perguntar')}
-            disabled={busy || !input.trim()}
-            style={{ position: 'absolute', right: 8, bottom: 10, borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
-          >
-            →
-          </button>
+          <div style={{ position: 'absolute', right: 8, bottom: 10, display: 'flex', gap: 6 }}>
+            {speechSupported ? (
+              <button
+                type="button"
+                className={dictating ? 'btn' : 'btn secondary'}
+                aria-label={dictating ? tr('Parar ditado') : tr('Ditar por voz')}
+                aria-pressed={dictating}
+                onClick={toggleDictation}
+                title={dictating ? tr('Parar ditado') : tr('Ditar por voz')}
+                style={{
+                  borderRadius: 12,
+                  padding: '8px 12px',
+                  fontSize: 17,
+                  ...(dictating ? { background: 'var(--danger)' } : {}),
+                }}
+              >
+                {dictating ? '■' : '🎤'}
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              className="btn"
+              aria-label={tr('Perguntar')}
+              disabled={busy || !input.trim()}
+              style={{ borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
+            >
+              →
+            </button>
+          </div>
         </div>
       </form>
+      {dictating ? (
+        <p className="muted" style={{ fontSize: 12, textAlign: 'center', margin: '6px auto 0', maxWidth: 640 }}>
+          {tr('A ouvir… fala e depois toca em ■ para parar.')}
+        </p>
+      ) : null}
 
       {/* Routing + secondary actions. */}
       <div className="row" style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
