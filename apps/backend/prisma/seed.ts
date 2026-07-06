@@ -1,4 +1,5 @@
 import {
+  Prisma,
   PrismaClient,
   Role,
   PediatricianStatus,
@@ -9,6 +10,7 @@ import {
   ReferralStatus,
 } from '@prisma/client';
 import { createCipheriv, randomBytes, createHash, randomUUID } from 'crypto';
+import { buildMarketDataset } from './market-demo';
 
 const prisma = new PrismaClient();
 
@@ -1503,6 +1505,180 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.log(`Seeded ${PEDS.length} pediatricians, 6 families (two guardians each)/7 children with varied clinical histories, consultations + 2 second-opinion cases + clinic + ${ARTICLES.length} articles.`);
+
+  await seedMarketHistory();
+}
+
+// ── Synthetic market-history dataset (the "mkt." namespace) ─────────────────
+// Deterministic monthly cohorts (January → current month, seeded PRNG) so the
+// admin "Mercado" panel (GET /admin/market) and the FINANCE evolution chart
+// (GET /admin/finance/series) tell a readable growth story — the cohort math
+// lives in prisma/market-demo.ts (pure, dry-runnable without a DB).
+// Idempotency: the whole block is skipped when any "mkt." user already exists.
+async function seedMarketHistory(): Promise<void> {
+  const present = await prisma.user.count({ where: { email: { startsWith: 'mkt.' } } });
+  if (present > 0) {
+    // eslint-disable-next-line no-console
+    console.log('Market-history demo dataset already present — skipping.');
+    return;
+  }
+  const ds = buildMarketDataset(new Date());
+
+  // Pediatricians: User + Pediatrician (ACTIVE, createdAt = join month) +
+  // MESSAGE/VIDEO services + weekly VIDEO+MESSAGES availability template.
+  const pedIds: string[] = [];
+  for (const p of ds.peds) {
+    const user = await prisma.user.create({
+      data: {
+        email: `mkt.${p.slug}@demo.pedia`,
+        emailVerified: true,
+        role: Role.PEDIATRICIAN,
+        name: p.displayName,
+        createdAt: p.createdAt,
+      },
+    });
+    const ped = await prisma.pediatrician.create({
+      data: {
+        userId: user.id,
+        licenseNumber: p.licenseNumber,
+        licenseVerifiedAt: p.createdAt,
+        displayName: p.displayName,
+        bio: p.bio,
+        experienceYears: p.experienceYears,
+        languages: ['pt'],
+        specialties: p.specialties,
+        region: p.region,
+        timezone: 'Europe/Lisbon',
+        status: PediatricianStatus.ACTIVE,
+        ratingAvg: p.ratingAvg,
+        createdAt: p.createdAt,
+      },
+    });
+    pedIds.push(ped.id);
+    await prisma.pediatricianService.createMany({
+      data: [
+        { pediatricianId: ped.id, type: ServiceType.MESSAGE, priceCents: p.msgPriceCents, slaHours: 4, scopeText: '1 questão + esclarecimentos' },
+        { pediatricianId: ped.id, type: ServiceType.VIDEO, priceCents: p.videoPriceCents, slaHours: 24 },
+      ],
+    });
+    await prisma.availability.createMany({
+      data: (['VIDEO', 'MESSAGES'] as const).flatMap((kind) =>
+        p.weekdays.map((weekday) => ({
+          pediatricianId: ped.id,
+          kind,
+          weekday,
+          startMinute: p.startMinute,
+          endMinute: p.endMinute,
+          slotMinutes: 20,
+        })),
+      ),
+    });
+  }
+
+  // Families + guardians + children — batched createMany with pre-generated
+  // ids (no clinical extras: rows stay light, only market analytics need them).
+  const userRows: Prisma.UserCreateManyInput[] = [];
+  const familyRows: Prisma.FamilyCreateManyInput[] = [];
+  const memberRows: Prisma.FamilyMemberCreateManyInput[] = [];
+  const childRows: Prisma.ChildCreateManyInput[] = [];
+  const familyIds: string[] = [];
+  const childIdsByFamily: string[][] = [];
+  for (const f of ds.families) {
+    const userId = randomUUID();
+    const familyId = randomUUID();
+    familyIds.push(familyId);
+    userRows.push({
+      id: userId,
+      email: f.email,
+      emailVerified: true,
+      role: Role.PARENT,
+      name: f.guardianName,
+      createdAt: f.createdAt,
+    });
+    familyRows.push({
+      id: familyId,
+      name: f.familyName,
+      primaryUserId: userId,
+      region: f.region,
+      createdAt: f.createdAt,
+    });
+    memberRows.push({ familyId, userId, relationship: 'guardian' });
+    const childIds: string[] = [];
+    for (const c of f.children) {
+      const childId = randomUUID();
+      childIds.push(childId);
+      childRows.push({
+        id: childId,
+        familyId,
+        name: c.name,
+        birthDate: c.birthDate,
+        sex: c.sex,
+        createdAt: f.createdAt,
+      });
+    }
+    childIdsByFamily.push(childIds);
+  }
+  await prisma.user.createMany({ data: userRows });
+  await prisma.family.createMany({ data: familyRows });
+  await prisma.familyMember.createMany({ data: memberRows });
+  await prisma.child.createMany({ data: childRows });
+
+  // Consultations + Payments/Splits (CLOSED → CAPTURED at closedAt, 20/80
+  // split) and a sprinkle of REFUNDED payments with a Refund row.
+  const consultRows: Prisma.ConsultationCreateManyInput[] = [];
+  const paymentRows: Prisma.PaymentCreateManyInput[] = [];
+  const splitRows: Prisma.SplitCreateManyInput[] = [];
+  const refundRows: Prisma.RefundCreateManyInput[] = [];
+  ds.consultations.forEach((c, i) => {
+    const id = randomUUID();
+    consultRows.push({
+      id,
+      familyId: familyIds[c.familyIndex],
+      childId: childIdsByFamily[c.familyIndex][c.childIndex],
+      pediatricianId: pedIds[c.pedIndex],
+      type: ServiceType[c.type],
+      status: ConsultationStatus[c.status],
+      priceCents: c.priceCents,
+      openedAt: c.openedAt,
+      answeredAt: c.answeredAt,
+      closedAt: c.closedAt,
+      scheduledAt: c.scheduledAt,
+      slaDueAt: c.slaDueAt,
+    });
+    if (c.payment) {
+      const paymentId = randomUUID();
+      paymentRows.push({
+        id: paymentId,
+        consultationId: id,
+        amountCents: c.payment.amountCents,
+        psp: 'demo',
+        pspRef: `demo_mkt_${i}`,
+        status: PaymentStatus[c.payment.status],
+        createdAt: c.openedAt,
+        capturedAt: c.payment.capturedAt,
+      });
+      const fee = Math.round(c.payment.amountCents * 0.2);
+      splitRows.push({ paymentId, platformFeeCents: fee, pediatricianAmount: c.payment.amountCents - fee });
+      if (c.payment.refundAt) {
+        refundRows.push({
+          paymentId,
+          amountCents: c.payment.amountCents,
+          reason: 'demo',
+          status: 'succeeded',
+          createdAt: c.payment.refundAt,
+        });
+      }
+    }
+  });
+  await prisma.consultation.createMany({ data: consultRows });
+  await prisma.payment.createMany({ data: paymentRows });
+  await prisma.split.createMany({ data: splitRows });
+  if (refundRows.length) await prisma.refund.createMany({ data: refundRows });
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `Seeded market history (${ds.monthCount} months): ${ds.peds.length} peds, ${ds.families.length} families, ${childRows.length} children, ${consultRows.length} consultations, ${paymentRows.length} payments (${refundRows.length} refunds).`,
+  );
 }
 
 main()
