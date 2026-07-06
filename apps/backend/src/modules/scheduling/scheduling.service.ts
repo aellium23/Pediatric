@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomUUID } from 'crypto';
 import {
   AvailabilityKind,
@@ -16,8 +18,31 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
-import { SetAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
+import { ConsultationRebookOfferedEvent } from '../consultations/events';
+import { SetAvailabilityDto, UpdateAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
 import { localISODay, utcDayWindowLocal, wallClockToUTC } from './wall-clock';
+
+/** A future booked consultation that an availability change would orphan. */
+export type AffectedBooking = {
+  consultationId: string;
+  scheduledAt: Date;
+  /** Child identified by initials only ("Tomás Mota" → "T.M.") — the impact
+   *  dialog doesn't need the full name. */
+  childInitials: string;
+};
+
+/** Wall-clock minute window (in the pediatrician's timezone). */
+type MinuteWindow = { startMinute: number; endMinute: number };
+
+function initialsOf(name: string | null | undefined): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => `${part[0].toUpperCase()}.`)
+    .join('');
+}
 
 @Injectable()
 export class SchedulingService {
@@ -27,6 +52,7 @@ export class SchedulingService {
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
     private readonly payments: PaymentsService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async setAvailability(userId: string, dto: SetAvailabilityDto) {
@@ -70,14 +96,269 @@ export class SchedulingService {
     });
   }
 
-  async deleteAvailability(userId: string, id: string) {
+  /**
+   * Future booked (OPEN/TRIAGE) video consultations whose scheduled instant
+   * falls inside `block`'s wall-clock window — i.e. the bookings a delete or
+   * edit of that block would orphan. When `newWindow` is given (an edit),
+   * instants still covered by the new window are NOT affected.
+   *
+   * Windows are wall-clock minutes in the pediatrician's timezone, converted
+   * per concrete date (so DST days are handled by wallClockToUTC). A dated
+   * block governs only its own date; a recurring block governs every future
+   * date on its weekday EXCEPT days that have dated blocks of the same kind —
+   * those days are governed by their dated blocks, not the template.
+   */
+  async affectedBookings(
+    pediatricianId: string,
+    block: {
+      kind: AvailabilityKind;
+      weekday: number;
+      startMinute: number;
+      endMinute: number;
+      date: Date | null;
+    },
+    newWindow?: MinuteWindow | null,
+  ): Promise<AffectedBooking[]> {
+    const ped = await this.prisma.pediatrician.findUnique({
+      where: { id: pediatricianId },
+      select: { timezone: true },
+    });
+    const tz = ped?.timezone ?? 'Europe/Lisbon';
+    const sessions = await this.prisma.videoSession.findMany({
+      where: {
+        scheduledAt: { gte: new Date() },
+        consultation: {
+          pediatricianId,
+          status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE] },
+        },
+      },
+      select: {
+        scheduledAt: true,
+        consultation: { select: { id: true, child: { select: { name: true } } } },
+      },
+    });
+    if (!sessions.length) return [];
+
+    // Days already customized with dated blocks of this kind: the weekly
+    // template does not govern them, so a recurring-block change never
+    // affects bookings there.
+    let datedDayKeys: Set<string> | null = null;
+    if (!block.date) {
+      const dated = await this.prisma.availability.findMany({
+        where: { pediatricianId, kind: block.kind, date: { not: null } },
+        select: { date: true },
+      });
+      datedDayKeys = new Set(dated.map((d) => d.date!.toISOString().slice(0, 10)));
+    }
+    const blockDay = block.date ? block.date.toISOString().slice(0, 10) : null;
+
+    const affected: AffectedBooking[] = [];
+    for (const s of sessions) {
+      // The block's minutes are wall-clock, so the session's calendar day must
+      // be computed in the pediatrician's timezone (not the UTC date).
+      const day = localISODay(s.scheduledAt, tz);
+      if (blockDay) {
+        if (day !== blockDay) continue;
+      } else {
+        // A calendar day's weekday is a property of the date itself (no tz math).
+        if (new Date(`${day}T00:00:00.000Z`).getUTCDay() !== block.weekday) continue;
+        if (datedDayKeys!.has(day)) continue;
+      }
+      const inWindow = (w: MinuteWindow): boolean => {
+        const start = wallClockToUTC(day, w.startMinute, tz);
+        const end = wallClockToUTC(day, w.endMinute, tz);
+        if (!start || !end) return false;
+        const t = s.scheduledAt.getTime();
+        return t >= start.getTime() && t < end.getTime();
+      };
+      if (!inWindow(block)) continue;
+      if (newWindow && inWindow(newWindow)) continue; // still covered after the edit
+      affected.push({
+        consultationId: s.consultation.id,
+        scheduledAt: s.scheduledAt,
+        childInitials: initialsOf(s.consultation.child?.name),
+      });
+    }
+    return affected;
+  }
+
+  /**
+   * Gate + settle the booking impact of an availability change.
+   *
+   * Without `confirm`, any impact aborts with a 409 carrying the affected
+   * list, so the UI can show exactly which consultations would be cancelled.
+   * With `confirm`, each affected consultation is refunded
+   * ('pediatrician_unavailable'), marked REFUNDED and a rebook event is
+   * emitted for the family.
+   *
+   * NOT one big prisma.$transaction: refunds go through PaymentsService,
+   * which calls Stripe and runs its own transaction — a service call cannot
+   * join a Prisma transaction. This mirrors the codebase's existing pattern
+   * (ConsultationsService.expireOverdue): sequential refund → status → event
+   * per consultation. refundForConsultation is idempotent, so a partial
+   * failure can be safely retried.
+   */
+  private async settleAffected(affected: AffectedBooking[], confirm: boolean): Promise<void> {
+    if (!affected.length) return;
+    if (!confirm) {
+      throw new ConflictException({
+        message: 'Esta alteração afeta consultas marcadas.',
+        affected,
+      });
+    }
+    for (const a of affected) {
+      await this.payments.refundForConsultation(a.consultationId, 'pediatrician_unavailable');
+      await this.prisma.consultation.update({
+        where: { id: a.consultationId },
+        data: { status: ConsultationStatus.REFUNDED },
+      });
+      this.events.emit(
+        'consultation.rebook_offered',
+        new ConsultationRebookOfferedEvent(a.consultationId),
+      );
+    }
+  }
+
+  async deleteAvailability(userId: string, id: string, confirm = false) {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
     const block = await this.prisma.availability.findUnique({ where: { id } });
     if (!block || block.pediatricianId !== ped.id) {
       throw new ForbiddenException('Este bloco de disponibilidade não é teu.');
     }
+    // Only VIDEO blocks can have bookings; MESSAGES blocks are freely removable.
+    if (block.kind === AvailabilityKind.VIDEO) {
+      const affected = await this.affectedBookings(block.pediatricianId, block);
+      await this.settleAffected(affected, confirm);
+    }
     await this.prisma.availability.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  /**
+   * Edit = atomic delete+recreate with a prior booking-impact check (409 with
+   * the affected list unless dto.confirm). See settleAffected for the
+   * refund/rebook flow.
+   */
+  async updateAvailability(userId: string, id: string, dto: UpdateAvailabilityDto) {
+    if (dto.endMinute <= dto.startMinute) {
+      throw new BadRequestException('O minuto final tem de ser posterior ao inicial.');
+    }
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    const block = await this.prisma.availability.findUnique({ where: { id } });
+    if (!block || block.pediatricianId !== ped.id) {
+      throw new ForbiddenException('Este bloco de disponibilidade não é teu.');
+    }
+    const confirm = dto.confirm === true;
+    const newKind = (dto.kind ?? block.kind) as AvailabilityKind;
+    // Kind change VIDEO→MESSAGES removes the whole bookable window (null =
+    // full impact); a VIDEO→VIDEO edit keeps whatever the new window covers.
+    const newWindow: MinuteWindow | null =
+      newKind === AvailabilityKind.VIDEO
+        ? { startMinute: dto.startMinute, endMinute: dto.endMinute }
+        : null;
+    const checkImpact = block.kind === AvailabilityKind.VIDEO;
+
+    // ── Dated block: replace it on its own date ──
+    if (block.date) {
+      if (checkImpact) {
+        const affected = await this.affectedBookings(block.pediatricianId, block, newWindow);
+        await this.settleAffected(affected, confirm);
+      }
+      const [, created] = await this.prisma.$transaction([
+        this.prisma.availability.delete({ where: { id } }),
+        this.prisma.availability.create({
+          data: {
+            pediatricianId: block.pediatricianId,
+            kind: newKind,
+            weekday: block.date.getUTCDay(),
+            startMinute: dto.startMinute,
+            endMinute: dto.endMinute,
+            slotMinutes: block.slotMinutes,
+            date: block.date,
+          },
+        }),
+      ]);
+      return created;
+    }
+
+    // ── Recurring block, scope 'day': materialize that single date ──
+    if ((dto.scope ?? 'all') === 'day') {
+      if (!dto.date) {
+        throw new BadRequestException('Indica a data do dia a alterar.');
+      }
+      const dayISO = dto.date.slice(0, 10);
+      const dayKey = new Date(`${dayISO}T00:00:00.000Z`);
+      if (Number.isNaN(dayKey.getTime())) throw new BadRequestException('Data inválida.');
+      if (dayKey.getUTCDay() !== block.weekday) {
+        throw new BadRequestException('A data não cai no dia da semana deste bloco.');
+      }
+      // A day that already has dated blocks of this kind is no longer governed
+      // by the template — edit those dated blocks directly instead.
+      const alreadyDated = await this.prisma.availability.findFirst({
+        where: { pediatricianId: block.pediatricianId, kind: block.kind, date: dayKey },
+        select: { id: true },
+      });
+      if (alreadyDated) {
+        throw new BadRequestException('Este dia já tem blocos específicos — edita-os diretamente.');
+      }
+      if (checkImpact) {
+        // Impact only for that concrete date: old window minus new window.
+        const affected = await this.affectedBookings(
+          block.pediatricianId,
+          { ...block, date: dayKey },
+          newWindow,
+        );
+        await this.settleAffected(affected, confirm);
+      }
+      // The dated override replaces the WHOLE template for that day (per kind),
+      // so copy every effective same-kind block for the weekday; only the
+      // edited block's copy gets the new times/kind.
+      const siblings = await this.prisma.availability.findMany({
+        where: {
+          pediatricianId: block.pediatricianId,
+          kind: block.kind,
+          weekday: block.weekday,
+          date: null,
+        },
+      });
+      const created = await this.prisma.$transaction(
+        siblings.map((s) =>
+          this.prisma.availability.create({
+            data: {
+              pediatricianId: block.pediatricianId,
+              kind: s.id === block.id ? newKind : s.kind,
+              weekday: block.weekday,
+              startMinute: s.id === block.id ? dto.startMinute : s.startMinute,
+              endMinute: s.id === block.id ? dto.endMinute : s.endMinute,
+              slotMinutes: s.slotMinutes,
+              date: dayKey,
+            },
+          }),
+        ),
+      );
+      return created;
+    }
+
+    // ── Recurring block, scope 'all': replace the weekly template row ──
+    if (checkImpact) {
+      const affected = await this.affectedBookings(block.pediatricianId, block, newWindow);
+      await this.settleAffected(affected, confirm);
+    }
+    const [, created] = await this.prisma.$transaction([
+      this.prisma.availability.delete({ where: { id } }),
+      this.prisma.availability.create({
+        data: {
+          pediatricianId: block.pediatricianId,
+          kind: newKind,
+          weekday: block.weekday,
+          startMinute: dto.startMinute,
+          endMinute: dto.endMinute,
+          slotMinutes: block.slotMinutes,
+          date: null,
+        },
+      }),
+    ]);
+    return created;
   }
 
   /**

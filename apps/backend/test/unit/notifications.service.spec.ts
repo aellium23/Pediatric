@@ -3,6 +3,7 @@ import {
   MessageCreatedEvent,
   PaymentCapturedEvent,
   ConsultationExpiredEvent,
+  ConsultationRebookOfferedEvent,
 } from '../../src/modules/consultations/events';
 
 function build(over: { prisma?: Record<string, any> } = {}) {
@@ -85,6 +86,42 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ userId: 'parentA', type: 'refund' }) }),
       );
+    });
+
+    it('invites every guardian to rebook when the pediatrician became unavailable', async () => {
+      const { service, prisma } = build({
+        prisma: {
+          consultation: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'c1',
+              familyId: 'fam1',
+              scheduledAt: new Date('2999-01-04T10:00:00.000Z'),
+              pediatrician: { userId: 'pedUser', displayName: 'Dra. Inês Rocha' },
+              child: { name: 'Tomás' },
+            }),
+          },
+        },
+      });
+      await service.onRebookOffered(new ConsultationRebookOfferedEvent('c1'));
+      const created = prisma.notification.create.mock.calls.map((c: any[]) => c[0].data);
+      // Both family members get it — the pediatrician does not.
+      expect(new Set(created.map((d: any) => d.userId))).toEqual(new Set(['parentA', 'parentB']));
+      for (const d of created) {
+        expect(d.type).toBe('rebook');
+        expect(d.refId).toBe('c1');
+        expect(d.title).toContain('Dra. Inês Rocha');
+        expect(d.title).toContain('indisponível');
+        expect(d.body).toContain('Tomás');
+        expect(d.body).toContain('reembolsado');
+      }
+    });
+
+    it('rebook is a silent no-op when the consultation is gone', async () => {
+      const { service, push } = build({
+        prisma: { consultation: { findUnique: jest.fn().mockResolvedValue(null) } },
+      });
+      await service.onRebookOffered(new ConsultationRebookOfferedEvent('gone'));
+      expect(push.push).not.toHaveBeenCalled();
     });
 
     it('skips when the family has no primary user', async () => {

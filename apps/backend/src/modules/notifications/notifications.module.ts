@@ -18,6 +18,7 @@ import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import {
   MessageCreatedEvent,
   ConsultationExpiredEvent,
+  ConsultationRebookOfferedEvent,
   PaymentCapturedEvent,
 } from '../consultations/events';
 
@@ -132,6 +133,29 @@ export class NotificationsService {
       'O pediatra não respondeu dentro do prazo. O valor foi reembolsado.',
       event.consultationId,
     );
+  }
+
+  @OnEvent('consultation.rebook_offered')
+  async onRebookOffered(event: ConsultationRebookOfferedEvent): Promise<void> {
+    const consultation = await this.prisma.consultation.findUnique({
+      where: { id: event.consultationId },
+      include: { pediatrician: true, child: { select: { name: true } } },
+    });
+    if (!consultation) return;
+    // Every guardian in the family should see the rebook invitation (same
+    // fan-out as new-message notifications).
+    const members = await this.prisma.familyMember.findMany({
+      where: { familyId: consultation.familyId },
+    });
+    const pedName = consultation.pediatrician.displayName ?? 'pediatra';
+    const when = consultation.scheduledAt
+      ? ` (${new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short' }).format(consultation.scheduledAt)})`
+      : '';
+    const title = `O/A ${pedName} ficou indisponível`;
+    const body = `A videoconsulta de ${consultation.child.name}${when} foi cancelada e o valor reembolsado. Remarca noutro horário ou escolhe outro pediatra.`;
+    for (const userId of new Set(members.map((m) => m.userId))) {
+      await this.notify(userId, 'rebook', title, body, event.consultationId);
+    }
   }
 
   private async primaryUser(consultationId: string): Promise<string | null> {

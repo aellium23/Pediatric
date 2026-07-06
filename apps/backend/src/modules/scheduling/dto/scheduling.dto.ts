@@ -68,6 +68,53 @@ export class SetAvailabilityDto {
   slotMinutes?: number;
 }
 
+export class UpdateAvailabilityDto {
+  @ApiProperty({ description: 'Minutes from midnight (wall-clock in the pediatrician timezone)' })
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  startMinute!: number;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  endMinute!: number;
+
+  @ApiPropertyOptional({
+    enum: ['VIDEO', 'MESSAGES'],
+    description: 'Change the block kind. VIDEO→MESSAGES removes the whole bookable window.',
+  })
+  @IsOptional()
+  @IsIn(['VIDEO', 'MESSAGES'])
+  kind?: 'VIDEO' | 'MESSAGES';
+
+  @ApiPropertyOptional({
+    enum: ['all', 'day'],
+    description:
+      "Recurring blocks only: 'all' edits the weekly template; 'day' materializes a single date.",
+  })
+  @IsOptional()
+  @IsIn(['all', 'day'])
+  scope?: 'all' | 'day';
+
+  @ApiPropertyOptional({
+    example: '2026-07-13',
+    description: "Required with scope='day' on a recurring block: the concrete date to edit.",
+  })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Set true to confirm an edit that cancels (and refunds) already-booked consultations.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  confirm?: boolean;
+}
+
 export class BookVideoDto {
   @ApiProperty() @IsUUID() childId!: string;
   @ApiProperty() @IsUUID() serviceId!: string;

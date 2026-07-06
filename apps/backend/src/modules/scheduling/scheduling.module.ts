@@ -5,13 +5,14 @@ import {
   Get,
   Module,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { SchedulingService } from './scheduling.service';
-import { SetAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
+import { SetAvailabilityDto, UpdateAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsModule } from '../payments/payments.module';
@@ -36,8 +37,22 @@ class SchedulingController {
 
   @Delete('availability/:id')
   @Roles(Role.PEDIATRICIAN)
-  deleteAvailability(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.service.deleteAvailability(user.userId, id);
+  deleteAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('confirm') confirm?: string,
+  ) {
+    return this.service.deleteAvailability(user.userId, id, confirm === 'true');
+  }
+
+  @Patch('availability/:id')
+  @Roles(Role.PEDIATRICIAN)
+  updateAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAvailabilityDto,
+  ) {
+    return this.service.updateAvailability(user.userId, id, dto);
   }
 
   @Get('pediatricians/:id/slots')

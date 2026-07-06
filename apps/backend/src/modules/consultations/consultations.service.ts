@@ -265,9 +265,21 @@ export class ConsultationsService {
       include: {
         child: { select: { id: true, name: true } },
         pediatrician: { select: { displayName: true, specialties: true } },
+        // Latest refund reason, so the app can say WHY a consultation was
+        // refunded (e.g. 'pediatrician_unavailable' → rebook prompt).
+        payment: {
+          select: {
+            refunds: { orderBy: { createdAt: 'desc' }, take: 1, select: { reason: true } },
+          },
+        },
       },
     });
-    return rows.map((c) => ({ ...c, triage: this.revealTriage(c.triage) }));
+    return rows.map(({ payment, ...c }) => ({
+      ...c,
+      triage: this.revealTriage(c.triage),
+      refundReason:
+        c.status === ConsultationStatus.REFUNDED ? (payment?.refunds?.[0]?.reason ?? null) : null,
+    }));
   }
 
   /** Admin/Finance: the most recent consultations across the platform.

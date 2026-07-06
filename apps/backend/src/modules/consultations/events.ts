@@ -15,6 +15,15 @@ export class ConsultationExpiredEvent {
   constructor(public readonly consultationId: string) {}
 }
 
+/** A booked video consultation was refunded because the pediatrician removed
+ *  the availability window — the family should be invited to rebook. */
+export class ConsultationRebookOfferedEvent {
+  constructor(
+    public readonly consultationId: string,
+    public readonly familyId?: string,
+  ) {}
+}
+
 export class MessageCreatedEvent {
   constructor(
     public readonly consultationId: string,

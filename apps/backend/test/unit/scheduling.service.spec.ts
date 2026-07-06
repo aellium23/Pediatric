@@ -15,7 +15,7 @@ function build(blocks: any[], booked: any[] = [], timezone = 'UTC') {
     availability: { findMany: jest.fn().mockResolvedValue(blocks) },
     videoSession: { findMany: jest.fn().mockResolvedValue(booked) },
   };
-  return new SchedulingService(prisma, {} as any, {} as any);
+  return new SchedulingService(prisma, {} as any, {} as any, { emit: jest.fn() } as any);
 }
 
 describe('SchedulingService.slots', () => {
@@ -114,7 +114,7 @@ describe('SchedulingService.slots — dated blocks override the weekly template'
       availability: { findMany },
       videoSession: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const service = new SchedulingService(prisma, {} as any, {} as any);
+    const service = new SchedulingService(prisma, {} as any, {} as any, { emit: jest.fn() } as any);
     const slots = await service.slots('p1', '2999-01-01');
     expect(slots).toEqual(['2999-01-01T10:00:00.000Z', '2999-01-01T10:20:00.000Z']);
     // Template query never ran — the dated blocks satisfied the day.
@@ -132,7 +132,7 @@ describe('SchedulingService.slots — dated blocks override the weekly template'
       availability: { findMany },
       videoSession: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const service = new SchedulingService(prisma, {} as any, {} as any);
+    const service = new SchedulingService(prisma, {} as any, {} as any, { emit: jest.fn() } as any);
     const slots = await service.slots('p1', '2999-01-01');
     expect(slots).toEqual(['2999-01-01T10:00:00.000Z', '2999-01-01T10:20:00.000Z']);
     expect(findMany).toHaveBeenCalledTimes(2);
@@ -154,7 +154,7 @@ describe('SchedulingService.setAvailability — dated blocks', () => {
       },
       $transaction: jest.fn(async (ops: Promise<any>[]) => Promise.all(ops)),
     };
-    return { service: new SchedulingService(prisma, {} as any, {} as any), prisma, created };
+    return { service: new SchedulingService(prisma, {} as any, {} as any, { emit: jest.fn() } as any), prisma, created };
   }
 
   it('creates one dated block with the weekday derived from the date', async () => {
@@ -232,7 +232,10 @@ describe('SchedulingService.book — health-data consent', () => {
     const payments: any = {
       createIntentForConsultation: jest.fn().mockResolvedValue({ clientSecret: 'cs' }),
     };
-    return { service: new SchedulingService(prisma, consent, payments), consent };
+    return {
+      service: new SchedulingService(prisma, consent, payments, { emit: jest.fn() } as any),
+      consent,
+    };
   }
   const dto = () => ({ childId: 'ch1', serviceId: 's1', scheduledAt: futureSlot(), teleconsultConsent: true });
 
