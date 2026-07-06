@@ -1223,3 +1223,112 @@ button.card:active {
 .hsec .regform summary {
   background: var(--surface-2);
 }
+
+/* ── Agenda weekly template calendar (.agcal-) ───────────────────────── */
+.agcal-head {
+  display: flex;
+  gap: 2px;
+}
+.agcal-axislbl {
+  flex: 0 0 40px;
+}
+.agcal-daylbl {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.agcal-grid {
+  display: flex;
+  gap: 2px;
+  height: 450px;
+}
+.agcal-axis {
+  flex: 0 0 40px;
+  position: relative;
+}
+.agcal-axis span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+}
+.agcal-col {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  overflow: hidden;
+}
+.agcal-cell {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+.agcal-cell:first-child {
+  border-top: 0;
+}
+.agcal-cell:hover,
+.agcal-cell:focus-visible {
+  background: var(--brand-tint);
+}
+.agcal-block {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border: 1px solid var(--accent);
+  background: var(--accent-tint);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 2px 3px;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+.agcal-block.selected {
+  background: var(--accent);
+  border-color: var(--accent-press);
+  color: var(--brand);
+  font-weight: 600;
+}
+.agcal-block:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 1px;
+}
+.agcal-freelist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.agcal-freerow {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 15px;
+  cursor: pointer;
+}
+.agcal-freerow:hover,
+.agcal-freerow:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-tint);
+}

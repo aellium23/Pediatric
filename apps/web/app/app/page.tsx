@@ -19,6 +19,9 @@ import {
   type AvailabilityDto,
   type NotificationDto,
   type AdminMetrics,
+  type FinanceSeriesDto,
+  type FinanceSeriesMonth,
+  type StatementEntry,
   type AdminPedRow,
   type AdminUserRow,
   type AdminUserDetail,
@@ -4092,9 +4095,16 @@ function InboxTab({
   const videosToday = shownRows
     .filter((c) => c.type === 'VIDEO' && c.scheduledAt && new Date(c.scheduledAt).toDateString() === today)
     .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime());
-  const toAnswer = shownRows.filter((c) => !videosToday.includes(c)).sort(byUrgency);
+  // Founder feedback: answered consultations (awaiting the family or closure)
+  // were mixed with the truly-unanswered ones — keep them in separate boxes.
+  const rest = shownRows.filter((c) => !videosToday.includes(c));
+  const toAnswer = rest.filter(isUnanswered).sort(byUrgency);
+  const answered = rest
+    .filter((c) => !isUnanswered(c))
+    .sort((a, b) => new Date(b.answeredAt ?? b.openedAt).getTime() - new Date(a.answeredAt ?? a.openedAt).getTime());
+  const todoCount = rows.filter(isUnanswered).length;
 
-  const consultCard = (c: ConsultationDto) => (
+  const consultCard = (c: ConsultationDto, answeredNote = false) => (
     <button
       key={c.id}
       className={`card${isSevere(c) ? ' accent' : ''}`}
@@ -4138,7 +4148,7 @@ function InboxTab({
           {' · '}
           {new Date(c.scheduledAt).toLocaleDateString(appLocale(), { day: 'numeric', month: 'short' })}
         </div>
-      ) : c.slaDueAt ? (
+      ) : c.slaDueAt && !answeredNote ? (
         <div className="muted">
           {tr('Responder até')}{' '}
           {new Date(c.slaDueAt).toLocaleString(appLocale(), {
@@ -4149,6 +4159,11 @@ function InboxTab({
           })}
         </div>
       ) : null}
+      {answeredNote ? (
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+          {tr('Respondida · a aguardar família ou fecho')}
+        </div>
+      ) : null}
     </button>
   );
 
@@ -4157,7 +4172,7 @@ function InboxTab({
       <h2>{tr('Caixa de entrada')}</h2>
       <div className="seg" role="tablist" style={{ margin: '8px 0' }}>
         <button className={view === 'todo' ? 'active' : ''} onClick={() => setView('todo')}>
-          {tr('A responder')}{rows.length ? ` (${rows.length})` : ''}
+          {tr('A responder')}{todoCount ? ` (${todoCount})` : ''}
         </button>
         <button className={view === 'recent' ? 'active' : ''} onClick={() => setView('recent')}>
           {tr('Recentes')}
@@ -4184,12 +4199,12 @@ function InboxTab({
             hint={recent.length ? tr('Nenhuma neste período.') : tr('O histórico aparece aqui.')}
           />
         ) : shownRecent.length <= 6 ? (
-          <div className="grid">{shownRecent.map(consultCard)}</div>
+          <div className="grid">{shownRecent.map((c) => consultCard(c))}</div>
         ) : (
           groupByPeriod(shownRecent, (c) => c.openedAt).map((g) => (
             <Fragment key={g.label}>
               <h3 style={{ margin: '16px 0 4px', textTransform: 'capitalize' }}>{g.label}</h3>
-              <div className="grid">{g.items.map(consultCard)}</div>
+              <div className="grid">{g.items.map((c) => consultCard(c))}</div>
             </Fragment>
           ))
         )
@@ -4207,13 +4222,23 @@ function InboxTab({
           {videosToday.length ? (
             <>
               <h3 style={{ marginTop: 8 }}>{tr('Videoconsultas de hoje')}</h3>
-              <div className="grid">{videosToday.map(consultCard)}</div>
+              <div className="grid">{videosToday.map((c) => consultCard(c))}</div>
             </>
           ) : null}
           {toAnswer.length ? (
             <>
-              <h3 style={{ marginTop: videosToday.length ? 16 : 8 }}>{tr('A responder')}</h3>
-              <div className="grid">{toAnswer.map(consultCard)}</div>
+              <h3 style={{ marginTop: videosToday.length ? 16 : 8 }}>
+                {tr('A responder')} ({toAnswer.length})
+              </h3>
+              <div className="grid">{toAnswer.map((c) => consultCard(c))}</div>
+            </>
+          ) : null}
+          {answered.length ? (
+            <>
+              <h3 style={{ marginTop: 16 }}>
+                {tr('Respondidas · a aguardar')} ({answered.length})
+              </h3>
+              <div className="grid">{answered.map((c) => consultCard(c, true))}</div>
             </>
           ) : null}
         </>
@@ -4484,9 +4509,19 @@ function PatientsTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Pediatrician: Agenda ─────────────────────────
+// Visual "semana-tipo" (weekly template) — the calendar shows 07:00–22:00.
+const AGC_START_H = 7;
+const AGC_END_H = 22;
+const AGC_DAYS = [1, 2, 3, 4, 5, 6, 0]; // Monday-first week
+const AGC_SPAN = (AGC_END_H - AGC_START_H) * 60;
+
 function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [rows, setRows] = useState<AvailabilityDto[]>([]);
+  const [mode, setMode] = useState<'week' | 'day'>('week');
+  const [day, setDay] = useState(1);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [weekday, setWeekday] = useState(1);
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('13:00');
@@ -4514,6 +4549,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         slotMinutes: 20,
       });
       onMsg(tr('Disponibilidade adicionada ✓'));
+      setFormOpen(false);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4525,6 +4561,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     setBusy(true);
     try {
       await Api.deleteAvailability(id);
+      setSelected(null);
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4533,54 +4570,200 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
+  /** Tapping an empty hour pre-fills the inline form (slot size stays 20 min). */
+  function quickAdd(d: number, startMin: number, endMin: number) {
+    setWeekday(d);
+    setStart(hhmm(startMin));
+    setEnd(hhmm(endMin));
+    setFormOpen(true);
+  }
+
+  const hours = Array.from({ length: AGC_END_H - AGC_START_H }, (_, i) => AGC_START_H + i);
+  const sel = rows.find((a) => a.id === selected) ?? null;
+  const dayRows = rows.filter((a) => a.weekday === day).sort((a, b) => a.startMinute - b.startMinute);
+  const hourFree = (d: number, h: number) =>
+    !rows.some((a) => a.weekday === d && a.startMinute < (h + 1) * 60 && a.endMinute > h * 60);
+
   return (
     <div className="section">
       <h2>{tr('Disponibilidade (vídeo)')}</h2>
       {rows.length === 0 ? (
         <p className="muted">{tr('Sem blocos definidos. Os pais só veem horários nos dias que definires.')}</p>
-      ) : (
-        <div className="grid">
-          {rows.map((a) => (
-            <div key={a.id} className="card">
-              <strong>{tr(WEEKDAYS[a.weekday])}</strong>
-              <div className="muted">
-                {hhmm(a.startMinute)}–{hhmm(a.endMinute)} · {tr('slots')} {a.slotMinutes} min
-              </div>
-              <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
-                {tr('Remover')}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="card section">
-        <h3>{tr('Adicionar bloco')}</h3>
-        <label className="muted">
-          {tr('Dia')}:
-          <select
-            value={weekday}
-            onChange={(e) => setWeekday(Number(e.target.value))}
-            style={{ marginLeft: 8 }}
-          >
-            {WEEKDAYS.map((d, i) => (
-              <option key={i} value={i}>
-                {tr(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="row" style={{ marginTop: 8 }}>
-          <label className="muted">
-            {tr('Início')} <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-          </label>
-          <label className="muted">
-            {tr('Fim')} <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-          </label>
-        </div>
-        <button className="btn" onClick={add} disabled={busy}>
-          {tr('Adicionar')}
+      ) : null}
+      <div className="seg" role="tablist" style={{ margin: '8px 0' }}>
+        <button className={mode === 'week' ? 'active' : ''} onClick={() => setMode('week')}>
+          {tr('Semana')}
+        </button>
+        <button className={mode === 'day' ? 'active' : ''} onClick={() => setMode('day')}>
+          {tr('Dia')}
         </button>
       </div>
+
+      {mode === 'week' ? (
+        <>
+          <div className="agcal-head" aria-hidden="true">
+            <span className="agcal-axislbl" />
+            {AGC_DAYS.map((d) => (
+              <span key={d} className="agcal-daylbl">
+                {tr(WEEKDAYS[d])}
+              </span>
+            ))}
+          </div>
+          <div className="agcal-grid">
+            <div className="agcal-axis" aria-hidden="true">
+              {hours.map((h) => (
+                <span key={h} style={{ top: `${(((h - AGC_START_H) * 60) / AGC_SPAN) * 100}%` }}>
+                  {hhmm(h * 60)}
+                </span>
+              ))}
+            </div>
+            {AGC_DAYS.map((d) => (
+              <div key={d} className="agcal-col">
+                {hours.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    className="agcal-cell"
+                    disabled={busy}
+                    aria-label={`${tr('Adicionar bloco')} · ${tr(WEEKDAYS[d])} ${hhmm(h * 60)}–${hhmm((h + 1) * 60)}`}
+                    onClick={() => quickAdd(d, h * 60, (h + 1) * 60)}
+                  />
+                ))}
+                {rows
+                  .filter((a) => a.weekday === d)
+                  .map((a) => {
+                    const s = Math.max(a.startMinute, AGC_START_H * 60);
+                    const e = Math.min(a.endMinute, AGC_END_H * 60);
+                    if (e <= s) return null;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`agcal-block${selected === a.id ? ' selected' : ''}`}
+                        style={{
+                          top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
+                          height: `${((e - s) / AGC_SPAN) * 100}%`,
+                        }}
+                        aria-label={`${tr(WEEKDAYS[a.weekday])} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)}`}
+                        onClick={() => setSelected(selected === a.id ? null : a.id)}
+                      >
+                        {hhmm(a.startMinute)}
+                      </button>
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
+          {sel ? (
+            <div className="card" style={{ marginTop: 10 }}>
+              <strong>{tr(WEEKDAYS[sel.weekday])}</strong> · {hhmm(sel.startMinute)}–{hhmm(sel.endMinute)}
+              <div className="muted">
+                {tr('slots')} {sel.slotMinutes} min
+              </div>
+              <div className="row" style={{ marginTop: 8 }}>
+                <button className="btn danger small" onClick={() => del(sel.id)} disabled={busy}>
+                  {tr('Remover')}
+                </button>
+                <button className="btn secondary small" onClick={() => setSelected(null)}>
+                  {tr('Fechar')}
+                </button>
+              </div>
+            </div>
+          ) : rows.length ? (
+            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              {tr('Toca num bloco para ver detalhes, ou numa hora vazia para adicionar.')}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '0 0 8px' }}>
+            {AGC_DAYS.map((d) => (
+              <button key={d} className={`chip${day === d ? ' active' : ''}`} onClick={() => setDay(d)}>
+                {tr(WEEKDAYS[d])}
+              </button>
+            ))}
+          </div>
+          {dayRows.length ? (
+            <div className="grid">
+              {dayRows.map((a) => (
+                <div key={a.id} className="card">
+                  <strong>
+                    {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
+                  </strong>
+                  <div className="muted">
+                    {tr('slots')} {a.slotMinutes} min
+                  </div>
+                  <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
+                    {tr('Remover')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">{tr('Sem blocos neste dia.')}</p>
+          )}
+          <h3 style={{ marginTop: 12 }}>{tr('Horas livres — toca para adicionar')}</h3>
+          <div className="agcal-freelist">
+            {hours
+              .filter((h) => hourFree(day, h))
+              .map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  className="agcal-freerow"
+                  disabled={busy}
+                  onClick={() => quickAdd(day, h * 60, (h + 1) * 60)}
+                >
+                  + {hhmm(h * 60)}–{hhmm((h + 1) * 60)}
+                </button>
+              ))}
+          </div>
+        </>
+      )}
+
+      {formOpen ? (
+        <div className="card section">
+          <h3>{tr('Adicionar bloco')}</h3>
+          <label className="muted">
+            {tr('Dia')}:
+            <select
+              value={weekday}
+              onChange={(e) => setWeekday(Number(e.target.value))}
+              style={{ marginLeft: 8 }}
+            >
+              {WEEKDAYS.map((d, i) => (
+                <option key={i} value={i}>
+                  {tr(d)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="row" style={{ marginTop: 8 }}>
+            <label className="muted">
+              {tr('Início')} <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            </label>
+            <label className="muted">
+              {tr('Fim')} <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </label>
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            {tr('Consultas em slots de 20 min.')}
+          </p>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn" onClick={add} disabled={busy}>
+              {tr('Adicionar bloco')}
+            </button>
+            <button className="btn secondary" onClick={() => setFormOpen(false)} disabled={busy}>
+              {tr('Cancelar')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn secondary" style={{ marginTop: 10 }} onClick={() => setFormOpen(true)}>
+          ＋ {tr('Adicionar bloco')}
+        </button>
+      )}
     </div>
   );
 }
@@ -5204,37 +5387,133 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
 }
 
 // ───────────────────────── Pediatrician: Finance ─────────────────────────
+/** Start of a "Ganhos" period filter — the fiscal year in PT is the calendar year. */
+function finPeriodStart(p: FinPeriod): Date | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  if (p === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (p === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
+  if (p === 'quarter') return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+  return new Date(now.getFullYear(), 0, 1); // year
+}
+
+const STMT_PAGE = 30;
+
 function FinanceTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [f, setF] = useState<FinanceDto | null>(null);
+  const [period, setPeriod] = useState<FinPeriod>('all');
+  const [shown, setShown] = useState(STMT_PAGE);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    Api.finance()
-      .then(setF)
-      .catch((e) => onMsg(`Erro: ${String(e)}`));
+    let live = true;
+    setLoading(true);
+    const from = finPeriodStart(period);
+    Api.finance(from ? { from: from.toISOString() } : undefined)
+      .then((d) => {
+        if (!live) return;
+        setF(d);
+        setShown(STMT_PAGE);
+      })
+      .catch((e) => onMsg(`Erro: ${String(e)}`))
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  if (!f) return <p className="muted section">{tr('A carregar…')}</p>;
+  }, [period]);
+
+  const stmt = [...(f?.statement ?? [])].sort(
+    (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime(),
+  );
+
   return (
     <div className="section">
       <h2>{tr('Ganhos')}</h2>
-      <div className="grid">
-        <div className="card">
-          <div className="muted">{tr('Líquido recebido')}</div>
-          <strong style={{ fontSize: 22 }}>{euro(f.netCents)}</strong>
-        </div>
-        <div className="card">
-          <div className="muted">{tr('Comissão plataforma')}</div>
-          <strong style={{ fontSize: 22 }}>{euro(f.commissionCents)}</strong>
-        </div>
-        <div className="card">
-          <div className="muted">{tr('Consultas liquidadas')}</div>
-          <strong style={{ fontSize: 22 }}>{f.consultationsSettled}</strong>
-        </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        {([
+          ['today', 'Hoje'],
+          ['month', 'Este mês'],
+          ['quarter', 'Este trimestre'],
+          ['year', 'Este ano'],
+          ['all', 'Tudo'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${period === k ? ' active' : ''}`} onClick={() => setPeriod(k)}>
+            {tr(label)}
+          </button>
+        ))}
       </div>
-      <p className="muted" style={{ fontSize: 13 }}>
-        {tr('Os valores ficam a zero até existir')} <code>STRIPE_SECRET_KEY</code>{' '}
-        {tr('e a consulta ser fechada com pagamento.')}
-      </p>
+      {!f ? (
+        <p className="muted">{tr('A carregar…')}</p>
+      ) : (
+        // Hold the previous render at reduced opacity while refetching — no flash.
+        <div style={{ opacity: loading ? 0.6 : 1 }}>
+          <div className="grid">
+            <div className="card">
+              <div className="muted">{tr('Líquido recebido')}</div>
+              <strong style={{ fontSize: 22 }}>{euro(f.netCents)}</strong>
+            </div>
+            <div className="card">
+              <div className="muted">{tr('Comissão plataforma')}</div>
+              <strong style={{ fontSize: 22 }}>{euro(f.commissionCents)}</strong>
+            </div>
+            <div className="card">
+              <div className="muted">{tr('Consultas liquidadas')}</div>
+              <strong style={{ fontSize: 22 }}>{f.consultationsSettled}</strong>
+            </div>
+          </div>
+          <p className="muted" style={{ fontSize: 13 }}>
+            {tr('Os valores ficam a zero até existir')} <code>STRIPE_SECRET_KEY</code>{' '}
+            {tr('e a consulta ser fechada com pagamento.')}
+          </p>
+          <h3 style={{ marginTop: 16 }}>{tr('Extrato')}</h3>
+          {stmt.length === 0 ? (
+            <p className="muted">{tr('Sem movimentos neste período.')}</p>
+          ) : (
+            <>
+              <p className="muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
+                {tr('Bruto − comissão = líquido')}
+              </p>
+              <div className="card" style={{ padding: 0 }}>
+                {stmt.slice(0, shown).map((s: StatementEntry, i: number) => (
+                  <div
+                    key={`${s.consultationId}-${s.capturedAt}`}
+                    className="row"
+                    style={{
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      padding: '8px 12px',
+                      borderTop: i ? '1px solid var(--border)' : 'none',
+                    }}
+                  >
+                    <span>
+                      <strong>{tr(svcLabel(s.type))}</strong>
+                      <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                        {when(s.capturedAt)}
+                      </span>
+                    </span>
+                    <span style={{ textAlign: 'right' }}>
+                      {euro(s.grossCents)}
+                      <span className="muted" style={{ margin: '0 6px', fontSize: 12 }}>
+                        −{euro(s.feeCents)}
+                      </span>
+                      <strong>{euro(s.netCents)}</strong>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stmt.length > shown ? (
+                <button className="btn secondary" style={{ marginTop: 8 }} onClick={() => setShown((n) => n + STMT_PAGE)}>
+                  {tr('Mostrar mais')} ({stmt.length - shown})
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -5785,15 +6064,151 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+/**
+ * Monthly evolution chart (Tesouraria): gross billing as bars + HOC commission
+ * as a 2px line with ringed markers — same unit (€), one shared axis. Colors
+ * come from the design system (var(--brand-2) bars, var(--accent-press) line)
+ * and were run through the dataviz palette validator in both themes: CVD
+ * separation ΔE ≥ 58 (target 12) and mark contrast ≥ 3:1 pass; the chroma
+ * floor sits below target because the whole HOC ramp is deliberately muted,
+ * so series identity is reinforced by mark FORM (bar vs. line), the legend
+ * and selective direct labels rather than hue alone.
+ */
+function FinanceEvolutionChart({ months }: { months: FinanceSeriesMonth[] }) {
+  const { tr } = useT();
+  if (months.length === 0 || months.every((m) => m.grossCents === 0 && m.platformCents === 0)) {
+    return (
+      <p className="muted">
+        {tr('Ainda sem faturação neste período — o gráfico aparece com os primeiros pagamentos.')}
+      </p>
+    );
+  }
+  const w = 340;
+  const h = 170;
+  const padL = 42;
+  const padR = 8;
+  const padT = 14;
+  const padB = 18;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const baseline = padT + plotH;
+  const maxRaw = Math.max(...months.map((m) => m.grossCents), 1);
+  // Round the axis top up to a clean step (1 / 2 / 2.5 / 5 × 10^k).
+  const pow = Math.pow(10, Math.floor(Math.log10(maxRaw)));
+  const niceMax = [1, 2, 2.5, 5, 10].map((f) => f * pow).find((v) => v >= maxRaw) ?? maxRaw;
+  const x = (i: number) => padL + (plotW / months.length) * (i + 0.5);
+  const y = (v: number) => padT + plotH - (v / niceMax) * plotH;
+  const barW = Math.min(18, (plotW / months.length) * 0.55);
+  const fmt = (cents: number) =>
+    new Intl.NumberFormat(appLocale(), {
+      style: 'currency',
+      currency: 'EUR',
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(cents / 100);
+  const monthLabel = (m: string) =>
+    new Date(`${m}-01T00:00:00`).toLocaleDateString(appLocale(), { month: 'short' });
+  // Column with a 4px-rounded data-end and a square baseline.
+  const barPath = (i: number, v: number) => {
+    const top = y(v);
+    const r = Math.min(3.5, barW / 2, baseline - top);
+    const x0 = x(i) - barW / 2;
+    const x1 = x(i) + barW / 2;
+    return `M${x0} ${baseline} L${x0} ${top + r} Q${x0} ${top} ${x0 + r} ${top} L${x1 - r} ${top} Q${x1} ${top} ${x1} ${top + r} L${x1} ${baseline} Z`;
+  };
+  const linePath = months
+    .map((m, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(m.platformCents).toFixed(1)}`)
+    .join(' ');
+  const last = months[months.length - 1];
+  const totGross = months.reduce((s, m) => s + m.grossCents, 0);
+  const totPlat = months.reduce((s, m) => s + m.platformCents, 0);
+  const ticks = [0, niceMax / 2, niceMax];
+  return (
+    <div>
+      <div className="row" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, marginBottom: 4 }}>
+        <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            aria-hidden="true"
+            style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--brand-2)', display: 'inline-block' }}
+          />
+          {tr('Faturação bruta')}
+        </span>
+        <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            aria-hidden="true"
+            style={{ width: 14, borderTop: '2px solid var(--accent-press)', display: 'inline-block' }}
+          />
+          {tr('Comissão HOC')}
+        </span>
+      </div>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width="100%"
+        role="img"
+        aria-label={`${tr('Evolução mensal: faturação bruta em barras e comissão HOC em linha.')} ${tr('Total bruto')} ${euro(totGross)} · ${tr('Comissão HOC')} ${euro(totPlat)}`}
+      >
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
+            <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
+              {fmt(t)}
+            </text>
+          </g>
+        ))}
+        {months.map((m, i) => (
+          <g key={m.month}>
+            <title>
+              {`${monthLabel(m.month)} · ${tr('Bruto')} ${euro(m.grossCents)} · ${tr('Comissão')} ${euro(m.platformCents)}${m.refundedCents ? ` · ${tr('Reembolsos')} ${euro(m.refundedCents)}` : ''}`}
+            </title>
+            {m.grossCents > 0 ? <path d={barPath(i, m.grossCents)} fill="var(--brand-2)" /> : null}
+            <text x={x(i)} y={h - 5} textAnchor="middle" fontSize="9" fill="var(--muted)">
+              {monthLabel(m.month)}
+            </text>
+          </g>
+        ))}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="var(--accent-press)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {months.map((m, i) => (
+          <g key={m.month} aria-hidden="true">
+            <circle cx={x(i)} cy={y(m.platformCents)} r="5.5" fill="var(--surface)" />
+            <circle cx={x(i)} cy={y(m.platformCents)} r="4" fill="var(--accent-press)" />
+          </g>
+        ))}
+        {last.grossCents > 0 ? (
+          <text
+            x={x(months.length - 1)}
+            y={y(last.grossCents) - 4}
+            textAnchor="middle"
+            fontSize="9"
+            fill="var(--text-2)"
+          >
+            {fmt(last.grossCents)}
+          </text>
+        ) : null}
+      </svg>
+    </div>
+  );
+}
+
 function FinTreasuryTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [m, setM] = useState<AdminMetrics | null>(null);
+  const [series, setSeries] = useState<FinanceSeriesDto | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     Api.adminMetrics()
       .then(setM)
       .catch((e) => onMsg(`Erro: ${String(e)}`))
       .finally(() => setLoading(false));
+    Api.adminFinanceSeries(12)
+      .then(setSeries)
+      .catch(() => setSeries(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (loading) return <Skeleton rows={3} />;
@@ -5825,6 +6240,25 @@ function FinTreasuryTab({ onMsg }: { onMsg: (m: string) => void }) {
         <Kpi label={tr('Reembolsos')} value={String(m.refunds)} hint={tr('Pagamentos reembolsados')} />
         <Kpi label={tr('Ticket médio')} value={avgTicket != null ? euro(avgTicket) : '—'} hint={tr('Receita ÷ consultas pagas')} />
         <Kpi label={tr('Taxa de comissão')} value={effRate != null ? `${effRate.toFixed(1)}%` : '—'} hint={tr('Comissão ÷ bruto')} />
+      </div>
+
+      <div className="card section">
+        <h3>{tr('Evolução (12 meses)')}</h3>
+        {series === undefined ? (
+          <p className="muted">{tr('A carregar…')}</p>
+        ) : series === null ? (
+          <p className="muted">{tr('Não foi possível carregar a evolução.')}</p>
+        ) : (
+          <>
+            <FinanceEvolutionChart months={series.months} />
+            {series.months.some((mo) => mo.refundedCents > 0) ? (
+              <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                {tr('Reembolsado no período')}:{' '}
+                {euro(series.months.reduce((s, mo) => s + mo.refundedCents, 0))}
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
 
       <div className="card section">

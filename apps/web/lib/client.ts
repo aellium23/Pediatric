@@ -224,6 +224,14 @@ export interface MessageDto {
   createdAt: string;
 }
 
+export interface StatementEntry {
+  consultationId: string;
+  type: string;
+  capturedAt: string;
+  grossCents: number;
+  feeCents: number;
+  netCents: number;
+}
 export interface FinanceDto {
   consultationsSettled: number;
   grossCents: number;
@@ -231,6 +239,8 @@ export interface FinanceDto {
   commissionCents: number;
   commissionInvoices: number;
   currency: string;
+  /** Per-consultation breakdown (backends without it omit the field). */
+  statement?: StatementEntry[];
 }
 
 export interface ServiceDto {
@@ -377,7 +387,13 @@ export const Api = {
     request(`/consultations/child/${childId}/history`) as Promise<ChildHistory>,
   closeConsultation: (id: string) =>
     request(`/consultations/${id}/close`, { method: 'POST' }),
-  finance: () => request('/pediatricians/me/finance') as Promise<FinanceDto>,
+  finance: (range?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (range?.from) q.set('from', range.from);
+    if (range?.to) q.set('to', range.to);
+    const qs = q.toString();
+    return request(`/pediatricians/me/finance${qs ? `?${qs}` : ''}`) as Promise<FinanceDto>;
+  },
   me: () => request('/pediatricians/me') as Promise<PedMeDto>,
   updateMe: (data: Partial<{ bio: string; experienceYears: number; languages: string[]; specialties: string[] }>) =>
     request('/pediatricians/me', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -428,6 +444,8 @@ export const Api = {
 
   // Platform backoffice (admin / compliance / support)
   adminMetrics: () => request('/admin/metrics') as Promise<AdminMetrics>,
+  adminFinanceSeries: (months = 12) =>
+    request(`/admin/finance/series?months=${months}`) as Promise<FinanceSeriesDto>,
   adminPediatricians: (status?: string) =>
     request(`/admin/pediatricians${status ? `?status=${status}` : ''}`) as Promise<AdminPedRow[]>,
   verifyPediatrician: (id: string) =>
@@ -778,6 +796,19 @@ export interface ClinicDashboard {
     pedsGrossCents: number;
     capturedCount: number;
   };
+}
+
+export interface FinanceSeriesMonth {
+  month: string; // "YYYY-MM"
+  grossCents: number;
+  platformCents: number;
+  pediatricianCents: number;
+  refundedCents: number;
+  count: number;
+}
+export interface FinanceSeriesDto {
+  months: FinanceSeriesMonth[];
+  currency: string;
 }
 
 export interface AdminMetrics {
