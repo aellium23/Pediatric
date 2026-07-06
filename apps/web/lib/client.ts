@@ -1,4 +1,6 @@
 // Browser-side API client (uses localStorage; only call from client components).
+import { trs } from './i18n';
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
 
 export const hasApi = BASE.length > 0;
@@ -86,12 +88,12 @@ function friendlyError(status: number, body: string): string {
   } catch {
     serverMsg = body && body.length < 160 && !body.includes('<') ? body : '';
   }
-  if (status === 401) return 'A sessão expirou. Entra novamente.';
-  if (status === 403) return serverMsg || 'Não tens permissão para esta ação.';
-  if (status === 404) return serverMsg || 'Não encontrado.';
-  if (status === 409) return serverMsg || 'Este pedido entra em conflito com o estado atual.';
-  if (status === 400 || status === 422) return serverMsg || 'Pedido inválido. Verifica os dados.';
-  if (status >= 500) return 'Erro no servidor. Tenta novamente em instantes.';
+  if (status === 401) return trs('A sessão expirou. Entra novamente.');
+  if (status === 403) return serverMsg || trs('Não tens permissão para esta ação.');
+  if (status === 404) return serverMsg || trs('Não encontrado.');
+  if (status === 409) return serverMsg || trs('Este pedido entra em conflito com o estado atual.');
+  if (status === 400 || status === 422) return serverMsg || trs('Pedido inválido. Verifica os dados.');
+  if (status >= 500) return trs('Erro no servidor. Tenta novamente em instantes.');
   return serverMsg || `Erro (${status}).`;
 }
 
@@ -148,7 +150,7 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
   }
 
   if (!res) {
-    throw new Error('Sem ligação ao servidor. Pode estar a iniciar — tenta novamente em instantes.');
+    throw new Error(trs('Sem ligação ao servidor. Pode estar a iniciar — tenta novamente em instantes.'));
   }
 
   // Access token likely expired → refresh once and retry transparently.
@@ -175,7 +177,7 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error('O servidor devolveu uma resposta inesperada. Tenta novamente em instantes.');
+    throw new Error(trs('O servidor devolveu uma resposta inesperada. Tenta novamente em instantes.'));
   }
 }
 

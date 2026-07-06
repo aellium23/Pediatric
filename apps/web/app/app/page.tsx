@@ -37,7 +37,7 @@ import {
   type TimelineEvent,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
-import { useT, LanguageSwitcher, appLocale } from '@/lib/i18n';
+import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
 
 // LiveKit room is browser-only — load it without SSR.
@@ -65,7 +65,7 @@ const PROFILES: Profile[] = [
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function euro(cents: number): string {
-  return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  return new Intl.NumberFormat(appLocale(), { style: 'currency', currency: 'EUR' }).format(cents / 100);
 }
 const STATUS_PT: Record<string, string> = {
   OPEN: 'Aberta',
@@ -87,7 +87,7 @@ function statusPill(s: string): string {
 }
 function when(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(iso).toLocaleString(appLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 function hhmm(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -151,7 +151,7 @@ function groupByPeriod<T>(rows: T[], dateOf: (r: T) => string): { label: string;
     const d = new Date(dateOf(r));
     const label =
       d.getFullYear() === thisYear
-        ? d.toLocaleDateString('pt-PT', { month: 'long' })
+        ? d.toLocaleDateString(appLocale(), { month: 'long' })
         : String(d.getFullYear());
     const last = groups[groups.length - 1];
     if (last && last.label === label) last.items.push(r);
@@ -237,6 +237,7 @@ function WhoGrowthChart({
   bands: { p: number; points: { ageDays: number; value: number }[] }[];
   child: { ageDays: number; value: number }[];
 }) {
+  const { tr } = useT();
   if (!bands.length || child.length === 0) return null;
   const w = 320;
   const h = 150;
@@ -257,7 +258,7 @@ function WhoGrowthChart({
   return (
     <div className="card" style={{ marginBottom: 8 }}>
       <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>
-        {label} — percentis WHO (P3·P15·P50·P85·P97)
+        {label} — {tr('percentis WHO (P3·P15·P50·P85·P97)')}
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">
         {bands.map((b) => (
@@ -293,6 +294,7 @@ function WhoGrowthChart({
  * (Δz ≤ -0.67). A prompt to review, never a diagnosis.
  */
 function GrowthAlert({ growth }: { growth: HealthOverview['growth'] }) {
+  const { tr } = useT();
   const zs = growth
     .filter((g) => g.weightZ != null && g.ageDays != null)
     .map((g) => g.weightZ as number);
@@ -304,12 +306,11 @@ function GrowthAlert({ growth }: { growth: HealthOverview['growth'] }) {
   if (!lowNow && !crossedDown) return null;
   return (
     <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
-      <strong>⚠️ Possível crescimento insuficiente</strong>
+      <strong>{tr('⚠️ Possível crescimento insuficiente')}</strong>
       <div className="muted" style={{ marginTop: 4 }}>
-        {lowNow ? 'Peso para a idade abaixo do percentil 3 (P3). ' : ''}
-        {crossedDown ? 'Descida de percentil entre medições. ' : ''}
-        Vale a pena avaliar (alimentação, alguma doença, ou a própria medição) — isto é um sinal,
-        não um diagnóstico. Fala com o pediatra.
+        {lowNow ? `${tr('Peso para a idade abaixo do percentil 3 (P3).')} ` : ''}
+        {crossedDown ? `${tr('Descida de percentil entre medições.')} ` : ''}
+        {tr('Vale a pena avaliar (alimentação, alguma doença, ou a própria medição) — isto é um sinal, não um diagnóstico. Fala com o pediatra.')}
       </div>
     </div>
   );
@@ -467,7 +468,7 @@ function svcFullLabel(t: string): string {
 }
 
 export default function MultiProfileApp() {
-  const { t } = useT();
+  const { t, tr } = useT();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -512,7 +513,7 @@ export default function MultiProfileApp() {
     const onLogout = () => {
       localStorage.removeItem('pedia_profile');
       setProfile(null);
-      setMsg('A sessão expirou. Entra novamente.');
+      setMsg(trs('A sessão expirou. Entra novamente.'));
     };
     window.addEventListener('hoc:logout', onLogout);
     return () => window.removeEventListener('hoc:logout', onLogout);
@@ -521,11 +522,11 @@ export default function MultiProfileApp() {
   async function enter(p: Profile) {
     setBusy(true);
     if (!hasApi) {
-      setMsg('Backend não configurado (NEXT_PUBLIC_API_BASE).');
+      setMsg(tr('Backend não configurado (NEXT_PUBLIC_API_BASE).'));
       setBusy(false);
       return;
     }
-    setMsg('A ligar ao servidor… (pode demorar até ~1 min na primeira utilização)');
+    setMsg(tr('A ligar ao servidor… (pode demorar até ~1 min na primeira utilização)'));
     try {
       const r = await Api.devLogin(p.email);
       setToken(r.accessToken);
@@ -538,7 +539,7 @@ export default function MultiProfileApp() {
         setOnboarding(true);
       }
     } catch (e) {
-      setMsg(`Não foi possível entrar: ${String(e)}`);
+      setMsg(`${tr('Não foi possível entrar')}: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -572,13 +573,13 @@ export default function MultiProfileApp() {
         <div style={{ textAlign: 'center', margin: '10px 0 18px' }}>
           <BrandLogo full height={150} />
         </div>
-        <h1 style={{ textAlign: 'center', fontSize: 22 }}>Bem-vindo à HOC</h1>
+        <h1 style={{ textAlign: 'center', fontSize: 22 }}>{tr('Bem-vindo à HOC')}</h1>
         <p className="muted" style={{ textAlign: 'center' }}>
-          A saúde do teu filho num só lugar — e um pediatra à distância de uma mensagem.
+          {tr('A saúde do teu filho num só lugar — e um pediatra à distância de uma mensagem.')}
         </p>
         {!hasApi ? (
           <p className="notice">
-            ⚠️ Backend não ligado. Sem dados reais — usa a <a href="/demo">/demo</a> (modo local).
+            {tr('⚠️ Backend não ligado. Sem dados reais — usa a')} <a href="/demo">/demo</a> {tr('(modo local).')}
           </p>
         ) : null}
         {msg ? <p className="notice">{msg}</p> : null}
@@ -586,7 +587,7 @@ export default function MultiProfileApp() {
         {teamProfiles.length ? (
           <details style={{ marginTop: 14 }}>
             <summary className="muted" style={{ cursor: 'pointer', padding: '6px 2px' }}>
-              Perfis de equipa (demonstração)
+              {tr('Perfis de equipa (demonstração)')}
             </summary>
             <div className="list">{teamProfiles.map(profileRow)}</div>
           </details>
@@ -628,7 +629,7 @@ export default function MultiProfileApp() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             className="iconbtn"
-            aria-label={unread > 0 ? `Avisos — ${unread} por ler` : 'Avisos'}
+            aria-label={unread > 0 ? `${tr('Avisos')} — ${unread} ${tr('por ler')}` : tr('Avisos')}
             style={{ position: 'relative' }}
             onClick={() => {
               setSettingsOpen(false);
@@ -640,7 +641,7 @@ export default function MultiProfileApp() {
           </button>
           <button
             className="iconbtn"
-            aria-label="Definições"
+            aria-label={tr('Definições')}
             onClick={() => setSettingsOpen(true)}
           >
             <TabIcon name="profile" />
@@ -681,8 +682,8 @@ export default function MultiProfileApp() {
         ) : null}
         {tab === 'myaccount' ? (
           <div className="section">
-            <h2>A minha conta</h2>
-            <h3>Plano</h3>
+            <h2>{tr('A minha conta')}</h2>
+            <h3>{tr('Plano')}</h3>
             <SubscriptionSection onMsg={setMsg} />
             <InvoicesSection onMsg={setMsg} />
             <PrivacySection onMsg={setMsg} onLeave={leave} />
@@ -1115,6 +1116,7 @@ function Thread({
   onBack: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1272,7 +1274,7 @@ function Thread({
     setBusy(true);
     try {
       await Api.closeConsultation(consultation.id);
-      onMsg('Consulta fechada ✓');
+      onMsg(tr('Consulta fechada ✓'));
       onChanged();
     } catch (e) {
       onMsg(`Erro ao fechar: ${String(e)}`);
@@ -1284,7 +1286,7 @@ function Thread({
     setBusy(true);
     try {
       await Api.cancelConsultation(consultation.id);
-      onMsg('Consulta cancelada e reembolsada ✓');
+      onMsg(tr('Consulta cancelada e reembolsada ✓'));
       onChanged();
     } catch (e) {
       onMsg(`Erro ao cancelar: ${String(e)}`);
@@ -1310,17 +1312,17 @@ function Thread({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
       <div className="card">
-        <span className={statusPill(consultation.status)}>{statusLabel(consultation.status)}</span>{' '}
-        <strong>{svcLabel(consultation.type)}</strong>
+        <span className={statusPill(consultation.status)}>{tr(statusLabel(consultation.status))}</span>{' '}
+        <strong>{tr(svcLabel(consultation.type))}</strong>
         <div className="muted">
-          {euro(consultation.priceCents)} · aberta {when(consultation.openedAt)}
+          {euro(consultation.priceCents)} · {tr('aberta')} {when(consultation.openedAt)}
         </div>
         {consultation.type === 'VIDEO' && consultation.status !== 'CLOSED' ? (
           <button className="btn small" onClick={joinVideo} disabled={busy} style={{ marginTop: 8 }}>
-            Entrar na videochamada
+            {tr('Entrar na videochamada')}
           </button>
         ) : null}
       </div>
@@ -1332,12 +1334,12 @@ function Thread({
         return (
           <div className={`notice${tri.severe ? ' warn' : ''}`} style={{ marginTop: 10 }}>
             <strong style={{ display: 'block', marginBottom: 6 }}>
-              Triagem da família{tri.severe ? ' — sinais graves assinalados ⚠️' : ''}
+              {tr('Triagem da família')}{tri.severe ? ` ${tr('— sinais graves assinalados ⚠️')}` : ''}
             </strong>
             <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
               {tri.redFlags.map((k) => (
                 <span key={k} className="pill warn">
-                  {RED_FLAGS.find((f) => f.key === k)?.label ?? k}
+                  {tr(RED_FLAGS.find((f) => f.key === k)?.label ?? k)}
                 </span>
               ))}
             </div>
@@ -1357,27 +1359,27 @@ function Thread({
       {/* Post-consultation summary (pediatrician writes; both read). */}
       {summary && !editSum ? (
         <div className="card" style={{ borderColor: 'var(--brand)', marginTop: 12 }}>
-          <strong>Resumo do pediatra</strong>
+          <strong>{tr('Resumo do pediatra')}</strong>
           <p style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{summary}</p>
           {canClose ? (
             <button className="btn secondary small" onClick={() => setEditSum(true)} style={{ marginTop: 8 }}>
-              Editar resumo
+              {tr('Editar resumo')}
             </button>
           ) : null}
         </div>
       ) : null}
       {canClose && (editSum || !summary) ? (
         <div className="card section">
-          <strong>Resumo / nota clínica</strong>
+          <strong>{tr('Resumo / nota clínica')}</strong>
           <textarea
-            placeholder="Resumo da consulta para a família…"
+            placeholder={tr('Resumo da consulta para a família…')}
             value={sumDraft}
             onChange={(e) => setSumDraft(e.target.value)}
             rows={6}
           />
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn small secondary" onClick={genDraft} disabled={busy} title="Pré-preenche um esqueleto a partir da triagem">
-              Gerar rascunho
+              {tr('Gerar rascunho')}
             </button>
             {speechSupported ? (
               <button
@@ -1386,7 +1388,7 @@ function Thread({
                 disabled={busy}
                 title="Dita a nota clínica por voz (transcrição no browser)"
               >
-                {dictating ? 'Parar ditado' : 'Ditar nota'}
+                {dictating ? tr('Parar ditado') : tr('Ditar nota')}
               </button>
             ) : null}
             <button
@@ -1395,15 +1397,15 @@ function Thread({
               disabled={busy || !sumDraft.trim()}
               title="Corrige e organiza a nota em SOAP com IA (revê antes de guardar)"
             >
-              Estruturar com IA
+              {tr('Estruturar com IA')}
             </button>
             <button className="btn small" onClick={saveSummary} disabled={busy || !sumDraft.trim()}>
-              Guardar resumo
+              {tr('Guardar resumo')}
             </button>
           </div>
           {dictating ? (
             <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-              A ouvir… fala a tua nota. (A transcrição é feita pelo serviço de voz do browser.)
+              {tr('A ouvir… fala a tua nota. (A transcrição é feita pelo serviço de voz do browser.)')}
             </p>
           ) : null}
         </div>
@@ -1411,7 +1413,7 @@ function Thread({
 
       <div className="chat">
         {messages.length === 0 ? (
-          <p className="muted">Ainda sem mensagens.</p>
+          <p className="muted">{tr('Ainda sem mensagens.')}</p>
         ) : (
           messages.map((m) => {
             const mine = !!myId && m.senderUserId === myId;
@@ -1428,23 +1430,23 @@ function Thread({
       {consultation.status !== 'CLOSED' && consultation.status !== 'REFUNDED' ? (
         <div className="card section">
           <textarea
-            placeholder="Escrever mensagem…"
+            placeholder={tr('Escrever mensagem…')}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={2}
           />
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn" onClick={send} disabled={busy}>
-              Enviar
+              {tr('Enviar')}
             </button>
             {canClose ? (
               <button className="btn secondary" onClick={close} disabled={busy}>
-                Fechar consulta
+                {tr('Fechar consulta')}
               </button>
             ) : null}
             {canCancel && (consultation.status === 'OPEN' || consultation.status === 'TRIAGE') ? (
               <button className="btn danger" onClick={cancel} disabled={busy}>
-                Cancelar (reembolso)
+                {tr('Cancelar (reembolso)')}
               </button>
             ) : null}
           </div>
@@ -1468,6 +1470,7 @@ function HomeTab({
   onGo: (tab: string) => void;
   onOpenConsultation: (id: string) => void;
 }) {
+  const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [consults, setConsults] = useState<ConsultationDto[]>([]);
   const [articles, setArticles] = useState<ArticleCard[]>([]);
@@ -1505,14 +1508,14 @@ function HomeTab({
   const firstName = (profile.name || '').split(' ')[0];
   const ageLabel = (birth: string) => {
     const months = Math.floor((now - new Date(birth).getTime()) / (30.44 * 86_400_000));
-    return months < 24 ? `${months} m` : `${Math.floor(months / 12)} anos`;
+    return months < 24 ? `${months} m` : `${Math.floor(months / 12)} ${tr('anos')}`;
   };
 
   return (
     <div className="section">
-      <h2 style={{ marginBottom: 0 }}>Olá, {firstName} 👋</h2>
+      <h2 style={{ marginBottom: 0 }}>{tr('Olá')}, {firstName} 👋</h2>
       <p className="muted" style={{ marginTop: 2, textTransform: 'capitalize' }}>
-        {new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })}
+        {new Date().toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}
       </p>
 
       <button
@@ -1520,9 +1523,9 @@ function HomeTab({
         onClick={() => onGo('consult')}
         style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left' }}
       >
-        <strong style={{ fontSize: 17 }}>Falar com um pediatra</strong>
+        <strong style={{ fontSize: 17 }}>{tr('Falar com um pediatra')}</strong>
         <span className="muted" style={{ display: 'block', marginTop: 2 }}>
-          Envia uma pergunta ou marca uma videoconsulta — resposta de um pediatra verificado.
+          {tr('Envia uma pergunta ou marca uma videoconsulta — resposta de um pediatra verificado.')}
         </span>
       </button>
 
@@ -1532,19 +1535,19 @@ function HomeTab({
           onClick={() => onOpenConsultation(upcomingVideo.id)}
           style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
         >
-          <span className="pill">A seguir</span>
+          <span className="pill">{tr('A seguir')}</span>
           <strong style={{ display: 'block', marginTop: 6 }}>
-            Videoconsulta{upcomingVideo.child?.name ? ` · ${upcomingVideo.child.name}` : ''}
+            {tr('Videoconsulta')}{upcomingVideo.child?.name ? ` · ${upcomingVideo.child.name}` : ''}
           </strong>
           <span className="muted">
-            {new Date(upcomingVideo.scheduledAt!).toLocaleString('pt-PT', {
+            {new Date(upcomingVideo.scheduledAt!).toLocaleString(appLocale(), {
               weekday: 'long',
               day: 'numeric',
               month: 'short',
               hour: '2-digit',
               minute: '2-digit',
             })}{' '}
-            · toca para abrir
+            · {tr('toca para abrir')}
           </span>
         </button>
       ) : null}
@@ -1555,15 +1558,15 @@ function HomeTab({
           onClick={() => onOpenConsultation(answered[0].id)}
           style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
         >
-          <span className="pill ok">Resposta nova</span>
+          <span className="pill ok">{tr('Resposta nova')}</span>
           <strong style={{ display: 'block', marginTop: 6 }}>
-            O pediatra respondeu{answered[0].child?.name ? ` sobre ${answered[0].child.name}` : ''}
+            {tr('O pediatra respondeu')}{answered[0].child?.name ? ` ${tr('sobre')} ${answered[0].child.name}` : ''}
           </strong>
-          <span className="muted">Toca para ler a resposta.</span>
+          <span className="muted">{tr('Toca para ler a resposta.')}</span>
         </button>
       ) : null}
 
-      <h3 style={{ marginTop: 18 }}>As crianças</h3>
+      <h3 style={{ marginTop: 18 }}>{tr('As crianças')}</h3>
       {loading ? (
         <Skeleton rows={1} />
       ) : children.length === 0 ? (
@@ -1572,9 +1575,9 @@ function HomeTab({
           onClick={() => onGo('children')}
           style={{ display: 'block', width: '100%', textAlign: 'left' }}
         >
-          <strong>Adicionar o meu filho</strong>
+          <strong>{tr('Adicionar o meu filho')}</strong>
           <span className="muted" style={{ display: 'block', marginTop: 2 }}>
-            Guarda vacinas, crescimento e consultas num só sítio, em segurança.
+            {tr('Guarda vacinas, crescimento e consultas num só sítio, em segurança.')}
           </span>
         </button>
       ) : (
@@ -1589,7 +1592,7 @@ function HomeTab({
 
       {consults.length ? (
         <>
-          <h3 style={{ marginTop: 18 }}>Últimas consultas</h3>
+          <h3 style={{ marginTop: 18 }}>{tr('Últimas consultas')}</h3>
           {consults.slice(0, 3).map((c) => (
             <button
               key={c.id}
@@ -1597,28 +1600,28 @@ function HomeTab({
               onClick={() => onOpenConsultation(c.id)}
               style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8 }}
             >
-              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>{' '}
-              <strong>{svcLabel(c.type)}</strong>
+              <span className={statusPill(c.status)}>{tr(statusLabel(c.status))}</span>{' '}
+              <strong>{tr(svcLabel(c.type))}</strong>
               {c.child?.name ? <span className="muted"> · {c.child.name}</span> : null}
               <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
-                {new Date(c.openedAt).toLocaleDateString('pt-PT', {
+                {new Date(c.openedAt).toLocaleDateString(appLocale(), {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
                 })}{' '}
-                · toca para rever
+                · {tr('toca para rever')}
               </span>
             </button>
           ))}
           <button className="btn secondary small" onClick={() => onGo('myconsults')} style={{ marginTop: 8 }}>
-            Ver todas as consultas
+            {tr('Ver todas as consultas')}
           </button>
         </>
       ) : null}
 
       {articles.length ? (
         <>
-          <h3 style={{ marginTop: 18 }}>Saber+</h3>
+          <h3 style={{ marginTop: 18 }}>{tr('Saber+')}</h3>
           {articles.map((a) => (
             <button
               key={a.id}
@@ -1631,7 +1634,7 @@ function HomeTab({
             </button>
           ))}
           <button className="btn secondary small" onClick={() => onGo('content')} style={{ marginTop: 8 }}>
-            Ver todos os conteúdos
+            {tr('Ver todos os conteúdos')}
           </button>
         </>
       ) : null}
@@ -1641,6 +1644,7 @@ function HomeTab({
 
 // ───────────────────────── Parent: Children ─────────────────────────
 function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -1662,8 +1666,8 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
   }, []);
 
   async function add() {
-    if (!name || !birthDate) return onMsg('Indica nome e data de nascimento.');
-    if (!consent) return onMsg('Tens de autorizar o tratamento de dados de saúde.');
+    if (!name || !birthDate) return onMsg(tr('Indica nome e data de nascimento.'));
+    if (!consent) return onMsg(tr('Tens de autorizar o tratamento de dados de saúde.'));
     setBusy(true);
     try {
       await Api.addChild({ name, birthDate, sex: sex || undefined, healthDataConsent: true });
@@ -1671,7 +1675,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
       setBirthDate('');
       setSex('');
       setConsent(false);
-      onMsg('Criança adicionada ✓');
+      onMsg(tr('Criança adicionada ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -1684,9 +1688,9 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div className="section">
-      <h2>As crianças</h2>
+      <h2>{tr('As crianças')}</h2>
       {children.length === 0 ? (
-        <p className="muted">Vamos começar pelo teu filho — adiciona-o para guardar vacinas, crescimento e consultas num só sítio.</p>
+        <p className="muted">{tr('Vamos começar pelo teu filho — adiciona-o para guardar vacinas, crescimento e consultas num só sítio.')}</p>
       ) : (
         <div className="grid">
           {children.map((c) => (
@@ -1698,20 +1702,20 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
             >
               <strong>{c.name}</strong>
               <div className="muted">
-                {new Date(c.birthDate).toLocaleDateString('pt-PT')} · ver saúde →
+                {new Date(c.birthDate).toLocaleDateString(appLocale())} · {tr('ver saúde →')}
               </div>
             </button>
           ))}
         </div>
       )}
       <div className="card section">
-        <h3>Adicionar criança</h3>
-        <input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
+        <h3>{tr('Adicionar criança')}</h3>
+        <input placeholder={tr('Nome')} value={name} onChange={(e) => setName(e.target.value)} />
         <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
         <select value={sex} onChange={(e) => setSex(e.target.value)} style={{ display: 'block', margin: '8px 0' }}>
-          <option value="">Sexo — para as curvas de crescimento certas…</option>
-          <option value="M">Masculino</option>
-          <option value="F">Feminino</option>
+          <option value="">{tr('Sexo — para as curvas de crescimento certas…')}</option>
+          <option value="M">{tr('Masculino')}</option>
+          <option value="F">{tr('Feminino')}</option>
         </select>
         <label className="muted" style={{ display: 'block', margin: '8px 0' }}>
           <input
@@ -1720,10 +1724,10 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
             onChange={(e) => setConsent(e.target.checked)}
             style={{ width: 'auto', marginRight: 8 }}
           />
-          Autorizo o tratamento dos dados de saúde do meu filho 🔒
+          {tr('Autorizo o tratamento dos dados de saúde do meu filho 🔒')}
         </label>
         <button className="btn" onClick={add} disabled={busy}>
-          Adicionar
+          {tr('Adicionar')}
         </button>
       </div>
     </div>
@@ -1751,6 +1755,7 @@ function ChildHealth({
   onBack: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [d, setD] = useState<HealthOverview | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'main' | 'timeline' | 'boletim'>('main');
@@ -1822,22 +1827,22 @@ function ChildHealth({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
       <h2>{child.name}</h2>
       <p className="muted">
-        {new Date(child.birthDate).toLocaleDateString('pt-PT')} · os dados de saúde do teu filho, guardados em segurança 🔒
+        {new Date(child.birthDate).toLocaleDateString(appLocale())} · {tr('os dados de saúde do teu filho, guardados em segurança 🔒')}
       </p>
       <div className="row" style={{ marginBottom: 4 }}>
         <button className="btn small secondary" onClick={() => setView('timeline')}>
-          🕒 Linha do tempo
+          {tr('🕒 Linha do tempo')}
         </button>
         <button className="btn small secondary" disabled={!d} onClick={() => setView('boletim')}>
-          📄 Boletim (PDF)
+          {tr('📄 Boletim (PDF)')}
         </button>
       </div>
       {!d ? (
-        <p className="muted">A carregar…</p>
+        <p className="muted">{tr('A carregar…')}</p>
       ) : (
         <>
           {/* Growth */}
@@ -1845,13 +1850,13 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>📏</span>
-            <h3>Crescimento</h3>
+            <h3>{tr('Crescimento')}</h3>
             <span className="pill muted">{d.growth.length}</span>
           </div>
           {d.whoBands && d.who ? (
             <>
               <WhoGrowthChart
-                label="Peso (kg)"
+                label={tr('Peso (kg)')}
                 unit=" kg"
                 bands={d.whoBands.wfa}
                 child={d.growth
@@ -1859,7 +1864,7 @@ function ChildHealth({
                   .map((g) => ({ ageDays: g.ageDays as number, value: g.weightKg as number }))}
               />
               <WhoGrowthChart
-                label="Comprimento/Estatura (cm)"
+                label={tr('Comprimento/Estatura (cm)')}
                 unit=" cm"
                 bands={d.whoBands.lhfa}
                 child={d.growth
@@ -1870,14 +1875,14 @@ function ChildHealth({
           ) : (
             <>
               <GrowthChart
-                label="Altura (cm)"
+                label={tr('Altura (cm)')}
                 unit=" cm"
                 points={d.growth
                   .filter((g) => g.heightCm != null)
                   .map((g) => ({ x: new Date(g.measuredAt).getTime(), y: g.heightCm as number }))}
               />
               <GrowthChart
-                label="Peso (kg)"
+                label={tr('Peso (kg)')}
                 unit=" kg"
                 points={d.growth
                   .filter((g) => g.weightKg != null)
@@ -1887,25 +1892,25 @@ function ChildHealth({
           )}
           {!d.who ? (
             <p className="muted" style={{ fontSize: 12 }}>
-              Define o sexo da criança para ver os percentis WHO (0–5 anos).
+              {tr('Define o sexo da criança para ver os percentis WHO (0–5 anos).')}
             </p>
           ) : null}
           {d.growth.length === 0 ? (
-            <p className="muted">Sem medições.</p>
+            <p className="muted">{tr('Sem medições.')}</p>
           ) : (
             <div className="grid">
               {d.growth.map((g) => (
                 <div key={g.id} className="card">
-                  <strong>{new Date(g.measuredAt).toLocaleDateString('pt-PT')}</strong>
+                  <strong>{new Date(g.measuredAt).toLocaleDateString(appLocale())}</strong>
                   <div className="muted">
                     {g.heightCm ? `${g.heightCm} cm` : ''} {g.weightKg ? `· ${g.weightKg} kg` : ''}
-                    {g.bmi ? ` · IMC ${g.bmi}` : ''}
+                    {g.bmi ? ` · ${tr('IMC')} ${g.bmi}` : ''}
                   </div>
                   {g.weightP != null || g.heightP != null || g.bmiP != null ? (
                     <div className="muted" style={{ fontSize: 12 }}>
-                      {g.weightP != null ? `Peso P${g.weightP}` : ''}
-                      {g.heightP != null ? ` · Estatura P${g.heightP}` : ''}
-                      {g.bmiP != null ? ` · IMC P${g.bmiP}` : ''}
+                      {g.weightP != null ? `${tr('Peso')} P${g.weightP}` : ''}
+                      {g.heightP != null ? ` · ${tr('Estatura')} P${g.heightP}` : ''}
+                      {g.bmiP != null ? ` · ${tr('IMC')} P${g.bmiP}` : ''}
                       {g.bmiClass ? ` (${g.bmiClass})` : ''}
                     </div>
                   ) : null}
@@ -1913,11 +1918,11 @@ function ChildHealth({
               ))}
             </div>
           )}
-          <Reg label="+ Registar peso e altura">
+          <Reg label={tr('+ Registar peso e altura')}>
             <div className="row">
               <input type="date" value={gDate} onChange={(e) => setGDate(e.target.value)} style={{ width: 150 }} />
-              <input placeholder="Altura cm" value={gH} onChange={(e) => setGH(e.target.value)} style={{ width: 100 }} />
-              <input placeholder="Peso kg" value={gW} onChange={(e) => setGW(e.target.value)} style={{ width: 100 }} />
+              <input placeholder={tr('Altura cm')} value={gH} onChange={(e) => setGH(e.target.value)} style={{ width: 100 }} />
+              <input placeholder={tr('Peso kg')} value={gW} onChange={(e) => setGW(e.target.value)} style={{ width: 100 }} />
             </div>
             <button
               className="btn small"
@@ -1934,11 +1939,11 @@ function ChildHealth({
                       setGH('');
                       setGW('');
                     }),
-                  'Medição adicionada ✓',
+                  tr('Medição adicionada ✓'),
                 )
               }
             >
-              Adicionar medição
+              {tr('Adicionar medição')}
             </button>
           </Reg>
           </section>
@@ -1947,16 +1952,16 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>🌡️</span>
-            <h3>Sinais do dia</h3>
+            <h3>{tr('Sinais do dia')}</h3>
             <span className="pill muted">{(d.vitals ?? []).length}</span>
           </div>
           {(d.vitals ?? []).length === 0 ? (
-            <p className="muted">Sem registos.</p>
+            <p className="muted">{tr('Sem registos.')}</p>
           ) : (
             <div className="grid">
               {(d.vitals ?? []).slice(0, 6).map((v) => (
                 <div key={v.id} className="card">
-                  <strong>{new Date(v.measuredAt).toLocaleDateString('pt-PT')}</strong>
+                  <strong>{new Date(v.measuredAt).toLocaleDateString(appLocale())}</strong>
                   <div className="muted">
                     {[
                       v.temperatureC != null ? `${v.temperatureC}ºC` : null,
@@ -1971,12 +1976,12 @@ function ChildHealth({
               ))}
             </div>
           )}
-          <Reg label="+ Registar sinais do dia">
+          <Reg label={tr('+ Registar sinais do dia')}>
             <div className="row">
-              <input placeholder="Tª ºC" value={vtTemp} onChange={(e) => setVtTemp(e.target.value)} style={{ width: 80 }} />
-              <input placeholder="Batimentos (bpm)" value={vtHr} onChange={(e) => setVtHr(e.target.value)} style={{ width: 150 }} />
-              <input placeholder="Respiração (por min.)" value={vtRr} onChange={(e) => setVtRr(e.target.value)} style={{ width: 170 }} />
-              <input placeholder="Oxigénio (%)" value={vtSpo2} onChange={(e) => setVtSpo2(e.target.value)} style={{ width: 130 }} />
+              <input placeholder={tr('Tª ºC')} value={vtTemp} onChange={(e) => setVtTemp(e.target.value)} style={{ width: 80 }} />
+              <input placeholder={tr('Batimentos (bpm)')} value={vtHr} onChange={(e) => setVtHr(e.target.value)} style={{ width: 150 }} />
+              <input placeholder={tr('Respiração (por min.)')} value={vtRr} onChange={(e) => setVtRr(e.target.value)} style={{ width: 170 }} />
+              <input placeholder={tr('Oxigénio (%)')} value={vtSpo2} onChange={(e) => setVtSpo2(e.target.value)} style={{ width: 130 }} />
             </div>
             <button
               className="btn small"
@@ -1996,11 +2001,11 @@ function ChildHealth({
                       setVtRr('');
                       setVtSpo2('');
                     }),
-                  'Sinais vitais registados ✓',
+                  tr('Sinais vitais registados ✓'),
                 )
               }
             >
-              Registar sinais vitais
+              {tr('Registar sinais vitais')}
             </button>
           </Reg>
           </section>
@@ -2009,23 +2014,23 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>💉</span>
-            <h3>Vacinas</h3>
+            <h3>{tr('Vacinas')}</h3>
             <span className="pill muted">{d.vaccines.length}</span>
           </div>
           {d.vaccines.length === 0 ? (
-            <p className="muted">Sem vacinas registadas.</p>
+            <p className="muted">{tr('Sem vacinas registadas.')}</p>
           ) : (
             d.vaccines.map((v) => (
               <div key={v.id} className="card" style={{ marginBottom: 8 }}>
                 <strong>{v.name}</strong>
-                <div className="muted">{new Date(v.date).toLocaleDateString('pt-PT')}</div>
+                <div className="muted">{new Date(v.date).toLocaleDateString(appLocale())}</div>
               </div>
             ))
           )}
-          <Reg label="+ Registar vacina">
+          <Reg label={tr('+ Registar vacina')}>
             <div className="row">
               <Autocomplete
-                placeholder="Vacina (ex.: VASPR)"
+                placeholder={tr('Vacina (ex.: VASPR)')}
                 value={vName}
                 onText={(s) => {
                   setVName(s);
@@ -2063,11 +2068,11 @@ function ChildHealth({
                       setVDate('');
                       setVCode('');
                     }),
-                  'Vacina adicionada ✓',
+                  tr('Vacina adicionada ✓'),
                 )
               }
             >
-              Adicionar vacina
+              {tr('Adicionar vacina')}
             </button>
           </Reg>
           </section>
@@ -2076,11 +2081,11 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>⚠️</span>
-            <h3>Alergias</h3>
+            <h3>{tr('Alergias')}</h3>
             <span className="pill muted">{(d.allergies ?? []).length}</span>
           </div>
           {(d.allergies ?? []).length === 0 ? (
-            <p className="muted">Sem alergias registadas.</p>
+            <p className="muted">{tr('Sem alergias registadas.')}</p>
           ) : (
             <div className="grid">
               {(d.allergies ?? []).map((a) => (
@@ -2091,18 +2096,18 @@ function ChildHealth({
                     <button
                       className="btn small secondary"
                       disabled={busy}
-                      onClick={() => run(() => Api.removeAllergy(child.id, a.id), 'Removida ✓')}
+                      onClick={() => run(() => Api.removeAllergy(child.id, a.id), tr('Removida ✓'))}
                     >
-                      Remover
+                      {tr('Remover')}
                     </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <Reg label="+ Registar alergia">
+          <Reg label={tr('+ Registar alergia')}>
             <Autocomplete
-              placeholder="Alergia (ex.: penicilina, ovo)"
+              placeholder={tr('Alergia (ex.: penicilina, ovo)')}
               value={alName}
               onText={(s) => {
                 setAlName(s);
@@ -2133,11 +2138,11 @@ function ChildHealth({
                       setAlCode('');
                       setAlCat('');
                     }),
-                  'Alergia adicionada ✓',
+                  tr('Alergia adicionada ✓'),
                 )
               }
             >
-              Adicionar alergia
+              {tr('Adicionar alergia')}
             </button>
           </Reg>
           </section>
@@ -2146,16 +2151,16 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>💊</span>
-            <h3>Medicação</h3>
+            <h3>{tr('Medicação')}</h3>
             <span className="pill muted">{d.medications.length}</span>
           </div>
           {d.medications.length === 0 ? (
-            <p className="muted">Sem medicação.</p>
+            <p className="muted">{tr('Sem medicação.')}</p>
           ) : (
             d.medications.map((m) => (
               <div key={m.id} className="card" style={{ marginBottom: 8 }}>
                 <span className={m.active ? 'pill ok' : 'pill muted'}>
-                  {m.active ? 'ativa' : 'parada'}
+                  {m.active ? tr('ativa') : tr('parada')}
                 </span>{' '}
                 <strong>{m.name}</strong>
                 {m.dose ? <span className="muted"> · {m.dose}</span> : null}
@@ -2166,20 +2171,20 @@ function ChildHealth({
                     onClick={() =>
                       run(
                         () => Api.setMedicationActive(child.id, m.id, !m.active),
-                        'Atualizado ✓',
+                        tr('Atualizado ✓'),
                       )
                     }
                   >
-                    {m.active ? 'Marcar parada' : 'Reativar'}
+                    {m.active ? tr('Marcar parada') : tr('Reativar')}
                   </button>
                 </div>
               </div>
             ))
           )}
-          <Reg label="+ Registar medicação">
+          <Reg label={tr('+ Registar medicação')}>
             <div className="row">
               <Autocomplete
-                placeholder="Medicamento (ex.: amox)"
+                placeholder={tr('Medicamento (ex.: amox)')}
                 value={mName}
                 onText={(s) => {
                   setMName(s);
@@ -2198,7 +2203,7 @@ function ChildHealth({
                       const dose = await Api.catDose(m.atc, latestWeightKg);
                       if (dose.found && dose.perDoseMg) {
                         setMDose(`${dose.perDoseMg} mg${dose.everyHours ? ` ${dose.everyHours}/${dose.everyHours}h` : ''}`);
-                        setDoseHint(`Sugerido p/ ${latestWeightKg} kg: ${dose.note ?? ''} — rever`);
+                        setDoseHint(`${tr('Sugerido p/')} ${latestWeightKg} kg: ${dose.note ?? ''} — ${tr('rever')}`);
                       }
                     } catch {
                       /* ignore */
@@ -2211,7 +2216,7 @@ function ChildHealth({
                       const hits = await Api.catDrugAllergy(m.atc, codes);
                       if (hits.length) {
                         setDrugWarn(
-                          `⚠️ Alergia registada pode contraindicar este fármaco${hits.some((h) => h.cross) ? ' (reatividade cruzada)' : ''} — confirmar antes de prescrever.`,
+                          `${tr('⚠️ Alergia registada pode contraindicar este fármaco')}${hits.some((h) => h.cross) ? ` ${tr('(reatividade cruzada)')}` : ''} — ${tr('confirmar antes de prescrever.')}`,
                         );
                       }
                     } catch {
@@ -2221,7 +2226,7 @@ function ChildHealth({
                 }}
                 render={(m) => `${m.dci} (${m.atc})`}
               />
-              <input placeholder="Dose" value={mDose} onChange={(e) => setMDose(e.target.value)} style={{ width: 120 }} />
+              <input placeholder={tr('Dose')} value={mDose} onChange={(e) => setMDose(e.target.value)} style={{ width: 120 }} />
             </div>
             {mAtc ? <div className="muted">ATC: {mAtc}</div> : null}
             {doseHint ? <div className="muted" style={{ color: 'var(--warn, #b26a00)' }}>{doseHint}</div> : null}
@@ -2246,11 +2251,11 @@ function ChildHealth({
                       setMAtc('');
                       setDoseHint('');
                     }),
-                  'Medicação adicionada ✓',
+                  tr('Medicação adicionada ✓'),
                 )
               }
             >
-              Adicionar medicação
+              {tr('Adicionar medicação')}
             </button>
           </Reg>
           </section>
@@ -2259,16 +2264,16 @@ function ChildHealth({
           <section className="hsec">
           <div className="hsec-head">
             <span className="hsec-ico" aria-hidden>🤒</span>
-            <h3>Problemas de saúde</h3>
+            <h3>{tr('Problemas de saúde')}</h3>
             <span className="pill muted">{d.episodes.length}</span>
           </div>
           {d.episodes.length === 0 ? (
-            <p className="muted">Sem episódios.</p>
+            <p className="muted">{tr('Sem episódios.')}</p>
           ) : (
             d.episodes.map((ep) => (
               <div key={ep.id} className="card" style={{ marginBottom: 8 }}>
                 <span className={ep.status === 'OPEN' ? 'pill' : 'pill ok'}>
-                  {ep.status === 'OPEN' ? 'aberto' : 'fechado'}
+                  {ep.status === 'OPEN' ? tr('aberto') : tr('fechado')}
                 </span>{' '}
                 <strong>{ep.title}</strong>
                 {ep.summary ? <div className="muted">{ep.summary}</div> : null}
@@ -2276,17 +2281,17 @@ function ChildHealth({
                   <button
                     className="btn small secondary"
                     disabled={busy}
-                    onClick={() => run(() => Api.closeEpisode(child.id, ep.id), 'Episódio fechado ✓')}
+                    onClick={() => run(() => Api.closeEpisode(child.id, ep.id), tr('Episódio fechado ✓'))}
                   >
-                    Fechar
+                    {tr('Fechar')}
                   </button>
                 ) : null}
               </div>
             ))
           )}
-          <Reg label="+ Registar problema de saúde">
+          <Reg label={tr('+ Registar problema de saúde')}>
             <Autocomplete
-              placeholder="Diagnóstico / episódio (ex.: otite)"
+              placeholder={tr('Diagnóstico / episódio (ex.: otite)')}
               value={eTitle}
               onText={(s) => {
                 setETitle(s);
@@ -2302,7 +2307,7 @@ function ChildHealth({
               render={(c) => `${c.icpc2} — ${c.term}`}
               style={{ flex: 'unset' }}
             />
-            <textarea placeholder="Resumo (opcional)" value={eSummary} onChange={(e) => setESummary(e.target.value)} rows={2} />
+            <textarea placeholder={tr('Resumo (opcional)')} value={eSummary} onChange={(e) => setESummary(e.target.value)} rows={2} />
             {eIcpc ? <div className="muted">ICPC-2: {eIcpc}{eIcd10 ? ` · ICD-10: ${eIcd10}` : ''}</div> : null}
             <button
               className="btn small"
@@ -2321,11 +2326,11 @@ function ChildHealth({
                       setEIcpc('');
                       setEIcd10('');
                     }),
-                  'Episódio criado ✓',
+                  tr('Episódio criado ✓'),
                 )
               }
             >
-              Criar episódio
+              {tr('Criar episódio')}
             </button>
           </Reg>
           </section>
@@ -2354,6 +2359,7 @@ function ChildTimelineView({
   onBack: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [data, setData] = useState<ChildTimeline | null>(null);
   const [kind, setKind] = useState<string>('');
 
@@ -2367,7 +2373,7 @@ function ChildTimelineView({
   const events = (data?.events ?? []).filter((e) => !kind || e.kind === kind);
   // Group by month for scannability ("julho de 2026").
   const monthOf = (iso: string) =>
-    new Date(iso).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+    new Date(iso).toLocaleDateString(appLocale(), { month: 'long', year: 'numeric' });
   const groups: { month: string; items: TimelineEvent[] }[] = [];
   for (const ev of events) {
     const m = monthOf(ev.at);
@@ -2379,11 +2385,11 @@ function ChildTimelineView({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
-      <h2>Linha do tempo · {child.name}</h2>
+      <h2>{tr('Linha do tempo')} · {child.name}</h2>
       <p className="muted" style={{ marginTop: -4, fontSize: 13 }}>
-        Tudo o que aconteceu na saúde da criança, por ordem cronológica.
+        {tr('Tudo o que aconteceu na saúde da criança, por ordem cronológica.')}
       </p>
       <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
         {[
@@ -2401,7 +2407,7 @@ function ChildTimelineView({
             aria-pressed={kind === k}
             onClick={() => setKind(k)}
           >
-            {label}
+            {tr(label)}
           </button>
         ))}
       </div>
@@ -2409,8 +2415,8 @@ function ChildTimelineView({
         <Skeleton rows={4} />
       ) : events.length === 0 ? (
         <EmptyState
-          title="Sem eventos"
-          hint="Regista consultas, vacinas ou medições para veres aqui a história da criança."
+          title={tr('Sem eventos')}
+          hint={tr('Regista consultas, vacinas ou medições para veres aqui a história da criança.')}
         />
       ) : (
         <ul className="tl">
@@ -2424,7 +2430,7 @@ function ChildTimelineView({
                   </span>
                   <strong style={{ display: 'block', fontSize: 14 }}>{ev.title}</strong>
                   <span className="muted" style={{ fontSize: 12 }}>
-                    {new Date(ev.at).toLocaleDateString('pt-PT', {
+                    {new Date(ev.at).toLocaleDateString(appLocale(), {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -2451,13 +2457,14 @@ function BoletimView({
   d: HealthOverview;
   onBack: () => void;
 }) {
+  const { tr } = useT();
   const fmt = (iso: string | null | undefined) =>
-    iso ? new Date(iso).toLocaleDateString('pt-PT') : '—';
+    iso ? new Date(iso).toLocaleDateString(appLocale()) : '—';
   const ageLabel = (() => {
     const months = Math.floor(
       (Date.now() - new Date(child.birthDate).getTime()) / (30.44 * 86_400_000),
     );
-    return months < 24 ? `${months} meses` : `${Math.floor(months / 12)} anos`;
+    return months < 24 ? `${months} ${tr('meses')}` : `${Math.floor(months / 12)} ${tr('anos')}`;
   })();
   const activeMeds = d.medications.filter((m) => m.active);
   const lastGrowth = d.growth.length ? d.growth[d.growth.length - 1] : null;
@@ -2466,26 +2473,26 @@ function BoletimView({
     <div className="section print-report">
       <div className="row no-print" style={{ marginBottom: 12 }}>
         <button className="btn secondary small" onClick={onBack}>
-          ← Voltar
+          {tr('← Voltar')}
         </button>
         <button className="btn small" onClick={() => window.print()}>
-          🖨️ Imprimir / Guardar PDF
+          {tr('🖨️ Imprimir / Guardar PDF')}
         </button>
       </div>
 
-      <h2 style={{ marginBottom: 2 }}>Boletim de saúde — {child.name}</h2>
+      <h2 style={{ marginBottom: 2 }}>{tr('Boletim de saúde')} — {child.name}</h2>
       <p className="muted" style={{ marginTop: 0 }}>
-        Nascimento: {fmt(child.birthDate)} · Idade: {ageLabel} · Emitido em{' '}
-        {new Date().toLocaleDateString('pt-PT')} · HOC — Healthcare on Call
+        {tr('Nascimento:')} {fmt(child.birthDate)} · {tr('Idade:')} {ageLabel} · {tr('Emitido em')}{' '}
+        {new Date().toLocaleDateString(appLocale())} · HOC — Healthcare on Call
       </p>
 
-      <h3>Alergias</h3>
+      <h3>{tr('Alergias')}</h3>
       {d.allergies && d.allergies.length ? (
         <table>
           <thead>
             <tr>
-              <th>Alergia</th>
-              <th>Categoria</th>
+              <th>{tr('Alergia')}</th>
+              <th>{tr('Categoria')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2498,18 +2505,18 @@ function BoletimView({
           </tbody>
         </table>
       ) : (
-        <p className="muted">Sem alergias registadas.</p>
+        <p className="muted">{tr('Sem alergias registadas.')}</p>
       )}
 
-      <h3>Medicação ativa</h3>
+      <h3>{tr('Medicação ativa')}</h3>
       {activeMeds.length ? (
         <table>
           <thead>
             <tr>
-              <th>Medicamento</th>
-              <th>Dose</th>
-              <th>Frequência</th>
-              <th>Início</th>
+              <th>{tr('Medicamento')}</th>
+              <th>{tr('Dose')}</th>
+              <th>{tr('Frequência')}</th>
+              <th>{tr('Início')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2524,17 +2531,17 @@ function BoletimView({
           </tbody>
         </table>
       ) : (
-        <p className="muted">Sem medicação ativa.</p>
+        <p className="muted">{tr('Sem medicação ativa.')}</p>
       )}
 
-      <h3>Vacinas</h3>
+      <h3>{tr('Vacinas')}</h3>
       {d.vaccines.length ? (
         <table>
           <thead>
             <tr>
-              <th>Vacina</th>
+              <th>{tr('Vacina')}</th>
               <th>PNV</th>
-              <th>Data</th>
+              <th>{tr('Data')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2548,28 +2555,28 @@ function BoletimView({
           </tbody>
         </table>
       ) : (
-        <p className="muted">Sem vacinas registadas.</p>
+        <p className="muted">{tr('Sem vacinas registadas.')}</p>
       )}
 
-      <h3>Crescimento</h3>
+      <h3>{tr('Crescimento')}</h3>
       {lastGrowth ? (
         <p style={{ margin: '2px 0 6px' }}>
-          Última medição ({fmt(lastGrowth.measuredAt)}):{' '}
+          {tr('Última medição')} ({fmt(lastGrowth.measuredAt)}):{' '}
           {lastGrowth.heightCm ? `${lastGrowth.heightCm} cm` : ''}
           {lastGrowth.heightCm && lastGrowth.weightKg ? ' · ' : ''}
           {lastGrowth.weightKg ? `${lastGrowth.weightKg} kg` : ''}
-          {lastGrowth.heightP != null ? ` · estatura P${Math.round(lastGrowth.heightP)}` : ''}
-          {lastGrowth.weightP != null ? ` · peso P${Math.round(lastGrowth.weightP)}` : ''}
+          {lastGrowth.heightP != null ? ` · ${tr('estatura')} P${Math.round(lastGrowth.heightP)}` : ''}
+          {lastGrowth.weightP != null ? ` · ${tr('peso')} P${Math.round(lastGrowth.weightP)}` : ''}
         </p>
       ) : null}
       {d.growth.length ? (
         <table>
           <thead>
             <tr>
-              <th>Data</th>
-              <th>Estatura (cm)</th>
-              <th>Peso (kg)</th>
-              <th>IMC</th>
+              <th>{tr('Data')}</th>
+              <th>{tr('Estatura (cm)')}</th>
+              <th>{tr('Peso (kg)')}</th>
+              <th>{tr('IMC')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2584,25 +2591,25 @@ function BoletimView({
           </tbody>
         </table>
       ) : (
-        <p className="muted">Sem medições registadas.</p>
+        <p className="muted">{tr('Sem medições registadas.')}</p>
       )}
 
-      <h3>Episódios clínicos</h3>
+      <h3>{tr('Episódios clínicos')}</h3>
       {d.episodes.length ? (
         <table>
           <thead>
             <tr>
-              <th>Episódio</th>
-              <th>Estado</th>
-              <th>Início</th>
-              <th>Fim</th>
+              <th>{tr('Episódio')}</th>
+              <th>{tr('Estado')}</th>
+              <th>{tr('Início')}</th>
+              <th>{tr('Fim')}</th>
             </tr>
           </thead>
           <tbody>
             {d.episodes.map((e) => (
               <tr key={e.id}>
                 <td>{e.title ?? '—'}</td>
-                <td>{e.status === 'CLOSED' ? 'Resolvido' : 'Em curso'}</td>
+                <td>{e.status === 'CLOSED' ? tr('Resolvido') : tr('Em curso')}</td>
                 <td>{fmt(e.createdAt)}</td>
                 <td>{fmt(e.closedAt)}</td>
               </tr>
@@ -2610,12 +2617,11 @@ function BoletimView({
           </tbody>
         </table>
       ) : (
-        <p className="muted">Sem episódios registados.</p>
+        <p className="muted">{tr('Sem episódios registados.')}</p>
       )}
 
       <p className="muted" style={{ fontSize: 11, marginTop: 16 }}>
-        Documento informativo gerado pela família na app HOC. Não substitui o Boletim de Saúde
-        Infantil e Juvenil oficial nem o registo clínico do médico assistente.
+        {tr('Documento informativo gerado pela família na app HOC. Não substitui o Boletim de Saúde Infantil e Juvenil oficial nem o registo clínico do médico assistente.')}
       </p>
     </div>
   );
@@ -2629,6 +2635,7 @@ function ConsultTab({
   onMsg: (m: string) => void;
   onOpenConsultation?: (id: string) => void;
 }) {
+  const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [peds, setPeds] = useState<PediatricianCard[]>([]);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
@@ -2706,14 +2713,14 @@ function ConsultTab({
   }
 
   function startService(p: PediatricianCard, serviceId: string) {
-    if (!child) return onMsg('Seleciona uma criança.');
+    if (!child) return onMsg(tr('Seleciona uma criança.'));
     setDetail(null);
     setTriageServiceId(serviceId);
     setTriageFor(p);
   }
   function startMessage(p: PediatricianCard) {
     const svc = p.services.find((s) => s.type === 'MESSAGE');
-    if (!svc) return onMsg('Sem serviço de mensagem.');
+    if (!svc) return onMsg(tr('Sem serviço de mensagem.'));
     startService(p, svc.id);
   }
 
@@ -2725,7 +2732,7 @@ function ConsultTab({
         onCancel={() => setTriageFor(null)}
         onDone={(consultationId) => {
           setTriageFor(null);
-          onMsg('Pergunta enviada! Um pediatra vai responder — já a abrimos para ti.');
+          onMsg(tr('Pergunta enviada! Um pediatra vai responder — já a abrimos para ti.'));
           if (consultationId && onOpenConsultation) onOpenConsultation(consultationId);
         }}
         onMsg={onMsg}
@@ -2741,7 +2748,7 @@ function ConsultTab({
         onBack={() => setBooking(null)}
         onDone={(consultationId) => {
           setBooking(null);
-          onMsg('Videoconsulta marcada ✓');
+          onMsg(tr('Videoconsulta marcada ✓'));
           if (consultationId && onOpenConsultation) onOpenConsultation(consultationId);
         }}
         onMsg={onMsg}
@@ -2770,25 +2777,25 @@ function ConsultTab({
   const shown = (onlyFav ? peds.filter((p) => favIds.has(p.id)) : peds).filter(
     (p) =>
       !q ||
-      `${p.displayName ?? ''} ${p.specialties.map((s) => specLabel(s)).join(' ')} ${p.region ?? ''} ${p.languages.join(' ')} ${p.bio ?? ''}`
+      `${p.displayName ?? ''} ${p.specialties.map((s) => tr(specLabel(s))).join(' ')} ${p.region ?? ''} ${p.languages.join(' ')} ${p.bio ?? ''}`
         .toLowerCase()
         .includes(q),
   );
 
   return (
     <div className="section">
-      <h2>Escolher pediatra</h2>
+      <h2>{tr('Escolher pediatra')}</h2>
       <input
         className="search"
-        placeholder="Pesquisar pediatra por nome…"
+        placeholder={tr('Pesquisar pediatra por nome…')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
       {children.length === 0 ? (
-        <p className="notice">Adiciona uma criança no separador "Crianças" primeiro.</p>
+        <p className="notice">{tr('Adiciona uma criança no separador "Crianças" primeiro.')}</p>
       ) : (
         <label className="muted" style={{ display: 'block' }}>
-          Criança:
+          {tr('Criança:')}
           <select value={child} onChange={(e) => setChild(e.target.value)} style={{ marginLeft: 8 }}>
             {children.map((c) => (
               <option key={c.id} value={c.id}>
@@ -2800,10 +2807,10 @@ function ConsultTab({
       )}
 
       <div className="card section">
-        <span className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Especialidade</span>
+        <span className="muted" style={{ fontSize: 12, fontWeight: 600 }}>{tr('Especialidade')}</span>
         <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
           <button className={`chip${fSpec === '' ? ' active' : ''}`} onClick={() => pickSpec('')}>
-            Todas
+            {tr('Todas')}
           </button>
           {allSpecs.map((s) => (
             <button
@@ -2812,18 +2819,18 @@ function ConsultTab({
               aria-pressed={fSpec === s}
               onClick={() => pickSpec(s)}
             >
-              {specLabel(s)}
+              {tr(specLabel(s))}
             </button>
           ))}
         </div>
         {fSpec && specDesc(fSpec) ? (
           <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
-            <strong>{specLabel(fSpec)}</strong> — {specDesc(fSpec)}
+            <strong>{tr(specLabel(fSpec))}</strong> — {tr(specDesc(fSpec) ?? '')}
           </p>
         ) : null}
         <div className="row" style={{ marginTop: 10 }}>
           <input
-            placeholder="Preço máx €"
+            placeholder={tr('Preço máx €')}
             inputMode="decimal"
             value={fMaxEuro}
             onChange={(e) => setFMaxEuro(e.target.value)}
@@ -2837,7 +2844,7 @@ function ConsultTab({
               onChange={(e) => setOnlyFav(e.target.checked)}
               style={{ width: 'auto', marginRight: 8 }}
             />
-            ❤️ Só favoritos
+            {tr('❤️ Só favoritos')}
           </label>
         </div>
       </div>
@@ -2846,8 +2853,8 @@ function ConsultTab({
         <Skeleton rows={3} />
       ) : shown.length === 0 ? (
         <EmptyState
-          title="Sem pediatras"
-          hint="Nenhum corresponde aos filtros. Tenta limpar a pesquisa."
+          title={tr('Sem pediatras')}
+          hint={tr('Nenhum corresponde aos filtros. Tenta limpar a pesquisa.')}
         />
       ) : (
         <div className="grid">
@@ -2857,10 +2864,10 @@ function ConsultTab({
             return (
               <article key={p.id} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span className="pill ok">✓ Verificado</span>
+                  <span className="pill ok">{tr('✓ Verificado')}</span>
                   <button
                     type="button"
-                    aria-label={favIds.has(p.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    aria-label={favIds.has(p.id) ? tr('Remover dos favoritos') : tr('Adicionar aos favoritos')}
                     aria-pressed={favIds.has(p.id)}
                     disabled={busy}
                     style={{ cursor: 'pointer', fontSize: 18, background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44 }}
@@ -2869,9 +2876,9 @@ function ConsultTab({
                     {favIds.has(p.id) ? '❤️' : '🤍'}
                   </button>
                 </div>
-                <h3 style={{ margin: '6px 0 2px' }}>{p.displayName ?? specLabel(p.specialties[0])}</h3>
+                <h3 style={{ margin: '6px 0 2px' }}>{p.displayName ?? tr(specLabel(p.specialties[0]))}</h3>
                 <p className="muted" style={{ margin: 0 }}>
-                  {specLabel(p.specialties[0])}
+                  {tr(specLabel(p.specialties[0]))}
                   {p.region ? ` · 📍 ${p.region}` : ''}
                 </p>
                 <p className="muted" style={{ margin: '2px 0 0' }}>
@@ -2879,7 +2886,7 @@ function ConsultTab({
                 </p>
                 {availabilityLabel(p.availableWeekdays) ? (
                   <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--brand)' }}>
-                    📅 Disponível · {availabilityLabel(p.availableWeekdays)}
+                    📅 {tr('Disponível')} · {tr(availabilityLabel(p.availableWeekdays) ?? '')}
                   </p>
                 ) : null}
                 <button
@@ -2887,12 +2894,12 @@ function ConsultTab({
                   onClick={() => setDetail(p)}
                   style={{ marginTop: 6 }}
                 >
-                  Ver perfil e avaliações
+                  {tr('Ver perfil e avaliações')}
                 </button>
                 <div className="row" style={{ marginTop: 6 }}>
                   {msgSvc ? (
                     <button className="btn small" onClick={() => startMessage(p)} disabled={busy}>
-                      Mensagem · {euro(msgSvc.priceCents)}
+                      {tr('Mensagem')} · {euro(msgSvc.priceCents)}
                     </button>
                   ) : null}
                   {vidSvc ? (
@@ -2901,7 +2908,7 @@ function ConsultTab({
                       onClick={() => setBooking(p)}
                       disabled={busy || !child}
                     >
-                      Vídeo · {euro(vidSvc.priceCents)}
+                      {tr('Vídeo')} · {euro(vidSvc.priceCents)}
                     </button>
                   ) : null}
                 </div>
@@ -2933,6 +2940,7 @@ function PedDetail({
   onVideo: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [reviews, setReviews] = useState<
     { id: string; rating: number; comment: string | null; createdAt: string }[]
   >([]);
@@ -2947,13 +2955,13 @@ function PedDetail({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>{ped.displayName ?? specLabel(ped.specialties[0])}</h2>
+        <h2 style={{ margin: 0 }}>{ped.displayName ?? tr(specLabel(ped.specialties[0]))}</h2>
         <button
           type="button"
-          aria-label={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+          aria-label={isFav ? tr('Remover dos favoritos') : tr('Adicionar aos favoritos')}
           aria-pressed={isFav}
           style={{ cursor: 'pointer', fontSize: 22, background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44 }}
           onClick={onToggleFav}
@@ -2961,24 +2969,24 @@ function PedDetail({
           {isFav ? '❤️' : '🤍'}
         </button>
       </div>
-      <p className="muted" style={{ marginBottom: 2 }}>{specLabel(ped.specialties[0])}</p>
+      <p className="muted" style={{ marginBottom: 2 }}>{tr(specLabel(ped.specialties[0]))}</p>
       {specDesc(ped.specialties[0]) ? (
         <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>
-          {specDesc(ped.specialties[0])}
+          {tr(specDesc(ped.specialties[0]) ?? '')}
         </p>
       ) : null}
       <p className="muted">
         {ped.region ? `📍 ${ped.region} · ` : ''}⭐ {ped.ratingAvg.toFixed(1)} ·{' '}
-        {ped.experienceYears ?? 0} anos · {ped.languages.join(' · ')}
+        {ped.experienceYears ?? 0} {tr('anos')} · {ped.languages.join(' · ')}
       </p>
       {availabilityLabel(ped.availableWeekdays) ? (
         <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--brand)' }}>
-          📅 Disponível · {availabilityLabel(ped.availableWeekdays)}
+          📅 {tr('Disponível')} · {tr(availabilityLabel(ped.availableWeekdays) ?? '')}
         </p>
       ) : null}
       {ped.bio ? <p>{ped.bio}</p> : null}
 
-      <h3 style={{ marginTop: 14 }}>Serviços</h3>
+      <h3 style={{ marginTop: 14 }}>{tr('Serviços')}</h3>
       <div className="row">
         {ped.services.map((s) =>
           s.type === 'VIDEO' ? (
@@ -2988,26 +2996,26 @@ function PedDetail({
               onClick={onVideo}
               disabled={!canBook}
             >
-              Vídeo · {euro(s.priceCents)}
+              {tr('Vídeo')} · {euro(s.priceCents)}
             </button>
           ) : (
             <button key={s.id} className="btn small" onClick={() => onStartService(s.id)}>
-              {svcFullLabel(s.type)} · {euro(s.priceCents)}
+              {tr(svcFullLabel(s.type))} · {euro(s.priceCents)}
             </button>
           ),
         )}
       </div>
 
-      <h3 style={{ marginTop: 18 }}>Avaliações</h3>
+      <h3 style={{ marginTop: 18 }}>{tr('Avaliações')}</h3>
       {reviews.length === 0 ? (
-        <p className="muted">Ainda sem avaliações.</p>
+        <p className="muted">{tr('Ainda sem avaliações.')}</p>
       ) : (
         reviews.map((r) => (
           <div key={r.id} className="card" style={{ marginBottom: 8 }}>
             <div>{'⭐'.repeat(r.rating)}</div>
             {r.comment ? <div>{r.comment}</div> : null}
             <div className="muted" style={{ fontSize: 12 }}>
-              {new Date(r.createdAt).toLocaleDateString('pt-PT')}
+              {new Date(r.createdAt).toLocaleDateString(appLocale())}
             </div>
           </div>
         ))
@@ -3038,6 +3046,7 @@ function TriageDialog({
   onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [question, setQuestion] = useState('');
   const [episodes, setEpisodes] = useState<{ id: string; title: string | null; status: string }[]>(
@@ -3055,14 +3064,14 @@ function TriageDialog({
   }, [childId]);
 
   async function submit() {
-    if (!serviceId) return onMsg('Sem serviço de mensagem.');
-    if (severe && !ack) return onMsg('Confirma o aviso de urgência para continuar.');
+    if (!serviceId) return onMsg(tr('Sem serviço de mensagem.'));
+    if (severe && !ack) return onMsg(tr('Confirma o aviso de urgência para continuar.'));
     setBusy(true);
     try {
       const created = (await Api.startConsultation({
         childId,
         serviceId,
-        question: question || 'Olá, tenho uma dúvida sobre o meu filho.',
+        question: question || tr('Olá, tenho uma dúvida sobre o meu filho.'),
         triage: { redFlags: Object.keys(flags).filter((k) => flags[k]), severe },
         episodeId: episodeId || undefined,
       })) as { id?: string };
@@ -3077,10 +3086,10 @@ function TriageDialog({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onCancel} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
-      <h2>Como está o teu filho agora?</h2>
-      <p className="muted">Assinala o que se aplica — ajuda o pediatra a avaliar a urgência:</p>
+      <h2>{tr('Como está o teu filho agora?')}</h2>
+      <p className="muted">{tr('Assinala o que se aplica — ajuda o pediatra a avaliar a urgência:')}</p>
       <div className="card">
         {RED_FLAGS.map((f) => (
           <label key={f.key} style={{ display: 'block', margin: '6px 0' }}>
@@ -3090,7 +3099,7 @@ function TriageDialog({
               onChange={(e) => setFlags((p) => ({ ...p, [f.key]: e.target.checked }))}
               style={{ width: 'auto', marginRight: 8 }}
             />
-            {f.label}
+            {tr(f.label)}
           </label>
         ))}
       </div>
@@ -3100,10 +3109,10 @@ function TriageDialog({
           className="card"
           style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14', marginTop: 12 }}
         >
-          <strong style={{ color: '#d7263d' }}>⚠️ Sinais de alarme</strong>
+          <strong style={{ color: '#d7263d' }}>{tr('⚠️ Sinais de alarme')}</strong>
           <p style={{ margin: '6px 0' }}>
-            Estes sintomas podem ser urgentes. Liga <strong>112</strong> ou recorre à urgência. A
-            teleconsulta <em>não substitui</em> emergência.
+            {tr('Estes sintomas podem ser urgentes. Liga')} <strong>112</strong>{' '}
+            {tr('ou recorre à urgência. A teleconsulta')} <em>{tr('não substitui')}</em> {tr('emergência.')}
           </p>
           <label className="muted">
             <input
@@ -3112,31 +3121,31 @@ function TriageDialog({
               onChange={(e) => setAck(e.target.checked)}
               style={{ width: 'auto', marginRight: 8 }}
             />
-            Compreendi; quero ainda assim contactar o pediatra.
+            {tr('Compreendi; quero ainda assim contactar o pediatra.')}
           </label>
         </div>
       ) : null}
 
       <div className="card section">
-        <h3>A tua questão</h3>
+        <h3>{tr('A tua questão')}</h3>
         <textarea
-          placeholder="Descreve a dúvida…"
+          placeholder={tr('Descreve a dúvida…')}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           rows={3}
         />
         {episodes.length > 0 ? (
           <label className="muted" style={{ display: 'block', marginTop: 8 }}>
-            Associar a episódio:
+            {tr('Associar a episódio:')}
             <select
               value={episodeId}
               onChange={(e) => setEpisodeId(e.target.value)}
               style={{ marginLeft: 8 }}
             >
-              <option value="">— nenhum —</option>
+              <option value="">{tr('— nenhum —')}</option>
               {episodes.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.title ?? 'Episódio'}
+                  {e.title ?? tr('Episódio')}
                 </option>
               ))}
             </select>
@@ -3145,7 +3154,7 @@ function TriageDialog({
       </div>
 
       <button className="btn" onClick={submit} disabled={busy}>
-        Enviar pergunta ao pediatra
+        {tr('Enviar pergunta ao pediatra')}
       </button>
     </div>
   );
@@ -3164,6 +3173,7 @@ function BookVideo({
   onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [days, setDays] = useState<{ date: string; slots: string[] }[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -3195,7 +3205,7 @@ function BookVideo({
 
   async function confirmBooking() {
     if (!vidSvc || !pendingSlot || busy) return;
-    if (!consent) return onMsg('Para marcar, confirma o consentimento no resumo.');
+    if (!consent) return onMsg(tr('Para marcar, confirma o consentimento no resumo.'));
     setBusy(true);
     try {
       const res = (await Api.book({
@@ -3222,18 +3232,18 @@ function BookVideo({
           onClick={() => setPendingSlot(null)}
           style={{ marginBottom: 12 }}
         >
-          ← Escolher outro horário
+          {tr('← Escolher outro horário')}
         </button>
-        <h2>Confirmar marcação</h2>
+        <h2>{tr('Confirmar marcação')}</h2>
         <div className="card accent" style={{ marginTop: 10 }}>
           <strong style={{ fontSize: 17, display: 'block' }}>
-            {ped.displayName ?? specLabel(ped.specialties[0])}
+            {ped.displayName ?? tr(specLabel(ped.specialties[0]))}
           </strong>
-          <span className="muted">{specLabel(ped.specialties[0])}</span>
+          <span className="muted">{tr(specLabel(ped.specialties[0]))}</span>
           <p style={{ margin: '10px 0 4px', textTransform: 'capitalize' }}>
             📅{' '}
-            {when.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })} ·{' '}
-            {when.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+            {when.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' })} ·{' '}
+            {when.toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}
           </p>
           {vidSvc ? (
             <p style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>{euro(vidSvc.priceCents)}</p>
@@ -3245,10 +3255,10 @@ function BookVideo({
               onChange={(e) => setConsent(e.target.checked)}
               style={{ width: 'auto', marginRight: 8 }}
             />
-            Aceito a videoconsulta e o tratamento dos dados de saúde da criança.
+            {tr('Aceito a videoconsulta e o tratamento dos dados de saúde da criança.')}
           </label>
           <button className="btn" disabled={busy || !consent} onClick={() => void confirmBooking()}>
-            {vidSvc ? `Confirmar marcação · ${euro(vidSvc.priceCents)}` : 'Confirmar marcação'}
+            {vidSvc ? `${tr('Confirmar marcação')} · ${euro(vidSvc.priceCents)}` : tr('Confirmar marcação')}
           </button>
         </div>
       </div>
@@ -3258,30 +3268,30 @@ function BookVideo({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
-      <h2>Marcar videoconsulta</h2>
+      <h2>{tr('Marcar videoconsulta')}</h2>
       <p className="muted" style={{ marginBottom: 2 }}>
-        {ped.displayName ?? specLabel(ped.specialties[0])}
+        {ped.displayName ?? tr(specLabel(ped.specialties[0]))}
       </p>
       <p className="muted">
-        {specLabel(ped.specialties[0])} · {vidSvc ? euro(vidSvc.priceCents) : ''}
+        {tr(specLabel(ped.specialties[0]))} · {vidSvc ? euro(vidSvc.priceCents) : ''}
       </p>
-      <h3 style={{ marginTop: 14 }}>Próximos horários disponíveis</h3>
+      <h3 style={{ marginTop: 14 }}>{tr('Próximos horários disponíveis')}</h3>
       <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-        Escolhe um horário — confirmas os detalhes no passo seguinte.
+        {tr('Escolhe um horário — confirmas os detalhes no passo seguinte.')}
       </p>
       {loading ? (
         <Skeleton rows={2} />
       ) : days.length === 0 ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-          Sem horários nos próximos dias. Este pediatra ainda não tem agenda aberta.
+          {tr('Sem horários nos próximos dias. Este pediatra ainda não tem agenda aberta.')}
         </p>
       ) : (
         days.map((d) => (
           <div key={d.date} style={{ marginTop: 10 }}>
             <strong style={{ fontSize: 14, textTransform: 'capitalize' }}>
-              {new Date(`${d.date}T00:00:00`).toLocaleDateString('pt-PT', {
+              {new Date(`${d.date}T00:00:00`).toLocaleDateString(appLocale(), {
                 weekday: 'long',
                 day: '2-digit',
                 month: 'long',
@@ -3295,7 +3305,7 @@ function BookVideo({
                   onClick={() => setPendingSlot(s)}
                   disabled={busy}
                 >
-                  {new Date(s).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(s).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}
                 </button>
               ))}
             </div>
@@ -3316,6 +3326,7 @@ function MyConsultsTab({
   focusId?: string | null;
   onFocusConsumed?: () => void;
 }) {
+  const { tr } = useT();
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [reviewing, setReviewing] = useState<ConsultationDto | null>(null);
@@ -3363,7 +3374,7 @@ function MyConsultsTab({
         onBack={() => setReviewing(null)}
         onDone={() => {
           setReviewing(null);
-          onMsg('Avaliação enviada ✓ obrigado!');
+          onMsg(tr('Avaliação enviada ✓ obrigado!'));
         }}
         onMsg={onMsg}
       />
@@ -3371,25 +3382,25 @@ function MyConsultsTab({
 
   return (
     <div className="section">
-      <h2>As minhas consultas</h2>
+      <h2>{tr('As minhas consultas')}</h2>
       {loading ? (
         <Skeleton rows={2} />
       ) : rows.length === 0 ? (
-        <EmptyState title="Ainda sem consultas" hint="Inicia uma no separador Consultar." />
+        <EmptyState title={tr('Ainda sem consultas')} hint={tr('Inicia uma no separador Consultar.')} />
       ) : (
         (() => {
           const card = (c: ConsultationDto) => (
             <div key={c.id} className="card">
-              <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
+              <span className={statusPill(c.status)}>{tr(statusLabel(c.status))}</span>
               {c.type === 'VIDEO' ? (
-                <span className="pill" style={{ marginLeft: 6 }}>🎥 Vídeo</span>
+                <span className="pill" style={{ marginLeft: 6 }}>🎥 {tr('Vídeo')}</span>
               ) : null}
               <div style={{ marginTop: 4 }}>
-                <strong>{c.pediatrician?.displayName ?? specLabel(c.pediatrician?.specialties?.[0])}</strong>
+                <strong>{c.pediatrician?.displayName ?? tr(specLabel(c.pediatrician?.specialties?.[0]))}</strong>
                 {c.child?.name ? ` · ${c.child.name}` : ''}
               </div>
               <div className="muted">
-                {svcLabel(c.type)} · {euro(c.priceCents)}
+                {tr(svcLabel(c.type))} · {euro(c.priceCents)}
               </div>
               {c.type === 'VIDEO' && c.scheduledAt ? (
                 <div style={{ color: 'var(--brand)', fontSize: 13 }}>📅 {when(c.scheduledAt)}</div>
@@ -3398,11 +3409,11 @@ function MyConsultsTab({
               )}
               <div className="row" style={{ marginTop: 8 }}>
                 <button className="btn small" onClick={() => setOpen(c)}>
-                  Abrir
+                  {tr('Abrir')}
                 </button>
                 {c.status === 'CLOSED' ? (
                   <button className="btn small secondary" onClick={() => setReviewing(c)}>
-                    ⭐ Avaliar
+                    {tr('⭐ Avaliar')}
                   </button>
                 ) : null}
               </div>
@@ -3433,6 +3444,7 @@ function ReviewForm({
   onDone: () => void;
   onMsg: (m: string) => void;
 }) {
+  const { tr } = useT();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -3452,17 +3464,17 @@ function ReviewForm({
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
-      <h2>Avaliar consulta</h2>
-      <div className="row" role="radiogroup" aria-label="Classificação" style={{ fontSize: 28 }}>
+      <h2>{tr('Avaliar consulta')}</h2>
+      <div className="row" role="radiogroup" aria-label={tr('Classificação')} style={{ fontSize: 28 }}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             role="radio"
             aria-checked={n === rating}
-            aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
+            aria-label={`${n} ${n === 1 ? tr('estrela') : tr('estrelas')}`}
             style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, width: 44, minHeight: 44, fontSize: 28 }}
             onClick={() => setRating(n)}
           >
@@ -3471,13 +3483,13 @@ function ReviewForm({
         ))}
       </div>
       <textarea
-        placeholder="Comentário (opcional)"
+        placeholder={tr('Comentário (opcional)')}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         rows={3}
       />
       <button className="btn" onClick={submit} disabled={busy}>
-        Enviar avaliação
+        {tr('Enviar avaliação')}
       </button>
     </div>
   );
@@ -4584,6 +4596,7 @@ function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
 
 // ───────────────────────── Subscriptions (parent + pediatrician) ─────────────────────────
 function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [sub, setSub] = useState<MySubscription | null>(null);
   const [plans, setPlans] = useState<PlanDto[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -4609,7 +4622,7 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
     setBusy(true);
     try {
       await Api.subscribe(plan);
-      onMsg('Subscrição ativada ✓');
+      onMsg(tr('Subscrição ativada ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4621,7 +4634,7 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
     setBusy(true);
     try {
       await Api.cancelSubscription();
-      onMsg('Subscrição cancelada.');
+      onMsg(tr('Subscrição cancelada.'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4630,14 +4643,14 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
-  if (!loaded) return <p className="muted">A carregar…</p>;
+  if (!loaded) return <p className="muted">{tr('A carregar…')}</p>;
 
   if (sub) {
     return (
       <div className="card">
-        <span className="pill ok">Ativo</span>
+        <span className="pill ok">{tr('Ativo')}</span>
         <h3 style={{ margin: '6px 0' }}>{sub.catalog.name}</h3>
-        <div className="muted">{euro(sub.priceCents)} / mês</div>
+        <div className="muted">{euro(sub.priceCents)} / {tr('mês')}</div>
         <ul>
           {sub.catalog.perks.map((p) => (
             <li key={p} className="muted">
@@ -4646,7 +4659,7 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
           ))}
         </ul>
         <button className="btn danger small" onClick={cancel} disabled={busy}>
-          Cancelar plano
+          {tr('Cancelar plano')}
         </button>
       </div>
     );
@@ -4657,7 +4670,7 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
       {plans.map((p) => (
         <div key={p.plan} className="card">
           <h3 style={{ margin: '0 0 4px' }}>{p.name}</h3>
-          <div className="muted">{euro(p.priceCents)} / mês</div>
+          <div className="muted">{euro(p.priceCents)} / {tr('mês')}</div>
           <ul>
             {p.perks.map((perk) => (
               <li key={perk} className="muted">
@@ -4666,12 +4679,12 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
             ))}
           </ul>
           <button className="btn small" onClick={() => subscribe(p.plan)} disabled={busy}>
-            Subscrever
+            {tr('Subscrever')}
           </button>
         </div>
       ))}
       <p className="muted" style={{ fontSize: 13 }}>
-        Sem Stripe configurado, a subscrição ativa-se em modo demonstração (sem cobrança real).
+        {tr('Sem Stripe configurado, a subscrição ativa-se em modo demonstração (sem cobrança real).')}
       </p>
     </div>
   );
@@ -4679,6 +4692,7 @@ function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
 
 // ───────────────────────── Invoices (parent + pediatrician) ─────────────────────────
 function InvoicesSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
   const [d, setD] = useState<InvoicesDto | null>(null);
   useEffect(() => {
     Api.invoices()
@@ -4688,21 +4702,21 @@ function InvoicesSection({ onMsg }: { onMsg: (m: string) => void }) {
   }, []);
   if (!d) return null;
   const all = [
-    ...d.medical.map((i) => ({ ...i, kind: 'Ato médico' })),
-    ...d.commission.map((i) => ({ ...i, kind: 'Comissão' })),
+    ...d.medical.map((i) => ({ ...i, kind: tr('Ato médico') })),
+    ...d.commission.map((i) => ({ ...i, kind: tr('Comissão') })),
   ];
   return (
     <div className="section">
-      <h3>Faturas</h3>
+      <h3>{tr('Faturas')}</h3>
       {all.length === 0 ? (
-        <p className="muted">Sem faturas. (São emitidas quando uma consulta é paga e fechada.)</p>
+        <p className="muted">{tr('Sem faturas. (São emitidas quando uma consulta é paga e fechada.)')}</p>
       ) : (
         all.map((i) => (
           <div key={i.id} className="card" style={{ marginBottom: 8 }}>
             <strong>{euro(i.amountCents)}</strong> <span className="muted">· {i.kind}</span>
             <div className="muted" style={{ fontSize: 12 }}>
-              IVA {euro(i.vatCents)} ({i.vatRegime}) · {i.atcud ?? 'ATCUD pendente'} ·{' '}
-              {new Date(i.issuedAt).toLocaleDateString('pt-PT')}
+              {tr('IVA')} {euro(i.vatCents)} ({i.vatRegime}) · {i.atcud ?? tr('ATCUD pendente')} ·{' '}
+              {new Date(i.issuedAt).toLocaleDateString(appLocale())}
             </div>
           </div>
         ))
@@ -4720,6 +4734,7 @@ const CONSENT_PT: Record<string, string> = {
   MARKETING: 'Marketing',
 };
 function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave: () => void }) {
+  const { tr } = useT();
   const [consents, setConsents] = useState<ConsentRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -4740,7 +4755,7 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
     setBusy(true);
     try {
       await Api.revokeConsent(id);
-      onMsg('Consentimento revogado.');
+      onMsg(tr('Consentimento revogado.'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4760,7 +4775,7 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
       a.download = 'pedia-dados.json';
       a.click();
       URL.revokeObjectURL(url);
-      onMsg('Exportação concluída ✓ (ficheiro descarregado).');
+      onMsg(tr('Exportação concluída ✓ (ficheiro descarregado).'));
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
     } finally {
@@ -4772,7 +4787,7 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
     setBusy(true);
     try {
       await Api.deleteAccount();
-      onMsg('Conta anonimizada. Sessão terminada.');
+      onMsg(tr('Conta anonimizada. Sessão terminada.'));
       onLeave();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -4783,23 +4798,23 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
 
   return (
     <div className="section">
-      <h3>Privacidade (RGPD)</h3>
+      <h3>{tr('Privacidade (RGPD)')}</h3>
       <div className="card">
-        <strong>Consentimentos</strong>
+        <strong>{tr('Consentimentos')}</strong>
         {consents.length === 0 ? (
-          <p className="muted">Sem consentimentos registados.</p>
+          <p className="muted">{tr('Sem consentimentos registados.')}</p>
         ) : (
           consents.map((c) => (
             <div key={c.id} className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
               <span>
-                {CONSENT_PT[c.subject] ?? c.subject}{' '}
+                {tr(CONSENT_PT[c.subject] ?? c.subject)}{' '}
                 <span className={c.revokedAt ? 'pill muted' : 'pill ok'}>
-                  {c.revokedAt ? 'revogado' : 'ativo'}
+                  {c.revokedAt ? tr('revogado') : tr('ativo')}
                 </span>
               </span>
               {!c.revokedAt ? (
                 <button className="btn small secondary" onClick={() => revoke(c.id)} disabled={busy}>
-                  Revogar
+                  {tr('Revogar')}
                 </button>
               ) : null}
             </div>
@@ -4808,32 +4823,31 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
       </div>
 
       <div className="card section">
-        <strong>Os teus dados</strong>
+        <strong>{tr('Os teus dados')}</strong>
         <p className="muted" style={{ fontSize: 13 }}>
-          Direito de acesso e portabilidade — descarrega uma cópia em JSON.
+          {tr('Direito de acesso e portabilidade — descarrega uma cópia em JSON.')}
         </p>
         <button className="btn small" onClick={exportData} disabled={busy}>
-          Exportar os meus dados
+          {tr('Exportar os meus dados')}
         </button>
       </div>
 
       <div className="card section" style={{ borderColor: '#f0b8be' }}>
-        <strong style={{ color: '#d7263d' }}>Apagar conta</strong>
+        <strong style={{ color: '#d7263d' }}>{tr('Apagar conta')}</strong>
         <p className="muted" style={{ fontSize: 13 }}>
-          Direito ao esquecimento — anonimiza a conta (registos legais/contabilísticos são
-          retidos pelo prazo obrigatório).
+          {tr('Direito ao esquecimento — anonimiza a conta (registos legais/contabilísticos são retidos pelo prazo obrigatório).')}
         </p>
         {!confirmDel ? (
           <button className="btn small danger" onClick={() => setConfirmDel(true)}>
-            Apagar a minha conta
+            {tr('Apagar a minha conta')}
           </button>
         ) : (
           <div className="row">
             <button className="btn small danger" onClick={del} disabled={busy}>
-              Confirmar apagar
+              {tr('Confirmar apagar')}
             </button>
             <button className="btn small secondary" onClick={() => setConfirmDel(false)}>
-              Cancelar
+              {tr('Cancelar')}
             </button>
           </div>
         )}
@@ -4964,6 +4978,7 @@ function NotifTab({
   onOpenConsultation?: (id: string) => void;
   onGoConsults?: () => void;
 }) {
+  const { tr } = useT();
   const [rows, setRows] = useState<NotificationDto[]>([]);
 
   /**
@@ -4992,9 +5007,9 @@ function NotifTab({
 
   return (
     <div className="section">
-      <h2>Avisos</h2>
+      <h2>{tr('Avisos')}</h2>
       {rows.length === 0 ? (
-        <p className="muted">Sem avisos. As notificações aparecem ao criar/fechar consultas.</p>
+        <p className="muted">{tr('Sem avisos. As notificações aparecem ao criar/fechar consultas.')}</p>
       ) : (
         rows.map((n) => (
           <button
@@ -5011,10 +5026,10 @@ function NotifTab({
             }}
           >
             <strong>{n.title}</strong>
-            {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>novo</span> : null}
+            {!n.read ? <span className="pill" style={{ marginLeft: 6 }}>{tr('novo')}</span> : null}
             <div className="muted">{n.body}</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              {when(n.createdAt)} · {n.refId ? 'toca para abrir a consulta' : 'toca para ver as consultas'}
+              {when(n.createdAt)} · {n.refId ? tr('toca para abrir a consulta') : tr('toca para ver as consultas')}
             </div>
           </button>
         ))
@@ -6461,48 +6476,48 @@ function ContentAuthor({ onMsg }: { onMsg: (m: string) => void }) {
 
 // ───────────────────────── Onboarding / consents (first parent login) ─────────────────────────
 function Onboarding({ onDone }: { onDone: () => void }) {
+  const { tr } = useT();
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [health, setHealth] = useState(false);
   const all = terms && privacy && health;
   return (
     <div className="section">
-      <span className="badge">Bem-vindo à HOC — Healthcare on Call</span>
+      <span className="badge">{tr('Bem-vindo à HOC — Healthcare on Call')}</span>
       <h1 style={{ fontSize: 28, margin: '10px 0 6px', letterSpacing: '-0.02em' }}>
-        Cuidar do seu filho, com confiança.
+        {tr('Cuidar do seu filho, com confiança.')}
       </h1>
       <p className="muted">
-        Pediatras verificados, num espaço seguro e privado. Antes de começar, confirme os
-        consentimentos.
+        {tr('Pediatras verificados, num espaço seguro e privado. Antes de começar, confirme os consentimentos.')}
       </p>
 
       <div className="card section">
         <label className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
           <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
           <span>
-            Aceito os <strong>Termos de Utilização</strong>.
+            {tr('Aceito os')} <strong>{tr('Termos de Utilização')}</strong>.
           </span>
         </label>
         <label className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
           <input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
           <span>
-            Li e aceito a <strong>Política de Privacidade</strong> (RGPD).
+            {tr('Li e aceito a')} <strong>{tr('Política de Privacidade')}</strong> {tr('(RGPD).')}
           </span>
         </label>
         <label className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
           <input type="checkbox" checked={health} onChange={(e) => setHealth(e.target.checked)} style={{ width: 'auto', marginTop: 3 }} />
           <span>
-            Autorizo o tratamento dos <strong>dados de saúde</strong> do meu filho 🔒, para a
-            prestação dos cuidados.
+            {tr('Autorizo o tratamento dos')} <strong>{tr('dados de saúde')}</strong>{' '}
+            {tr('do meu filho 🔒, para a prestação dos cuidados.')}
           </span>
         </label>
       </div>
 
       <button className="btn" onClick={onDone} disabled={!all} style={{ width: '100%' }}>
-        Começar
+        {tr('Começar')}
       </button>
       <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-        Pode rever ou revogar consentimentos em Conta → Privacidade.
+        {tr('Pode rever ou revogar consentimentos em Conta → Privacidade.')}
       </p>
     </div>
   );
@@ -6510,40 +6525,41 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
 // ───────────────────────── Emergency (always present) ─────────────────────────
 function Emergency() {
+  const { tr } = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="fab-sos" aria-label="Emergência" onClick={() => setOpen(true)}>
+      <button className="fab-sos" aria-label={tr('Emergência')} onClick={() => setOpen(true)}>
         SOS
       </button>
       {open ? (
         <div className="sheet-backdrop" onClick={() => setOpen(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-grip" />
-            <h2 style={{ marginTop: 4 }}>É uma emergência?</h2>
+            <h2 style={{ marginTop: 4 }}>{tr('É uma emergência?')}</h2>
             <p className="muted">
-              Se a criança tem dificuldade a respirar, está prostrada, com convulsões ou lábios
-              azulados, <strong>não espere</strong>.
+              {tr('Se a criança tem dificuldade a respirar, está prostrada, com convulsões ou lábios azulados,')}{' '}
+              <strong>{tr('não espere')}</strong>.
             </p>
             <a className="btn danger" href="tel:112" style={{ display: 'block', textAlign: 'center' }}>
-              Ligar 112 (emergência)
+              {tr('Ligar 112 (emergência)')}
             </a>
             <a
               className="btn secondary"
               href="tel:808242424"
               style={{ display: 'block', textAlign: 'center', marginTop: 8 }}
             >
-              Ligar SNS 24 · 808 24 24 24
+              {tr('Ligar SNS 24 · 808 24 24 24')}
             </a>
             <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-              A teleconsulta não substitui o atendimento de emergência.
+              {tr('A teleconsulta não substitui o atendimento de emergência.')}
             </p>
             <button
               className="btn secondary small"
               onClick={() => setOpen(false)}
               style={{ marginTop: 4 }}
             >
-              Fechar
+              {tr('Fechar')}
             </button>
           </div>
         </div>
@@ -6578,6 +6594,7 @@ function Seg<T extends string>({
 }
 
 function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () => void }) {
+  const { tr } = useT();
   const { theme, setTheme, textSize, setTextSize } = useTheme();
   const [notif, setNotif] = useState(false);
   useEffect(() => {
@@ -6592,60 +6609,60 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
     const supported = typeof window !== 'undefined' && 'PublicKeyCredential' in window;
     setSecNote(
       supported
-        ? 'O teu dispositivo suporta passkeys/biometria. A ativação fica disponível quando o domínio tiver WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN configurados (ver docs/21-integracoes.md). O backend já expõe os endpoints WebAuthn.'
-        : 'Este dispositivo/navegador não suporta passkeys (WebAuthn).',
+        ? tr('O teu dispositivo suporta passkeys/biometria. A ativação fica disponível quando o domínio tiver WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN configurados (ver docs/21-integracoes.md). O backend já expõe os endpoints WebAuthn.')
+        : tr('Este dispositivo/navegador não suporta passkeys (WebAuthn).'),
     );
   }
 
   return (
     <div className="section">
       <button className="btn secondary small" onClick={onClose} style={{ marginBottom: 14 }}>
-        ← Voltar
+        {tr('← Voltar')}
       </button>
-      <h2>Definições</h2>
+      <h2>{tr('Definições')}</h2>
 
       <div className="card section">
-        <strong>Aparência</strong>
+        <strong>{tr('Aparência')}</strong>
         <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
-          Tema
+          {tr('Tema')}
         </p>
         <Seg<Theme>
           value={theme}
           onChange={setTheme}
           options={[
-            { v: 'light', label: 'Claro' },
-            { v: 'dark', label: 'Escuro' },
-            { v: 'system', label: 'Sistema' },
+            { v: 'light', label: tr('Claro') },
+            { v: 'dark', label: tr('Escuro') },
+            { v: 'system', label: tr('Sistema') },
           ]}
         />
         <p className="muted" style={{ fontSize: 13, margin: '14px 0 8px' }}>
-          Tamanho do texto
+          {tr('Tamanho do texto')}
         </p>
         <Seg<TextSize>
           value={textSize}
           onChange={setTextSize}
           options={[
-            { v: 'normal', label: 'Normal' },
-            { v: 'large', label: 'Grande' },
+            { v: 'normal', label: tr('Normal') },
+            { v: 'large', label: tr('Grande') },
           ]}
         />
       </div>
 
       <div className="card section">
-        <strong>Idioma</strong>
+        <strong>{tr('Idioma')}</strong>
         <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
-          A app das famílias está disponível em três idiomas.
+          {tr('A app das famílias está disponível em três idiomas.')}
         </p>
         <LanguageSwitcher />
       </div>
 
       <div className="card section">
-        <strong>Segurança</strong>
+        <strong>{tr('Segurança')}</strong>
         <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
-          Passkey / biometria (Face ID, Touch ID) para entrar sem palavra-passe.
+          {tr('Passkey / biometria (Face ID, Touch ID) para entrar sem palavra-passe.')}
         </p>
         <button className="btn secondary small" onClick={tryPasskey}>
-          Ativar passkey
+          {tr('Ativar passkey')}
         </button>
         {secNote ? (
           <p className="notice" style={{ marginTop: 10, fontSize: 13 }}>
@@ -6655,12 +6672,12 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
       </div>
 
       <div className="card section">
-        <strong>Notificações</strong>
+        <strong>{tr('Notificações')}</strong>
         <label
           className="row"
           style={{ justifyContent: 'space-between', marginTop: 8, cursor: 'pointer' }}
         >
-          <span className="muted">Receber avisos da app</span>
+          <span className="muted">{tr('Receber avisos da app')}</span>
           <input
             type="checkbox"
             checked={notif}
@@ -6669,23 +6686,22 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
           />
         </label>
         <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          Push real (FCM/APNs) requer credenciais de serviço.
+          {tr('Push real (FCM/APNs) requer credenciais de serviço.')}
         </p>
       </div>
 
       <div className="card section">
-        <strong>Conta</strong>
+        <strong>{tr('Conta')}</strong>
         <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-          Sessão: {profile.name} · {profile.role}
+          {tr('Sessão:')} {profile.name} · {profile.role}
         </div>
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Segurança (biometria/passkeys), notificações push e mais preferências chegam com as
-          credenciais de dispositivo/serviço.
+          {tr('Segurança (biometria/passkeys), notificações push e mais preferências chegam com as credenciais de dispositivo/serviço.')}
         </p>
       </div>
 
       <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-        HOC · Healthcare on Call · uma solução DES · ambiente de demonstração
+        {tr('HOC · Healthcare on Call · uma solução DES · ambiente de demonstração')}
       </p>
     </div>
   );
