@@ -394,14 +394,18 @@ model Review {
 
 // ── Scheduling & Video ───────────────────────────────
 model Availability {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   pediatricianId String
-  weekday        Int      // 0=Sunday .. 6=Saturday
-  startMinute    Int      // minutes from midnight
+  weekday        Int       // 0=Sunday .. 6=Saturday
+  startMinute    Int       // minutes from midnight
   endMinute      Int
-  slotMinutes    Int      @default(20)
+  slotMinutes    Int       @default(20)
+  // Concrete calendar date (midnight UTC). Null = weekly recurring template.
+  // On a date with dated blocks, only those count; the template is the fallback.
+  date           DateTime?
 
   @@index([pediatricianId, weekday])
+  @@index([pediatricianId, date])
 }
 
 model VideoSession {

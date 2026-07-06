@@ -26,23 +26,39 @@ export class SchedulingService {
     if (dto.endMinute <= dto.startMinute) {
       throw new BadRequestException('O minuto final tem de ser posterior ao inicial.');
     }
+    if (dto.weekday == null && !dto.date) {
+      throw new BadRequestException('Indica um dia da semana ou uma data concreta.');
+    }
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
-    return this.prisma.availability.create({
-      data: {
-        pediatricianId: ped.id,
-        weekday: dto.weekday,
-        startMinute: dto.startMinute,
-        endMinute: dto.endMinute,
-        slotMinutes: dto.slotMinutes ?? 20,
-      },
+    const common = {
+      pediatricianId: ped.id,
+      startMinute: dto.startMinute,
+      endMinute: dto.endMinute,
+      slotMinutes: dto.slotMinutes ?? 20,
+    };
+    if (!dto.date) {
+      // Weekly template block (legacy behavior).
+      return this.prisma.availability.create({ data: { ...common, weekday: dto.weekday! } });
+    }
+    const day = new Date(`${dto.date.slice(0, 10)}T00:00:00.000Z`);
+    if (Number.isNaN(day.getTime())) throw new BadRequestException('Data inválida.');
+    const weeks = dto.repeatWeeks ?? 1;
+    const rows = Array.from({ length: weeks }, (_, i) => {
+      const date = new Date(day.getTime() + i * 7 * 24 * 3600 * 1000);
+      return { ...common, date, weekday: date.getUTCDay() };
     });
+    const created = await this.prisma.$transaction(
+      rows.map((data) => this.prisma.availability.create({ data })),
+    );
+    return weeks === 1 ? created[0] : created;
   }
 
   async myAvailability(userId: string) {
     const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
     return this.prisma.availability.findMany({
       where: { pediatricianId: ped.id },
-      orderBy: [{ weekday: 'asc' }, { startMinute: 'asc' }],
+      orderBy: [{ date: 'asc' }, { weekday: 'asc' }, { startMinute: 'asc' }],
+      take: 1000,
     });
   }
 
@@ -63,9 +79,16 @@ export class SchedulingService {
     const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
     const weekday = dayStart.getUTCDay();
 
-    const blocks = await this.prisma.availability.findMany({
-      where: { pediatricianId, weekday },
+    // Dated blocks override the weekly template for that day; the template
+    // only applies on days without any dated block.
+    const dated = await this.prisma.availability.findMany({
+      where: { pediatricianId, date: dayStart },
     });
+    const blocks = dated.length
+      ? dated
+      : await this.prisma.availability.findMany({
+          where: { pediatricianId, weekday, date: null },
+        });
     const booked = await this.prisma.videoSession.findMany({
       where: {
         consultation: { pediatricianId },

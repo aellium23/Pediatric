@@ -64,6 +64,94 @@ describe('SchedulingService.nextSlots', () => {
   });
 });
 
+describe('SchedulingService.slots — dated blocks override the weekly template', () => {
+  it('uses only dated blocks when the day has one', async () => {
+    const findMany = jest
+      .fn()
+      // 1st call: dated blocks for the day
+      .mockResolvedValueOnce([{ startMinute: 600, endMinute: 640, slotMinutes: 20 }]);
+    const prisma: any = {
+      availability: { findMany },
+      videoSession: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new SchedulingService(prisma, {} as any, {} as any);
+    const slots = await service.slots('p1', '2999-01-01');
+    expect(slots).toEqual(['2999-01-01T10:00:00.000Z', '2999-01-01T10:20:00.000Z']);
+    // Template query never ran — the dated blocks satisfied the day.
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0].where.date).toEqual(new Date('2999-01-01T00:00:00.000Z'));
+  });
+
+  it('falls back to the weekly template when the day has no dated block', async () => {
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce([]) // no dated blocks
+      .mockResolvedValueOnce([{ startMinute: 600, endMinute: 640, slotMinutes: 20 }]);
+    const prisma: any = {
+      availability: { findMany },
+      videoSession: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new SchedulingService(prisma, {} as any, {} as any);
+    const slots = await service.slots('p1', '2999-01-01');
+    expect(slots).toEqual(['2999-01-01T10:00:00.000Z', '2999-01-01T10:20:00.000Z']);
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[1][0].where).toMatchObject({ date: null });
+  });
+});
+
+describe('SchedulingService.setAvailability — dated blocks', () => {
+  function buildSet() {
+    const created: any[] = [];
+    const prisma: any = {
+      pediatrician: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ped1' }) },
+      availability: {
+        create: jest.fn().mockImplementation(({ data }: any) => {
+          const row = { id: `a${created.length + 1}`, ...data };
+          created.push(row);
+          return Promise.resolve(row);
+        }),
+      },
+      $transaction: jest.fn(async (ops: Promise<any>[]) => Promise.all(ops)),
+    };
+    return { service: new SchedulingService(prisma, {} as any, {} as any), prisma, created };
+  }
+
+  it('creates one dated block with the weekday derived from the date', async () => {
+    const { service, created } = buildSet();
+    await service.setAvailability('u1', {
+      date: '2999-01-04', // a Friday
+      startMinute: 540,
+      endMinute: 720,
+    } as any);
+    expect(created).toHaveLength(1);
+    expect(created[0].date).toEqual(new Date('2999-01-04T00:00:00.000Z'));
+    expect(created[0].weekday).toBe(new Date('2999-01-04T00:00:00.000Z').getUTCDay());
+  });
+
+  it('repeatWeeks creates the same block for consecutive weeks', async () => {
+    const { service, created } = buildSet();
+    const res = await service.setAvailability('u1', {
+      date: '2999-01-04',
+      startMinute: 540,
+      endMinute: 720,
+      repeatWeeks: 3,
+    } as any);
+    expect(created.map((r) => r.date.toISOString().slice(0, 10))).toEqual([
+      '2999-01-04',
+      '2999-01-11',
+      '2999-01-18',
+    ]);
+    expect(Array.isArray(res)).toBe(true);
+  });
+
+  it('rejects when neither weekday nor date is given', async () => {
+    const { service } = buildSet();
+    await expect(
+      service.setAvailability('u1', { startMinute: 540, endMinute: 720 } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('SchedulingService.book — health-data consent', () => {
   // A future timestamp aligned to a 20-minute slot boundary (so it matches a
   // generated slot when availability covers the whole day).

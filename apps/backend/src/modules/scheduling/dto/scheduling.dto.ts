@@ -10,11 +10,35 @@ import {
 } from 'class-validator';
 
 export class SetAvailabilityDto {
-  @ApiProperty({ minimum: 0, maximum: 6, description: '0=Sunday .. 6=Saturday' })
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 6,
+    description: '0=Sunday .. 6=Saturday (weekly template; ignored when `date` is set)',
+  })
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(6)
-  weekday!: number;
+  weekday?: number;
+
+  @ApiPropertyOptional({
+    example: '2026-07-13',
+    description: 'Concrete date (YYYY-MM-DD). Dated blocks override the weekly template that day.',
+  })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 12,
+    description: 'With `date`: create the block for N consecutive weeks (same weekday/time).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  repeatWeeks?: number;
 
   @ApiProperty({ description: 'Minutes from midnight' })
   @IsInt()
