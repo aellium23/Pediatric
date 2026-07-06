@@ -865,7 +865,6 @@ export default function MultiProfileApp() {
         {tab === 'comp_creds' ? <CredentialsTab onMsg={setMsg} /> : null}
         {tab === 'sup_users' ? <SupportUsersTab onMsg={setMsg} /> : null}
         {tab === 'sup_peds' ? <SupportPedsTab onMsg={setMsg} /> : null}
-        {tab === 'sup_help' ? <SupportOverviewTab onMsg={setMsg} /> : null}
         {tab === 'clinic' ? <ClinicTab role={profile.role} onMsg={setMsg} /> : null}
         {tab === 'account' ? <GenericTab profile={profile} onMsg={setMsg} /> : null}
         {tab === 'content' ? <ContentTab onMsg={setMsg} /> : null}
@@ -1041,7 +1040,6 @@ function TabIcon({ name, active }: { name: string; active?: boolean }) {
     comp_creds: 'audit',
     sup_users: 'search',
     sup_peds: 'cross',
-    sup_help: 'headset',
   };
   return (
     <svg
@@ -1146,7 +1144,6 @@ function tabsFor(role: string): { key: string; label: string }[] {
     return [
       { key: 'sup_users', label: 'Utilizadores' },
       { key: 'sup_peds', label: 'Pediatras' },
-      { key: 'sup_help', label: 'Visão' },
     ];
   if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF') return [{ key: 'clinic', label: 'Clínica' }];
   return [{ key: 'account', label: 'Conta' }];
@@ -6496,59 +6493,6 @@ function SupportPedDocs({ pediatricianId, onMsg }: { pediatricianId: string; onM
           </div>
         ))
       )}
-    </div>
-  );
-}
-
-function SupportOverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
-  const [m, setM] = useState<AdminMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    Api.adminMetrics()
-      .then(setM)
-      .catch((e) => onMsg(`Erro: ${String(e)}`))
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  if (loading) return <Skeleton rows={3} />;
-  if (!m) return <EmptyState title="Sem dados" hint="Não foi possível carregar." />;
-  const totalUsers = Object.values(m.usersByRole).reduce((a, b) => a + b, 0);
-  return (
-    <div className="section">
-      <h2>Visão de apoio</h2>
-      <div className="grid">
-        <Kpi label="Utilizadores" value={String(totalUsers)} />
-        <Kpi label="Famílias · Crianças" value={`${m.families} · ${m.children}`} />
-        <Kpi label="Reembolsos" value={String(m.refunds)} hint="Contexto p/ cobrança" />
-      </div>
-      <div className="card section">
-        <h3>Utilizadores por perfil</h3>
-        {Object.entries(m.usersByRole).map(([k, v]) => (
-          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="muted">{roleLabel(k)}</span>
-            <strong>{v}</strong>
-          </div>
-        ))}
-      </div>
-      <div className="card section">
-        <h3>Consultas por estado</h3>
-        {Object.entries(m.consultationsByStatus).map(([k, v]) => (
-          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
-            <span className={k === 'REFUNDED' || k === 'DISPUTED' ? 'pill warn' : 'muted'}>{statusLabel(k)}</span>
-            <strong>{v}</strong>
-          </div>
-        ))}
-        {Object.keys(m.consultationsByStatus).length === 0 ? <p className="muted">Sem consultas ainda.</p> : null}
-      </div>
-      <div className="card section">
-        <h3>Pediatras por estado</h3>
-        {Object.entries(m.pediatriciansByStatus).map(([k, v]) => (
-          <div key={k} className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="muted">{pedStatus(k).label}</span>
-            <strong>{v}</strong>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
