@@ -3118,6 +3118,12 @@ function ChildHealth({
   const latestWeightKg =
     [...(d?.growth ?? [])].reverse().find((g) => g.weightKg != null)?.weightKg ?? null;
 
+  const ageLabel = (() => {
+    const months = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (30.44 * 86_400_000));
+    if (months < 1) return tr('recém-nascido');
+    return months < 24 ? `${months} ${tr('meses')}` : `${Math.floor(months / 12)} ${tr('anos')}`;
+  })();
+
   async function load() {
     try {
       setD(await Api.childHealth(child.id));
@@ -3181,7 +3187,7 @@ function ChildHealth({
           photoUrl={photo}
           fallback={
             <span aria-hidden style={{ fontSize: 26, lineHeight: 1 }}>
-              🧒
+              {childEmoji(child.sex, child.birthDate)}
             </span>
           }
           onSave={async (dataUrl) => {
@@ -3194,68 +3200,74 @@ function ChildHealth({
             }
           }}
         />
-        <h2 style={{ margin: 0 }}>{child.name}</h2>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0 }}>{child.name}</h2>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {ageLabel} · {new Date(child.birthDate).toLocaleDateString(appLocale())}
+          </span>
+        </div>
       </div>
-      <p className="muted">
-        {new Date(child.birthDate).toLocaleDateString(appLocale())} · {tr('os dados de saúde do teu filho, guardados em segurança 🔒')}
+      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+        {tr('Os dados de saúde do teu filho, guardados em segurança 🔒')}
       </p>
-      <div className="row" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
-        <strong style={{ fontSize: 13 }}>{tr('SNS')}</strong>
-        {snsEdit ? (
-          <>
-            <input
-              inputMode="numeric"
-              maxLength={12}
-              placeholder={tr('N.º de utente')}
-              value={snsInput}
-              onChange={(e) => setSnsInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
-              style={{ width: 140 }}
-            />
-            <button
-              className="btn small"
-              disabled={busy || !snsInput}
-              onClick={() => void saveSns(snsInput)}
-            >
-              {tr('Guardar')}
-            </button>
-            <button
-              className="btn small secondary"
-              onClick={() => {
-                setSnsEdit(false);
-                setSnsInput('');
-              }}
-            >
-              {tr('Cancelar')}
-            </button>
-            {sns ? (
-              <button className="btn small danger" disabled={busy} onClick={() => void saveSns(null)}>
-                {tr('Remover')}
+      <Reg label={sns ? `${tr('Número de utente (SNS)')}: ${sns}` : tr('Número de utente (SNS)')}>
+        <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+          {tr('Número de utente (SNS) — opcional. Facilita a referenciação ao SNS. Guardado cifrado.')}
+        </p>
+        <div className="row" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {snsEdit ? (
+            <>
+              <input
+                inputMode="numeric"
+                maxLength={12}
+                placeholder={tr('N.º de utente')}
+                value={snsInput}
+                onChange={(e) => setSnsInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                style={{ width: 140 }}
+              />
+              <button
+                className="btn small"
+                disabled={busy || !snsInput}
+                onClick={() => void saveSns(snsInput)}
+              >
+                {tr('Guardar')}
               </button>
-            ) : null}
-          </>
-        ) : sns ? (
-          <>
-            <span>{sns}</span>
-            <button
-              className="btn small secondary"
-              onClick={() => {
-                setSnsInput(sns);
-                setSnsEdit(true);
-              }}
-            >
-              {tr('Editar')}
+              <button
+                className="btn small secondary"
+                onClick={() => {
+                  setSnsEdit(false);
+                  setSnsInput('');
+                }}
+              >
+                {tr('Cancelar')}
+              </button>
+              {sns ? (
+                <button className="btn small danger" disabled={busy} onClick={() => void saveSns(null)}>
+                  {tr('Remover')}
+                </button>
+              ) : null}
+            </>
+          ) : sns ? (
+            <>
+              <span>{sns}</span>
+              <button
+                className="btn small secondary"
+                onClick={() => {
+                  setSnsInput(sns);
+                  setSnsEdit(true);
+                }}
+              >
+                {tr('Editar')}
+              </button>
+            </>
+          ) : (
+            <button className="btn small secondary" onClick={() => setSnsEdit(true)}>
+              {tr('+ Adicionar')}
             </button>
-          </>
-        ) : (
-          <button className="btn small secondary" onClick={() => setSnsEdit(true)}>
-            {tr('+ Adicionar')}
-          </button>
-        )}
-      </div>
-      <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-        {tr('Número de utente (SNS) — opcional. Facilita a referenciação ao SNS. Guardado cifrado.')}
-      </p>
-      <div className="row" style={{ marginBottom: 4 }}>
+          )}
+        </div>
+      </Reg>
+      <div className="row" style={{ margin: '8px 0 4px' }}>
         <button className="btn small secondary" onClick={() => setView('timeline')}>
           {tr('🕒 Linha do tempo')}
         </button>
@@ -3267,6 +3279,41 @@ function ChildHealth({
         <p className="muted">{tr('A carregar…')}</p>
       ) : (
         <>
+          {/* Read-first summary: the essentials a parent glances at, as pills. */}
+          {(() => {
+            const g = [...d.growth].reverse();
+            const lw = g.find((x) => x.weightKg != null);
+            const lh = g.find((x) => x.heightCm != null);
+            const activeMeds = d.medications.filter((m) => m.active).length;
+            const allergyN = (d.allergies ?? []).length;
+            const pill = (icon: string, label: string, tone?: 'warn') => (
+              <span
+                key={label}
+                className="pill"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  ...(tone === 'warn'
+                    ? { background: 'var(--danger-bg, rgba(200,60,60,.12))', color: 'var(--danger, #c0392b)' }
+                    : {}),
+                }}
+              >
+                <span aria-hidden>{icon}</span>
+                {label}
+              </span>
+            );
+            return (
+              <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {pill('🎂', ageLabel)}
+                {lw ? pill('⚖️', `${lw.weightKg} kg${lw.weightP != null ? ` · P${lw.weightP}` : ''}`) : null}
+                {lh ? pill('📏', `${lh.heightCm} cm${lh.heightP != null ? ` · P${lh.heightP}` : ''}`) : null}
+                {allergyN ? pill('⚠️', `${allergyN} ${allergyN === 1 ? tr('alergia') : tr('alergias')}`, 'warn') : null}
+                {activeMeds ? pill('💊', `${activeMeds} ${activeMeds === 1 ? tr('medicamento') : tr('medicamentos')}`) : null}
+              </div>
+            );
+          })()}
+
           {/* Growth */}
           <GrowthAlert growth={d.growth} />
           <section className="hsec">
