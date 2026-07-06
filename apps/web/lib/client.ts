@@ -185,6 +185,17 @@ export interface ChildDto {
   id: string;
   name: string;
   birthDate: string;
+  photoUrl?: string | null;
+}
+
+export interface UserMeDto {
+  id: string;
+  role: string;
+  name: string | null;
+  email: string | null;
+  photoUrl: string | null;
+  preferredPayment: string | null;
+  locale?: string | null;
 }
 
 export interface ConsultationDto {
@@ -279,6 +290,16 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }) as Promise<{ accessToken: string; refreshToken?: string }>,
+
+  // Account (any role) — profile photo + preferred payment method
+  userMe: () => request('/users/me') as Promise<UserMeDto>,
+  setMyPhoto: (photoUrl: string) =>
+    request('/users/me/photo', { method: 'POST', body: JSON.stringify({ photoUrl }) }),
+  removeMyPhoto: () => request('/users/me/photo/remove', { method: 'POST' }),
+  setChildPhoto: (childId: string, photoUrl: string) =>
+    request(`/children/${childId}/photo`, { method: 'POST', body: JSON.stringify({ photoUrl }) }),
+  setPaymentMethod: (method?: string) =>
+    request('/users/me/payment-method', { method: 'POST', body: JSON.stringify({ method }) }),
 
   // Parent
   children: () => request('/children') as Promise<ChildDto[]>,
@@ -413,7 +434,10 @@ export const Api = {
     request(`/admin/pediatricians/${id}/verify`, { method: 'POST' }),
   suspendPediatrician: (id: string) =>
     request(`/admin/pediatricians/${id}/suspend`, { method: 'POST' }),
-  adminUsers: () => request('/admin/users') as Promise<AdminUserRow[]>,
+  adminUsers: (q?: string) =>
+    request(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`) as Promise<AdminUserRow[]>,
+  adminUserDetail: (id: string) =>
+    request(`/admin/users/${id}`) as Promise<AdminUserDetail>,
   changeUserRole: (id: string, role: string) =>
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   adminAudit: (skip = 0) => request(`/admin/audit?skip=${skip}`) as Promise<AuditRow[]>,
@@ -748,6 +772,12 @@ export interface ClinicDashboard {
     revenueSharePct: number;
   }[];
   consultations: ConsultationDto[];
+  /** Present when the backend computes the clinic's revenue share. */
+  finance?: {
+    clinicEarnedCents: number;
+    pedsGrossCents: number;
+    capturedCount: number;
+  };
 }
 
 export interface AdminMetrics {
@@ -773,9 +803,32 @@ export interface AdminPedRow {
 export interface AdminUserRow {
   id: string;
   email: string | null;
+  name?: string | null;
+  phone?: string | null;
   role: string;
   status: string;
   createdAt: string;
+}
+export interface AdminUserDetail {
+  user: {
+    id: string;
+    email: string | null;
+    name: string | null;
+    phone: string | null;
+    role: string;
+    status: string;
+    createdAt: string;
+  };
+  consultations: {
+    id: string;
+    type: string;
+    status: string;
+    openedAt: string;
+    closedAt: string | null;
+    scheduledAt: string | null;
+    child: { name: string } | null;
+    pediatrician: { displayName: string | null } | null;
+  }[];
 }
 export interface AuditRow {
   id: string;

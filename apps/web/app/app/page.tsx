@@ -21,7 +21,9 @@ import {
   type AdminMetrics,
   type AdminPedRow,
   type AdminUserRow,
+  type AdminUserDetail,
   type AuditRow,
+  type UserMeDto,
   type ClinicDashboard,
   type HealthOverview,
   type PlanDto,
@@ -323,6 +325,156 @@ function EmptyState({ title, hint }: { title: string; hint?: string }) {
       <strong>{title}</strong>
       {hint ? <p className="muted">{hint}</p> : null}
     </div>
+  );
+}
+
+/**
+ * Reads a picked image and downscales it client-side (canvas) to ≤256×256
+ * JPEG, returning a data URL small enough for the API's payload limit. If the
+ * first encode is still large (photographic noise), re-encode at lower quality.
+ */
+async function downscalePhoto(file: File): Promise<string> {
+  const raw: string = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('read-failed'));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('decode-failed'));
+    im.src = raw;
+  });
+  const scale = Math.min(1, 256 / Math.max(img.width, img.height, 1));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas-unavailable');
+  ctx.drawImage(img, 0, 0, w, h);
+  let out = canvas.toDataURL('image/jpeg', 0.82);
+  if (out.length > 250_000) out = canvas.toDataURL('image/jpeg', 0.6);
+  return out;
+}
+
+/**
+ * Round profile-photo picker (family-facing): tap the avatar (or "Alterar
+ * foto") to pick/take a photo; it is downscaled client-side and handed to
+ * onSave as a data URL. Shows a fallback icon when there is no photo yet.
+ */
+function AvatarPicker({
+  photoUrl,
+  fallback,
+  size = 72,
+  onSave,
+  onRemove,
+}: {
+  photoUrl?: string | null;
+  fallback: React.ReactNode;
+  size?: number;
+  onSave: (dataUrl: string) => Promise<void>;
+  onRemove?: () => Promise<void>;
+}) {
+  const { tr } = useT();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setBusy(true);
+    try {
+      await onSave(await downscalePhoto(file));
+    } catch {
+      // onSave surfaces its own error message; decode failures stay silent
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <button
+        type="button"
+        aria-label={tr('Alterar foto')}
+        onClick={() => inputRef.current?.click()}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          border: '1px solid var(--border)',
+          background: 'var(--surface-2)',
+          padding: 0,
+          overflow: 'hidden',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 'none',
+        }}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+          />
+        ) : (
+          fallback
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        style={{ display: 'none' }}
+        onChange={(e) => void onPick(e)}
+      />
+      <div className="row" style={{ gap: 6 }}>
+        <button
+          className="btn small secondary"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          {busy ? tr('A guardar…') : tr('Alterar foto')}
+        </button>
+        {photoUrl && onRemove ? (
+          <button className="btn small secondary" onClick={() => void onRemove()} disabled={busy}>
+            {tr('Remover')}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Small round child photo with the usual emoji fallback (list rows, chips). */
+function ChildAvatar({ photoUrl, size = 36 }: { photoUrl?: string | null; size?: number }) {
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt=""
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flex: 'none',
+          verticalAlign: 'middle',
+        }}
+      />
+    );
+  }
+  return (
+    <span aria-hidden style={{ fontSize: Math.round(size * 0.62), lineHeight: 1 }}>
+      🧒
+    </span>
   );
 }
 
@@ -683,6 +835,7 @@ export default function MultiProfileApp() {
         {tab === 'myaccount' ? (
           <div className="section">
             <h2>{tr('A minha conta')}</h2>
+            <AccountProfileCards onMsg={setMsg} />
             <h3>{tr('Plano')}</h3>
             <SubscriptionSection onMsg={setMsg} />
             <InvoicesSection onMsg={setMsg} />
@@ -1583,8 +1736,13 @@ function HomeTab({
       ) : (
         <div className="row" style={{ flexWrap: 'wrap' }}>
           {children.map((c) => (
-            <button key={c.id} className="chip" onClick={() => onGo('children')}>
-              🧒 {c.name} · {ageLabel(c.birthDate)}
+            <button
+              key={c.id}
+              className="chip"
+              onClick={() => onGo('children')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <ChildAvatar photoUrl={c.photoUrl} size={28} /> {c.name} · {ageLabel(c.birthDate)}
             </button>
           ))}
         </div>
@@ -1700,9 +1858,14 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
               onClick={() => setOpen(c)}
               style={{ textAlign: 'left', cursor: 'pointer' }}
             >
-              <strong>{c.name}</strong>
-              <div className="muted">
-                {new Date(c.birthDate).toLocaleDateString(appLocale())} · {tr('ver saúde →')}
+              <div className="row" style={{ alignItems: 'center', gap: 10, flexWrap: 'nowrap' }}>
+                <ChildAvatar photoUrl={c.photoUrl} size={40} />
+                <div style={{ minWidth: 0 }}>
+                  <strong>{c.name}</strong>
+                  <div className="muted">
+                    {new Date(c.birthDate).toLocaleDateString(appLocale())} · {tr('ver saúde →')}
+                  </div>
+                </div>
               </div>
             </button>
           ))}
@@ -1759,6 +1922,7 @@ function ChildHealth({
   const [d, setD] = useState<HealthOverview | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'main' | 'timeline' | 'boletim'>('main');
+  const [photo, setPhoto] = useState<string | null>(child.photoUrl ?? null);
   // growth form
   const [gDate, setGDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [gH, setGH] = useState('');
@@ -1829,7 +1993,27 @@ function ChildHealth({
       <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>
         {tr('← Voltar')}
       </button>
-      <h2>{child.name}</h2>
+      <div className="row" style={{ alignItems: 'center', gap: 12 }}>
+        <AvatarPicker
+          size={56}
+          photoUrl={photo}
+          fallback={
+            <span aria-hidden style={{ fontSize: 26, lineHeight: 1 }}>
+              🧒
+            </span>
+          }
+          onSave={async (dataUrl) => {
+            try {
+              await Api.setChildPhoto(child.id, dataUrl);
+              setPhoto(dataUrl);
+              onMsg(tr('Foto atualizada ✓'));
+            } catch (e) {
+              onMsg(`Erro: ${String(e)}`);
+            }
+          }}
+        />
+        <h2 style={{ margin: 0 }}>{child.name}</h2>
+      </div>
       <p className="muted">
         {new Date(child.birthDate).toLocaleDateString(appLocale())} · {tr('os dados de saúde do teu filho, guardados em segurança 🔒')}
       </p>
@@ -3836,6 +4020,7 @@ function InboxTab({
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [recent, setRecent] = useState<ConsultationDto[]>([]);
   const [view, setView] = useState<'todo' | 'recent'>('todo');
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('all');
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -3883,26 +4068,57 @@ function InboxTab({
   // Priority order: alarm signs from triage first, then nearest SLA. Today's
   // scheduled video consultations get their own section so the day is scannable.
   const isSevere = (c: ConsultationDto) => Boolean((c.triage as { severe?: unknown } | null)?.severe);
+  // "Por responder" = still waiting for the pediatrician's first reply.
+  const isUnanswered = (c: ConsultationDto) =>
+    (c.status === 'OPEN' || c.status === 'TRIAGE') && c.answeredAt == null;
   const byUrgency = (a: ConsultationDto, b: ConsultationDto) => {
     if (isSevere(a) !== isSevere(b)) return isSevere(a) ? -1 : 1;
     return new Date(a.slaDueAt ?? '2999-01-01').getTime() - new Date(b.slaDueAt ?? '2999-01-01').getTime();
   };
   const today = new Date().toDateString();
-  const videosToday = rows
+  // Date filter — questions by openedAt, video consultations by scheduledAt.
+  const refDate = (c: ConsultationDto) =>
+    c.type === 'VIDEO' && c.scheduledAt ? c.scheduledAt : c.openedAt;
+  const inPeriod = (c: ConsultationDto) => {
+    if (period === 'all') return true;
+    const d = new Date(refDate(c));
+    if (period === 'today') return d.toDateString() === today;
+    const days = period === '7d' ? 7 : 30;
+    return d.getTime() >= Date.now() - days * 86_400_000;
+  };
+  const shownRows = rows.filter(inPeriod);
+  const shownRecent = recent.filter(inPeriod);
+  const videosToday = shownRows
     .filter((c) => c.type === 'VIDEO' && c.scheduledAt && new Date(c.scheduledAt).toDateString() === today)
     .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime());
-  const toAnswer = rows.filter((c) => !videosToday.includes(c)).sort(byUrgency);
+  const toAnswer = shownRows.filter((c) => !videosToday.includes(c)).sort(byUrgency);
 
   const consultCard = (c: ConsultationDto) => (
     <button
       key={c.id}
       className={`card${isSevere(c) ? ' accent' : ''}`}
       onClick={() => setOpen(c)}
-      style={{ textAlign: 'left', cursor: 'pointer' }}
+      style={{
+        textAlign: 'left',
+        cursor: 'pointer',
+        // Unread/unanswered highlight; severe cards keep their red accent and
+        // only gain the left bar (background stays the danger treatment).
+        ...(isUnanswered(c)
+          ? {
+              borderLeft: '4px solid var(--accent)',
+              ...(isSevere(c) ? {} : { background: 'var(--warn-bg)' }),
+            }
+          : {}),
+      }}
     >
       {isSevere(c) ? (
         <span className="pill" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', marginRight: 6 }}>
           ⚠️ Sinais de alarme
+        </span>
+      ) : null}
+      {isUnanswered(c) ? (
+        <span className="pill warn" style={{ marginRight: 6 }}>
+          Novo · por responder
         </span>
       ) : null}
       <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>
@@ -3946,25 +4162,44 @@ function InboxTab({
           Recentes
         </button>
       </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '0 0 8px' }}>
+        {([
+          ['today', 'Hoje'],
+          ['7d', '7 dias'],
+          ['30d', '30 dias'],
+          ['all', 'Tudo'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${period === k ? ' active' : ''}`} onClick={() => setPeriod(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
       {loading ? (
         <Skeleton rows={2} />
       ) : view === 'recent' ? (
-        recent.length === 0 ? (
-          <EmptyState title="Sem consultas anteriores" hint="O histórico aparece aqui." />
-        ) : recent.length <= 6 ? (
-          <div className="grid">{recent.map(consultCard)}</div>
+        shownRecent.length === 0 ? (
+          <EmptyState
+            title="Sem consultas anteriores"
+            hint={recent.length ? 'Nenhuma neste período.' : 'O histórico aparece aqui.'}
+          />
+        ) : shownRecent.length <= 6 ? (
+          <div className="grid">{shownRecent.map(consultCard)}</div>
         ) : (
-          groupByPeriod(recent, (c) => c.openedAt).map((g) => (
+          groupByPeriod(shownRecent, (c) => c.openedAt).map((g) => (
             <Fragment key={g.label}>
               <h3 style={{ margin: '16px 0 4px', textTransform: 'capitalize' }}>{g.label}</h3>
               <div className="grid">{g.items.map(consultCard)}</div>
             </Fragment>
           ))
         )
-      ) : rows.length === 0 ? (
+      ) : shownRows.length === 0 ? (
         <EmptyState
-          title="Tudo em dia"
-          hint="Assim que uma família enviar uma questão ou marcar uma consulta, aparece aqui."
+          title={rows.length ? 'Sem consultas neste período' : 'Tudo em dia'}
+          hint={
+            rows.length
+              ? 'Escolhe outro período para veres mais.'
+              : 'Assim que uma família enviar uma questão ou marcar uma consulta, aparece aqui.'
+          }
         />
       ) : (
         <>
@@ -4595,6 +4830,114 @@ function DocumentsSection({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Subscriptions (parent + pediatrician) ─────────────────────────
+// "A minha conta" → profile photo + preferred payment method (family-facing).
+const PAYMENT_OPTIONS: { key: string; icon: string; name: string; brand: boolean }[] = [
+  { key: 'card', icon: '💳', name: 'Cartão de crédito/débito', brand: false },
+  { key: 'mbway', icon: 'Ⓜ️', name: 'MB WAY', brand: true },
+  { key: 'apple_pay', icon: '🍎', name: 'Apple Pay', brand: true },
+  { key: 'google_pay', icon: 'G', name: 'Google Pay', brand: true },
+];
+
+function AccountProfileCards({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
+  const [me, setMe] = useState<UserMeDto | null>(null);
+
+  useEffect(() => {
+    Api.userMe()
+      .then(setMe)
+      .catch(() => {}); // older backend — cards degrade gracefully
+  }, []);
+
+  async function savePhoto(dataUrl: string) {
+    try {
+      await Api.setMyPhoto(dataUrl);
+      setMe((m) => (m ? { ...m, photoUrl: dataUrl } : m));
+      onMsg(tr('Foto atualizada ✓'));
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  async function removePhoto() {
+    try {
+      await Api.removeMyPhoto();
+      setMe((m) => (m ? { ...m, photoUrl: null } : m));
+      onMsg(tr('Foto removida ✓'));
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+  async function pickPayment(method: string) {
+    const prev = me?.preferredPayment ?? null;
+    if (prev === method) return;
+    setMe((m) => (m ? { ...m, preferredPayment: method } : m)); // optimistic
+    try {
+      await Api.setPaymentMethod(method);
+      onMsg(tr('Método de pagamento atualizado ✓'));
+    } catch (e) {
+      setMe((m) => (m ? { ...m, preferredPayment: prev } : m));
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+
+  return (
+    <>
+      <div className="card" style={{ marginTop: 8 }}>
+        <h3 style={{ marginTop: 0 }}>{tr('O meu perfil')}</h3>
+        <div className="row" style={{ alignItems: 'center', gap: 16 }}>
+          <AvatarPicker
+            photoUrl={me?.photoUrl}
+            fallback={
+              <span style={{ color: 'var(--muted)' }}>
+                <TabIcon name="person" />
+              </span>
+            }
+            onSave={savePhoto}
+            onRemove={removePhoto}
+          />
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block' }}>{me?.name ?? ''}</strong>
+            <span className="muted" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
+              {me?.email ?? ''}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>{tr('Pagamento')}</h3>
+        <div className="list" style={{ marginTop: 8 }}>
+          {PAYMENT_OPTIONS.map((p) => {
+            const selected = me?.preferredPayment === p.key;
+            return (
+              <button key={p.key} className="lrow" onClick={() => void pickPayment(p.key)}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 28,
+                    textAlign: 'center',
+                    fontWeight: p.key === 'google_pay' ? 700 : undefined,
+                    fontSize: 18,
+                    flex: 'none',
+                  }}
+                >
+                  {p.icon}
+                </span>
+                <span className="lrow-main">
+                  <strong>{p.brand ? p.name : tr(p.name)}</strong>
+                </span>
+                {selected ? <span className="pill ok">✓ {tr('Predefinido')}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+          {tr('O método predefinido será usado nas consultas. A cobrança real é ativada com a ligação ao processador de pagamentos.')}
+        </p>
+      </div>
+    </>
+  );
+}
+
 function SubscriptionSection({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [sub, setSub] = useState<MySubscription | null>(null);
@@ -5508,6 +5851,19 @@ function FinTreasuryTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 const FIN_PAGE = 50;
+type FinPeriod = 'today' | 'month' | 'quarter' | 'year' | 'all';
+/** Period predicate — fiscal year in PT is the calendar year. */
+function inFinPeriod(iso: string, p: FinPeriod): boolean {
+  if (p === 'all') return true;
+  const d = new Date(iso);
+  const now = new Date();
+  if (p === 'today') return d.toDateString() === now.toDateString();
+  if (d.getFullYear() !== now.getFullYear()) return false;
+  if (p === 'year') return true;
+  if (p === 'quarter') return Math.floor(d.getMonth() / 3) === Math.floor(now.getMonth() / 3);
+  return d.getMonth() === now.getMonth(); // month
+}
+
 function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
@@ -5516,6 +5872,7 @@ function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState('');
   const [filter, setFilter] = useState<'all' | 'paid' | 'REFUNDED' | 'DISPUTED'>('all');
+  const [period, setPeriod] = useState<FinPeriod>('all');
 
   async function load() {
     setLoading(true);
