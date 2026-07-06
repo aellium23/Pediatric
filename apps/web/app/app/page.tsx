@@ -6578,6 +6578,15 @@ function ClinicTab({ role, onMsg }: { role: string; onMsg: (m: string) => void }
         <Kpi label="Equipa" value={String(data.members.length)} />
         <Kpi label="Consultas" value={String(data.consultations.length)} />
       </div>
+      {data.finance ? (
+        <div className="grid" style={{ marginTop: 10 }}>
+          <Kpi
+            label="Receita da clínica"
+            value={euro(data.finance.clinicEarnedCents)}
+            hint={`de ${euro(data.finance.pedsGrossCents)} gerados · ${data.finance.capturedCount} consultas cobradas`}
+          />
+        </div>
+      ) : null}
 
       <h3 style={{ marginTop: 18 }}>Pediatras</h3>
       {data.pediatricians.length === 0 ? (
