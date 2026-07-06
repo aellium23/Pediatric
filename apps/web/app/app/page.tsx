@@ -37,7 +37,7 @@ import {
   type TimelineEvent,
 } from '@/lib/client';
 import type { PediatricianCard } from '@/lib/types';
-import { useT } from '@/lib/i18n';
+import { useT, LanguageSwitcher, appLocale } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
 
 // LiveKit room is browser-only — load it without SSR.
@@ -6633,9 +6633,10 @@ function SettingsScreen({ profile, onClose }: { profile: Profile; onClose: () =>
 
       <div className="card section">
         <strong>Idioma</strong>
-        <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
-          🇵🇹 Português. Mais idiomas em breve.
+        <p className="muted" style={{ fontSize: 13, margin: '4px 0 8px' }}>
+          A app das famílias está disponível em três idiomas.
         </p>
+        <LanguageSwitcher />
       </div>
 
       <div className="card section">
