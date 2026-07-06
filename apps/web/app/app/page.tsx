@@ -17,6 +17,7 @@ import {
   type PedMeDto,
   type ServiceDto,
   type AvailabilityDto,
+  type MyBookingDto,
   type AffectedConsultation,
   type NotificationDto,
   type AdminMetrics,
@@ -985,7 +986,7 @@ export default function MultiProfileApp() {
         ) : null}
         {tab === 'patients' ? <PatientsTab onMsg={setMsg} /> : null}
         {tab === 'referrals' ? <ReferralsTab onMsg={setMsg} /> : null}
-        {tab === 'agenda' ? <AgendaTab onMsg={setMsg} /> : null}
+        {tab === 'agenda' ? <AgendaTab onMsg={setMsg} onOpenConsultation={openConsultation} /> : null}
         {tab === 'profile' ? <PedProfileTab onMsg={setMsg} onLeave={leave} /> : null}
         {tab === 'finance' ? <FinanceTab onMsg={setMsg} /> : null}
         {tab === 'admin' ? <AdminTab onMsg={setMsg} /> : null}
@@ -5446,7 +5447,25 @@ const mondayOf = (t: number) => t - ((new Date(t).getUTCDay() + 6) % 7) * DAY_MS
 const fmtUTC = (t: number, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(appLocale(), { ...opts, timeZone: 'UTC' }).format(t);
 
-function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
+/** Local-day key of an instant, in the DEVICE timezone (v1: the doctor's device
+ *  is assumed to be on their working timezone — good enough to place bookings). */
+function localDayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/** Minutes since local midnight (device timezone) of an instant. */
+function localMinutes(iso: string): number {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function AgendaTab({
+  onMsg,
+  onOpenConsultation,
+}: {
+  onMsg: (m: string) => void;
+  onOpenConsultation?: (id: string) => void;
+}) {
   const { tr } = useT();
   const [rows, setRows] = useState<AvailabilityDto[]>([]);
   const [view, setView] = useState<'month' | 'week' | 'day'>('week');
@@ -5479,6 +5498,16 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [agKind, setAgKind] = useState<'all' | 'VIDEO' | 'MESSAGES'>('all');
   // My working timezone (profile) — the grid's hours are wall clock in it.
   const [myTz, setMyTz] = useState<string | undefined>(undefined);
+  // Booked VIDEO consultations overlaid on the calendar (fetched per visible range).
+  const [bookings, setBookings] = useState<MyBookingDto[]>([]);
+  const [selBk, setSelBk] = useState<MyBookingDto | null>(null);
+  // Vacation (unavailability) inline form.
+  const [vac, setVac] = useState(false);
+  const [vacFrom, setVacFrom] = useState('');
+  const [vacTo, setVacTo] = useState('');
+  // Desktop drag-to-create (week view): day + start/end minutes while dragging.
+  const [drag, setDrag] = useState<{ t: number; a: number; b: number } | null>(null);
+  const dragged = useRef(false); // swallow the cell click that follows a drag
   const today = utcToday();
 
   useEffect(() => {
@@ -5512,6 +5541,41 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   useEffect(() => {
     setEdit(false);
   }, [sel]);
+
+  /** Visible date range [from, to] (UTC days) for the current view. */
+  function visibleRange(): [number, number] {
+    if (view === 'week') {
+      const w0 = mondayOf(cursor);
+      return [w0, w0 + 6 * DAY_MS];
+    }
+    if (view === 'month') {
+      const c = new Date(cursor);
+      const g0 = mondayOf(Date.UTC(c.getUTCFullYear(), c.getUTCMonth(), 1));
+      const nm = Date.UTC(c.getUTCFullYear(), c.getUTCMonth() + 1, 1);
+      const cells = Math.ceil((nm - g0) / DAY_MS / 7) * 7;
+      return [g0, g0 + (cells - 1) * DAY_MS]; // ≤ 42 days — under the API's 62-day cap
+    }
+    return [cursor, cursor];
+  }
+  /** Fetch the booked consultations for the visible range (overlay only). */
+  function refreshBookings() {
+    const [f, t] = visibleRange();
+    Api.myBookings(isoDay(f), isoDay(t))
+      .then(setBookings)
+      .catch(() => {}); // overlay only — the agenda still works without it
+  }
+  useEffect(() => {
+    refreshBookings();
+    setSelBk(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, cursor]);
+  /** Bookings on a UTC calendar day (matched by the device-local date). */
+  const bookingsOn = (t: number) =>
+    bookings
+      .filter((b) => localDayKey(b.scheduledAt) === isoDay(t))
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+  const bkTime = (b: MyBookingDto) =>
+    new Date(b.scheduledAt).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' });
 
   async function add(data: { date?: string; repeatWeeks?: number; weekday?: number; startMinute: number; endMinute: number; kind?: 'VIDEO' | 'MESSAGES' }) {
     setBusy(true);
@@ -5616,7 +5680,117 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     setEnd(hhmm(e));
     setRepeat(1);
     setSel(null);
+    setVac(false);
     if (agKind !== 'all') setKind(agKind); // the active filter is the likely intent
+  }
+
+  // ── Vacation (closed days) ──
+  /** Dated closed rows (vacation markers) for a UTC day. */
+  const closedRowsOn = (t: number) =>
+    rows.filter((r) => r.closed && r.date && r.date.slice(0, 10) === isoDay(t));
+  /** Fully closed day: both kinds (video AND messages) have a closed row. */
+  function dayClosed(t: number): boolean {
+    const cr = closedRowsOn(t);
+    return cr.some((r) => !isMsg(r)) && cr.some((r) => isMsg(r));
+  }
+  function openVac() {
+    setVacFrom(isoDay(today));
+    setVacTo(isoDay(today + 7 * DAY_MS));
+    setVac(true);
+    setQa(null);
+    setSel(null);
+  }
+  async function markVacation(confirm = false) {
+    setBusy(true);
+    try {
+      const r = await Api.markUnavailability(vacFrom, vacTo, confirm);
+      onMsg(
+        tr('Período marcado como indisponível ✓') +
+          (r.cancelled > 0 ? ` · ${r.cancelled} ${tr('cancelamentos')}` : ''),
+      );
+      setConflict(null);
+      setVac(false);
+      await load();
+      refreshBookings();
+    } catch (e) {
+      const affected = (e as { affected?: AffectedConsultation[] }).affected;
+      if (affected?.length) setConflict({ affected, retry: () => void markVacation(true) });
+      else onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** Reopen a closed day: delete its closed rows (free — no bookings on them). */
+  async function reopenDay(t: number) {
+    setBusy(true);
+    try {
+      for (const r of closedRowsOn(t)) await Api.deleteAvailability(r.id);
+      onMsg(tr('Dia reaberto ✓'));
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Duplicate last week (week view) ──
+  /** Copy every effective block of the previous week onto the visible week as dated blocks. */
+  async function copyPrevWeek() {
+    setBusy(true);
+    try {
+      for (let i = 0; i < 7; i++) {
+        const src = effective(week0 - 7 * DAY_MS + i * DAY_MS).blocks.filter((b) => !b.closed);
+        for (const b of src) {
+          await Api.addAvailability({
+            date: isoDay(week0 + i * DAY_MS),
+            kind: b.kind ?? 'VIDEO',
+            startMinute: b.startMinute,
+            endMinute: b.endMinute,
+            slotMinutes: b.slotMinutes || 20,
+          });
+        }
+      }
+      onMsg(tr('Semana copiada ✓'));
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Desktop drag-to-create (≥900px, week view) ──
+  /** Minute-of-day under the pointer, snapped to 30 min, clamped to the grid. */
+  function colMinute(e: React.MouseEvent, el: HTMLElement): number {
+    const r = el.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    return Math.round((AGC_START_H * 60 + frac * AGC_SPAN) / 30) * 30;
+  }
+  function dragStart(t: number, e: React.MouseEvent<HTMLDivElement>) {
+    if (typeof window === 'undefined' || !window.matchMedia('(min-width: 900px)').matches) return;
+    // Blocks and booking chips keep their own click behavior.
+    if ((e.target as HTMLElement).closest('.agcal-block, .agcal-bk')) return;
+    const m = colMinute(e, e.currentTarget);
+    setDrag({ t, a: m, b: m });
+  }
+  function dragMove(t: number, e: React.MouseEvent<HTMLDivElement>) {
+    if (!drag || drag.t !== t) return;
+    const m = colMinute(e, e.currentTarget);
+    if (m !== drag.b) setDrag({ ...drag, b: m });
+    if (m !== drag.a) dragged.current = true;
+  }
+  function dragEnd() {
+    if (!drag) return;
+    const s = Math.min(drag.a, drag.b);
+    const e = Math.max(drag.a, drag.b);
+    setDrag(null);
+    if (e > s) openQuickAdd(drag.t, s, e); // else: plain click — the cell handles it
+    // The click that follows this mouseup may land on a cell (swallowed there)
+    // or on the column (cross-cell drags) — either way, clear the flag after it.
+    setTimeout(() => {
+      dragged.current = false;
+    }, 0);
   }
   function nav(dir: -1 | 1) {
     setSel(null);
@@ -5648,6 +5822,30 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         : fmtUTC(cursor, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const selRow = sel ? (rows.find((r) => r.id === sel.id) ?? null) : null;
   const dayEff = effective(cursor);
+  // "Copy last week" heuristic: the visible week is fully empty and the
+  // previous one has (non-closed) effective blocks worth copying.
+  const weekEmpty = weekDays.every((t) => effective(t).blocks.length === 0);
+  const prevWeekHas = weekDays.some((t) =>
+    effective(t - 7 * DAY_MS).blocks.some((b) => !b.closed),
+  );
+  // Tapped booking chip/card → small details card with a jump to the inbox.
+  const bkDetails = selBk ? (
+    <div className="card" style={{ marginTop: 10 }}>
+      <strong>🎥 {tr('Videoconsulta')}</strong> · {when(selBk.scheduledAt)}
+      <div style={{ marginTop: 2 }}>{selBk.childName}</div>
+      <div className="muted">{tr(statusLabel(selBk.status))}</div>
+      <div className="row" style={{ marginTop: 8 }}>
+        {onOpenConsultation ? (
+          <button className="btn small" onClick={() => onOpenConsultation(selBk.consultationId)}>
+            {tr('Abrir na caixa')}
+          </button>
+        ) : null}
+        <button className="btn secondary small" onClick={() => setSelBk(null)}>
+          {tr('Fechar')}
+        </button>
+      </div>
+    </div>
+  ) : null;
   const tmplRows = rows
     .filter((r) => !r.date)
     .sort((a, b) => ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7) || a.startMinute - b.startMinute);
@@ -5851,7 +6049,40 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         >
           ＋ {tr('Adicionar')}
         </button>
+        <button className="btn secondary small" onClick={openVac} disabled={busy}>
+          {tr('🏖️ Férias')}
+        </button>
+        {view === 'week' && weekEmpty && prevWeekHas ? (
+          <button className="btn secondary small" onClick={() => void copyPrevWeek()} disabled={busy}>
+            {tr('Copiar semana anterior')}
+          </button>
+        ) : null}
       </div>
+
+      {vac ? (
+        <div className="card section">
+          <h3>{tr('🏖️ Férias')}</h3>
+          <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+            <label className="muted">
+              {tr('De')} <input type="date" value={vacFrom} onChange={(e) => setVacFrom(e.target.value)} />
+            </label>
+            <label className="muted">
+              {tr('Até')} <input type="date" value={vacTo} onChange={(e) => setVacTo(e.target.value)} />
+            </label>
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            {tr('Os dias ficam indisponíveis para vídeo e mensagens. Consultas já marcadas terão de ser canceladas e reembolsadas.')}
+          </p>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn" onClick={() => void markVacation()} disabled={busy || !vacFrom || !vacTo}>
+              {tr('Marcar indisponibilidade')}
+            </button>
+            <button className="btn secondary" onClick={() => setVac(false)} disabled={busy}>
+              {tr('Cancelar')}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {rows.length === 0 && qa === null ? (
         <div className="card" style={{ margin: '8px 0' }}>
@@ -5874,6 +6105,9 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
           {monthCells.map((t) => {
             const eff = effective(t);
             const out = new Date(t).getUTCMonth() !== cur.getUTCMonth();
+            const open = visBlocks(eff.blocks.filter((b) => !b.closed));
+            const nBk = bookingsOn(t).length;
+            const closed = dayClosed(t);
             return (
               <button
                 key={t}
@@ -5883,12 +6117,23 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                 onClick={() => { setCursor(t); setView('day'); setSel(null); }}
               >
                 <span className="num">{new Date(t).getUTCDate()}</span>
-                {visBlocks(eff.blocks).slice(0, 3).map((b) => (
-                  <span key={b.id} className={`agcal-mbar${isMsg(b) ? ' msg' : ''}`} />
-                ))}
-                {visBlocks(eff.blocks).length > 3 ? (
-                  <span className="agcal-mmore">+{visBlocks(eff.blocks).length - 3}</span>
+                {nBk > 0 ? (
+                  <span className="agcal-mcount" aria-hidden="true">
+                    {nBk}🎥
+                  </span>
                 ) : null}
+                {closed ? (
+                  <span className="agcal-mvac" aria-hidden="true">
+                    🏖️
+                  </span>
+                ) : (
+                  <>
+                    {open.slice(0, 3).map((b) => (
+                      <span key={b.id} className={`agcal-mbar${isMsg(b) ? ' msg' : ''}`} />
+                    ))}
+                    {open.length > 3 ? <span className="agcal-mmore">+{open.length - 3}</span> : null}
+                  </>
+                )}
               </button>
             );
           })}
@@ -5908,6 +6153,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                 onClick={() => { setCursor(t); setView('day'); setSel(null); }}
               >
                 {fmtUTC(t, { weekday: 'short', day: 'numeric' })}
+                {dayClosed(t) ? ' 🏖️' : ''}
               </button>
             ))}
           </div>
@@ -5923,7 +6169,19 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               const eff = effective(t);
               const dLbl = fmtUTC(t, { weekday: 'short', day: 'numeric' });
               return (
-                <div key={t} className={`agcal-col${t === today ? ' today' : ''}${t < today ? ' past' : ''}`}>
+                <div
+                  key={t}
+                  className={`agcal-col${t === today ? ' today' : ''}${t < today ? ' past' : ''}${dayClosed(t) ? ' closed' : ''}`}
+                  onMouseDown={(e) => dragStart(t, e)}
+                  onMouseMove={(e) => dragMove(t, e)}
+                  onMouseUp={dragEnd}
+                  onMouseLeave={() => {
+                    if (drag?.t === t) {
+                      setDrag(null);
+                      dragged.current = false;
+                    }
+                  }}
+                >
                   {hours.map((h) => (
                     <button
                       key={h}
@@ -5931,14 +6189,32 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                       className="agcal-cell"
                       disabled={busy}
                       aria-label={`${tr('Adicionar disponibilidade')} · ${dLbl} ${hhmm(h * 60)}–${hhmm((h + 1) * 60)}`}
-                      onClick={() => openQuickAdd(t, h * 60, (h + 1) * 60)}
+                      onClick={() => {
+                        // A completed drag already opened quick-add — swallow
+                        // the click the mouseup also produced on this cell.
+                        if (dragged.current) {
+                          dragged.current = false;
+                          return;
+                        }
+                        openQuickAdd(t, h * 60, (h + 1) * 60);
+                      }}
                     />
                   ))}
+                  {drag && drag.t === t && drag.a !== drag.b ? (
+                    <div
+                      className="agcal-dragsel"
+                      aria-hidden="true"
+                      style={{
+                        top: `${((Math.min(drag.a, drag.b) - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
+                        height: `${(Math.abs(drag.b - drag.a) / AGC_SPAN) * 100}%`,
+                      }}
+                    />
+                  ) : null}
                   {(() => {
                     // Week view optimizes scanning, not per-block labels: solid
                     // fills, side-by-side lanes when both kinds share hours, and
                     // no in-block text in "Tudo" (color/position carry it).
-                    const blocks = visBlocks(eff.blocks);
+                    const blocks = visBlocks(eff.blocks.filter((b) => !b.closed));
                     const lanes =
                       blocks.some((b) => isMsg(b)) && blocks.some((b) => !isMsg(b));
                     return blocks.map((a) => {
@@ -5968,6 +6244,30 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                       );
                     });
                   })()}
+                  {bookingsOn(t).map((b) => {
+                    // Booked consultations sit ABOVE availability fills, placed
+                    // by device-local time (assumed = working timezone, v1).
+                    const m = localMinutes(b.scheduledAt);
+                    const s = Math.max(m, AGC_START_H * 60);
+                    const e = Math.min(m + 20, AGC_END_H * 60);
+                    if (e <= s) return null;
+                    const isSel = selBk?.consultationId === b.consultationId;
+                    return (
+                      <button
+                        key={b.consultationId}
+                        type="button"
+                        className={`agcal-bk${isSel ? ' selected' : ''}`}
+                        style={{
+                          top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
+                          height: `${((e - s) / AGC_SPAN) * 100}%`,
+                        }}
+                        aria-label={`${tr('Videoconsulta')} · ${dLbl} ${bkTime(b)} · ${b.childName}`}
+                        onClick={() => setSelBk(isSel ? null : b)}
+                      >
+                        🎥 {bkTime(b)}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -5986,8 +6286,9 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               </button>
             </div>
           ) : null}
+          {bkDetails}
           {details ??
-            (rows.length ? (
+            (bkDetails ? null : rows.length ? (
               <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
                 {tr('Toca num bloco para ver detalhes, ou numa hora vazia para adicionar.')}
               </p>
@@ -5997,9 +6298,39 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 
       {view === 'day' ? (
         <>
-          {dayEff.blocks.length ? (
+          {dayClosed(cursor) ? (
+            <div className="card" style={{ margin: '8px 0' }}>
+              <strong>🏖️ {tr('Dia marcado como indisponível')}</strong>
+              <div className="row" style={{ marginTop: 8 }}>
+                <button className="btn secondary small" onClick={() => void reopenDay(cursor)} disabled={busy}>
+                  {tr('Reabrir dia')}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {bookingsOn(cursor).length ? (
+            <div className="grid" style={{ marginBottom: 8 }}>
+              {bookingsOn(cursor).map((b) => {
+                const isSel = selBk?.consultationId === b.consultationId;
+                return (
+                  <button
+                    key={b.consultationId}
+                    type="button"
+                    className={`card agcal-bkcard${isSel ? ' selected' : ''}`}
+                    onClick={() => setSelBk(isSel ? null : b)}
+                  >
+                    <strong>🎥 {bkTime(b)}</strong> {b.childName}
+                    <div className="muted">
+                      {tr('Videoconsulta')} · {tr(statusLabel(b.status))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {dayEff.blocks.filter((b) => !b.closed).length ? (
             <div className="grid">
-              {dayEff.blocks.map((a) => {
+              {dayEff.blocks.filter((b) => !b.closed).map((a) => {
                 const isSel = sel?.id === a.id && sel.t === cursor;
                 return (
                   <button
@@ -6020,26 +6351,36 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                 );
               })}
             </div>
-          ) : (
+          ) : dayClosed(cursor) ? null : (
             <p className="muted">{tr('Sem blocos neste dia.')}</p>
           )}
+          {bkDetails}
           {details}
-          <h3 style={{ marginTop: 12 }}>{tr('Horas livres — toca para adicionar')}</h3>
-          <div className="agcal-freelist">
-            {hours
-              .filter((h) => !dayEff.blocks.some((a) => a.startMinute < (h + 1) * 60 && a.endMinute > h * 60))
-              .map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  className="agcal-freerow"
-                  disabled={busy}
-                  onClick={() => openQuickAdd(cursor, h * 60, (h + 1) * 60)}
-                >
-                  + {hhmm(h * 60)}–{hhmm((h + 1) * 60)}
-                </button>
-              ))}
-          </div>
+          {dayClosed(cursor) ? null : (
+            <>
+              <h3 style={{ marginTop: 12 }}>{tr('Horas livres — toca para adicionar')}</h3>
+              <div className="agcal-freelist">
+                {hours
+                  .filter(
+                    (h) =>
+                      !dayEff.blocks.some(
+                        (a) => !a.closed && a.startMinute < (h + 1) * 60 && a.endMinute > h * 60,
+                      ),
+                  )
+                  .map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      className="agcal-freerow"
+                      disabled={busy}
+                      onClick={() => openQuickAdd(cursor, h * 60, (h + 1) * 60)}
+                    >
+                      + {hhmm(h * 60)}–{hhmm((h + 1) * 60)}
+                    </button>
+                  ))}
+              </div>
+            </>
+          )}
         </>
       ) : null}
 

@@ -313,6 +313,16 @@ export interface AvailabilityDto {
   kind?: 'VIDEO' | 'MESSAGES';
   /** ISO datetime (midnight UTC) for a concrete dated block; null/absent = weekly-template block. */
   date?: string | null;
+  /** Dated "closed" marker (vacation): that day+kind is unavailable. Deleting it reopens the day. */
+  closed?: boolean;
+}
+
+/** Pediatrician's own booked VIDEO consultation (agenda overlay). */
+export interface MyBookingDto {
+  consultationId: string;
+  scheduledAt: string;
+  status: string;
+  childName: string;
 }
 
 export interface NotificationDto {
@@ -498,6 +508,17 @@ export const Api = {
   ) => request(`/scheduling/availability/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteAvailability: (id: string, confirm?: boolean) =>
     request(`/scheduling/availability/${id}${confirm ? '?confirm=true' : ''}`, { method: 'DELETE' }),
+  // The doctor's own booked VIDEO consultations in a date range (≤62 days),
+  // for the agenda overlay. Dates are YYYY-MM-DD (inclusive).
+  myBookings: (from: string, to: string) =>
+    request(`/scheduling/my-bookings?from=${from}&to=${to}`) as Promise<MyBookingDto[]>,
+  // Vacation: mark [from, to] closed for both kinds. 409 with `affected` when
+  // bookings exist in the range — retry with confirm to cancel+refund them.
+  markUnavailability: (from: string, to: string, confirm?: boolean) =>
+    request('/scheduling/unavailability', {
+      method: 'POST',
+      body: JSON.stringify({ from, to, ...(confirm ? { confirm: true } : {}) }),
+    }) as Promise<{ days: number; created: number; cancelled: number }>,
 
   // Notifications (all roles)
   notifications: () => request('/notifications') as Promise<NotificationDto[]>,

@@ -1499,3 +1499,83 @@ button.card:active {
   color: var(--text);
   background: var(--accent-tint);
 }
+/* Booked consultation chip (week view): solid, above availability fills. */
+.agcal-bk {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 2;
+  min-height: 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.1;
+  padding: 1px 3px;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agcal-bk.selected,
+.agcal-bk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Booked consultation card (day view). */
+.agcal-bkcard {
+  text-align: left;
+  cursor: pointer;
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.agcal-bkcard .muted {
+  color: rgba(255, 255, 255, 0.75);
+}
+.agcal-bkcard.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Month cell: booked-consultations count (top-right) + vacation marker. */
+.agcal-mday {
+  position: relative;
+}
+.agcal-mcount {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-2);
+}
+.agcal-mvac {
+  font-size: 14px;
+  line-height: 1;
+  margin-top: 2px;
+}
+/* Vacation day (week view): light hatched overlay over the whole column. */
+.agcal-col.closed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--text-2) 14%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+/* Desktop drag-to-create: translucent selection rectangle while dragging. */
+.agcal-dragsel {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
