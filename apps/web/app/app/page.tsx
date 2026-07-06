@@ -5037,6 +5037,9 @@ function ChildChart({
   const [health, setHealth] = useState<HealthOverview | null>(null);
   const [dueVax, setDueVax] = useState<{ abbr: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  // Read-only clinical views the family already has — the pediatrician sees
+  // the same timeline/boletim (backend authorizes via the consultation link).
+  const [view, setView] = useState<'chart' | 'timeline' | 'boletim'>('chart');
 
   useEffect(() => {
     let live = true;
@@ -5079,6 +5082,14 @@ function ChildChart({
     return true;
   });
 
+  const childRef: ChildDto = { id: childId, name: childName, birthDate };
+  if (view === 'timeline') {
+    return <ChildTimelineView child={childRef} onBack={() => setView('chart')} onMsg={onMsg} />;
+  }
+  if (view === 'boletim' && health) {
+    return <BoletimView child={childRef} d={health} onBack={() => setView('chart')} />;
+  }
+
   return (
     <div className="section">
       <button className="link" onClick={onBack}>
@@ -5087,6 +5098,18 @@ function ChildChart({
       <h2 style={{ marginTop: 8 }}>
         {childName} <span className="muted">· {ageLabel(birthDate)}</span>
       </h2>
+      {!loading ? (
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '4px 0 8px' }}>
+          <button className="chip" onClick={() => setView('timeline')}>
+            {tr('🕒 Linha do tempo')}
+          </button>
+          {health ? (
+            <button className="chip" onClick={() => setView('boletim')}>
+              {tr('📄 Boletim (PDF)')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {loading ? (
         <Skeleton rows={3} />
