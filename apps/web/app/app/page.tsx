@@ -5202,6 +5202,24 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
           <p style={{ margin: '4px 0' }}>
             <strong>{fmtUTC(qa, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>
           </p>
+          <div className="seg" role="radiogroup" aria-label={tr('Tipo de bloco')} style={{ marginTop: 8 }}>
+            <button
+              role="radio"
+              aria-checked={kind === 'VIDEO'}
+              className={kind === 'VIDEO' ? 'active' : ''}
+              onClick={() => setKind('VIDEO')}
+            >
+              🎥 {tr('Vídeo')}
+            </button>
+            <button
+              role="radio"
+              aria-checked={kind === 'MESSAGES'}
+              className={kind === 'MESSAGES' ? 'active' : ''}
+              onClick={() => setKind('MESSAGES')}
+            >
+              💬 {tr('Mensagens')}
+            </button>
+          </div>
           <div className="row" style={{ marginTop: 8 }}>
             <label className="muted">
               {tr('Início')} <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -5221,12 +5239,14 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
             </select>
           </label>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            {tr('Consultas em slots de 20 min.')}
+            {kind === 'MESSAGES'
+              ? tr('Horário de mensagens — sem marcações; as famílias veem quando costumas responder.')
+              : tr('Consultas em slots de 20 min.')}
           </p>
           <div className="row" style={{ marginTop: 8 }}>
             <button
               className="btn"
-              onClick={() => add({ date: isoDay(qa), repeatWeeks: repeat, startMinute: toMin(start), endMinute: toMin(end) })}
+              onClick={() => add({ date: isoDay(qa), repeatWeeks: repeat, startMinute: toMin(start), endMinute: toMin(end), kind })}
               disabled={busy}
             >
               {tr('Adicionar disponibilidade')}
@@ -5247,7 +5267,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
           tmplRows.map((a) => (
             <div key={a.id} className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
               <span>
-                {tr(WEEKDAYS[a.weekday])} · {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
+                {tr(WEEKDAYS[a.weekday])} · {hhmm(a.startMinute)}–{hhmm(a.endMinute)} · {kindLabel(a)}
               </span>
               <button className="btn danger small" onClick={() => del(a.id)} disabled={busy}>
                 {tr('Remover')}
@@ -5274,9 +5294,20 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
           <label className="muted">
             {tr('Fim')} <input type="time" value={tEnd} onChange={(e) => setTEnd(e.target.value)} />
           </label>
+          <label className="muted">
+            {tr('Tipo')}:
+            <select
+              value={tKind}
+              onChange={(e) => setTKind(e.target.value as 'VIDEO' | 'MESSAGES')}
+              style={{ marginLeft: 8 }}
+            >
+              <option value="VIDEO">🎥 {tr('Vídeo')}</option>
+              <option value="MESSAGES">💬 {tr('Mensagens')}</option>
+            </select>
+          </label>
           <button
             className="btn secondary small"
-            onClick={() => add({ weekday: twd, startMinute: toMin(tStart), endMinute: toMin(tEnd) })}
+            onClick={() => add({ weekday: twd, startMinute: toMin(tStart), endMinute: toMin(tEnd), kind: tKind })}
             disabled={busy}
           >
             {tr('Adicionar bloco')}
