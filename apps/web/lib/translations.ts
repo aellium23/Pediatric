@@ -10,6 +10,9 @@
  */
 export const TR: Record<'en' | 'es', Record<string, string>> = {
   en: {
+    "Resposta lida": "Reply read",
+    "Toca para reabrir a conversa.": "Tap to reopen the conversation.",
+    "Artigos de saúde infantil validados por pediatras.": "Child-health articles reviewed by paediatricians.",
     "Vamos falar com um pediatra": "Let's talk to a paediatrician",
     "Escolhe o pediatra e inicia por mensagem ou vídeo. Levo um resumo da vossa conversa para o pediatra ter contexto.": "Choose a paediatrician and start by message or video. I'll pass a summary of your conversation so the paediatrician has context.",
     "A preparar resumo…": "Preparing summary…",
@@ -1063,6 +1066,9 @@ export const TR: Record<'en' | 'es', Record<string, string>> = {
     "Ainda sem atividade neste período — o gráfico aparece com as primeiras consultas.": "No activity in this period yet — the chart appears with the first consultations.",
   },
   es: {
+    "Resposta lida": "Respuesta leída",
+    "Toca para reabrir a conversa.": "Toca para reabrir la conversación.",
+    "Artigos de saúde infantil validados por pediatras.": "Artículos de salud infantil validados por pediatras.",
     "Vamos falar com um pediatra": "Vamos a hablar con un pediatra",
     "Escolhe o pediatra e inicia por mensagem ou vídeo. Levo um resumo da vossa conversa para o pediatra ter contexto.": "Elige el pediatra e inicia por mensaje o vídeo. Llevo un resumen de vuestra conversación para que el pediatra tenga contexto.",
     "A preparar resumo…": "Preparando resumen…",

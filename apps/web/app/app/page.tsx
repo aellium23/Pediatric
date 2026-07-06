@@ -2455,17 +2455,41 @@ function HomeTab({
   const [showRoute, setShowRoute] = useState(false);
   // Generating the AI handover summary right before routing.
   const [routing, setRouting] = useState(false);
+  // Which answered consultations the parent has already read (keyed by the
+  // answer's timestamp, so a NEW reply from the pediatrician re-alerts).
+  const [readAnswers, setReadAnswers] = useState<Record<string, string>>({});
   const askSeq = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     Api.myConsultations().then(setConsults).catch(() => {});
+    try {
+      setReadAnswers(JSON.parse(localStorage.getItem('pedia_read_answers') || '{}'));
+    } catch {
+      /* ignore */
+    }
   }, []);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [msgs, busy]);
 
-  const answered = consults.filter((c) => c.status === 'ANSWERED');
+  function openAnswer(c: ConsultationDto) {
+    const key = c.answeredAt || '1';
+    const next = { ...readAnswers, [c.id]: key };
+    setReadAnswers(next);
+    try {
+      localStorage.setItem('pedia_read_answers', JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    onOpenConsultation(c.id);
+  }
+
+  const answered = consults
+    .filter((c) => c.status === 'ANSWERED')
+    .sort((a, b) => (b.answeredAt || '').localeCompare(a.answeredAt || ''));
+  const latestAnswer = answered[0];
+  const answerRead = latestAnswer ? readAnswers[latestAnswer.id] === (latestAnswer.answeredAt || '1') : false;
   const firstName = (profile.name || '').split(' ')[0];
   const started = msgs.length > 0;
   const prefill = msgs.filter((m) => m.role === 'user').map((m) => m.text).join('. ');
@@ -2537,26 +2561,47 @@ function HomeTab({
   }
 
   return (
-    <div className="section">
-      {!started && answered.length > 0 ? (
+    <div className="section" style={{ paddingBottom: 24 }}>
+      {!started && latestAnswer ? (
         <button
           className="card"
-          onClick={() => onOpenConsultation(answered[0].id)}
-          style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 12 }}
+          onClick={() => openAnswer(latestAnswer)}
+          style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 12, opacity: answerRead ? 0.72 : 1 }}
         >
-          <span className="pill ok">{tr('Resposta nova')}</span>
+          <span className={answerRead ? 'pill' : 'pill ok'}>
+            {answerRead ? tr('Resposta lida') : tr('Resposta nova')}
+          </span>
           <strong style={{ display: 'block', marginTop: 6 }}>
             {tr('O pediatra respondeu')}
-            {answered[0].child?.name ? ` ${tr('sobre')} ${answered[0].child.name}` : ''}
+            {latestAnswer.child?.name ? ` ${tr('sobre')} ${latestAnswer.child.name}` : ''}
           </strong>
-          <span className="muted">{tr('Toca para ler a resposta.')}</span>
+          <span className="muted">
+            {answerRead ? tr('Toca para reabrir a conversa.') : tr('Toca para ler a resposta.')}
+          </span>
         </button>
       ) : null}
 
       {!started ? (
-        <div style={{ textAlign: 'center', marginTop: '5vh' }}>
+        <div style={{ textAlign: 'center', marginTop: '3vh' }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              margin: '0 auto 8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--accent)',
+              color: '#fff',
+              fontSize: 20,
+            }}
+          >
+            ✦
+          </div>
           <div className="muted" style={{ fontSize: 13 }}>{tr('Assistente HOC')}</div>
-          <h1 style={{ fontSize: 26, margin: '6px 0 4px', lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: 25, margin: '6px 0 4px', lineHeight: 1.2 }}>
             {firstName ? `${tr('Olá')}, ${firstName}. ` : ''}
             {tr('Em que posso ajudar?')}
           </h1>
@@ -2691,13 +2736,63 @@ function HomeTab({
       </div>
 
       {!started ? (
-        <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
-          {ASSIST_CHIPS.map((c) => (
-            <button key={c.label} type="button" className="chip" onClick={() => send(tr(c.fill))}>
-              {tr(c.label)}
-            </button>
-          ))}
-        </div>
+        <>
+          {/* Single scrolling row so the chips never stack behind the tab bar. */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              marginTop: 10,
+              overflowX: 'auto',
+              justifyContent: 'flex-start',
+              WebkitOverflowScrolling: 'touch',
+              paddingBottom: 2,
+              scrollbarWidth: 'none',
+            }}
+          >
+            {ASSIST_CHIPS.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                className="chip"
+                onClick={() => send(tr(c.fill))}
+                style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}
+              >
+                {tr(c.label)}
+              </button>
+            ))}
+          </div>
+
+          {/* Saber+ entry point — the parent's way into the article library. */}
+          <button
+            className="card"
+            onClick={() => onGo('content')}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', marginTop: 16 }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                flex: '0 0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--surface-2, rgba(120,140,180,.12))',
+                fontSize: 18,
+              }}
+            >
+              📚
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <strong style={{ display: 'block' }}>{tr('Saber+')}</strong>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {tr('Artigos de saúde infantil validados por pediatras.')}
+              </span>
+            </span>
+          </button>
+        </>
       ) : null}
 
       {started ? (
