@@ -1767,11 +1767,12 @@ function Thread({
   }, [consultation.id]);
 
   async function send() {
-    if (!draft.trim()) return;
+    if (!draft.trim() && photos.length === 0) return;
     setBusy(true);
     try {
-      await Api.sendMessage(consultation.id, draft.trim());
+      await Api.sendMessage(consultation.id, draft.trim(), photos.length ? photos : undefined);
       setDraft('');
+      setPhotos([]);
       await load();
     } catch (e) {
       onMsg(`Erro ao enviar: ${String(e)}`);
@@ -1779,6 +1780,37 @@ function Thread({
       setBusy(false);
     }
   }
+
+  /** Pick chat photos: images only, ≤3 per message, downscaled client-side. */
+  async function pickPhotos(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
+    if (fileRef.current) fileRef.current.value = ''; // allow re-picking the same file
+    const room = 3 - photos.length;
+    if (list.length > room) onMsg(tr('Máximo de 3 fotos por mensagem.'));
+    for (const f of list.slice(0, Math.max(0, room))) {
+      if (!f.type.startsWith('image/')) {
+        onMsg(tr('Só são permitidas imagens.'));
+        continue;
+      }
+      try {
+        const url = await downscaleClinicalPhoto(f);
+        setPhotos((p) => (p.length >= 3 ? p : [...p, url]));
+      } catch {
+        onMsg(tr('Não foi possível ler a imagem.'));
+      }
+    }
+  }
+
+  // Fullscreen viewer closes on Escape (and on backdrop tap / ✕).
+  useEffect(() => {
+    if (!viewer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewer(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewer]);
   async function close() {
     setBusy(true);
     try {
@@ -1826,9 +1858,21 @@ function Thread({
       <div className="card">
         <span className={statusPill(consultation.status)}>{tr(statusLabel(consultation.status))}</span>{' '}
         <strong>{tr(svcLabel(consultation.type))}</strong>
+        {canCancel && consultation.status === 'ANSWERED' ? (
+          <span className="pill ok" style={{ marginLeft: 6 }}>
+            {tr('Pago')} · {euro(consultation.priceCents)} — {tr('seguimento incluído')}
+          </span>
+        ) : null}
         <div className="muted">
           {euro(consultation.priceCents)} · {tr('aberta')} {when(consultation.openedAt)}
         </div>
+        {canCancel &&
+        consultation.expectedReplyAt &&
+        (consultation.status === 'OPEN' || consultation.status === 'TRIAGE') ? (
+          <div style={{ color: 'var(--info)', fontSize: 13, marginTop: 4 }}>
+            ⏱️ {tr('Resposta prevista até')} {when(consultation.expectedReplyAt)}
+          </div>
+        ) : null}
         {consultation.type === 'VIDEO' && consultation.status !== 'CLOSED' ? (
           <button className="btn small" onClick={joinVideo} disabled={busy} style={{ marginTop: 8 }}>
             {tr('Entrar na videochamada')}
@@ -1921,19 +1965,98 @@ function Thread({
       ) : null}
 
       <div className="chat">
-        {messages.length === 0 ? (
-          <p className="muted">{tr('Ainda sem mensagens.')}</p>
-        ) : (
-          messages.map((m) => {
+        {(() => {
+          // Episode timeline: messages + state events (opened/answered/closed)
+          // in one chronological stream, with day separators between days.
+          type ChatItem =
+            | { key: string; at: string; kind: 'msg'; m: MessageDto }
+            | { key: string; at: string; kind: 'sys'; label: string };
+          const sys: { at: string | null; label: string }[] = [
+            { at: consultation.openedAt, label: tr('Consulta aberta') },
+            { at: consultation.answeredAt, label: tr('Pediatra respondeu') },
+            { at: consultation.closedAt, label: tr('Consulta encerrada') },
+          ];
+          const items: ChatItem[] = [
+            ...messages.map((m): ChatItem => ({ key: m.id, at: m.createdAt, kind: 'msg', m })),
+            ...sys
+              .filter((s): s is { at: string; label: string } => !!s.at)
+              .map((s, i): ChatItem => ({ key: `sys-${i}`, at: s.at, kind: 'sys', label: s.label })),
+          ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+          let lastDay = '';
+          const out = items.map((it) => {
+            const dayKey = new Date(it.at).toDateString();
+            const sep =
+              dayKey !== lastDay ? (
+                <div key={`day-${it.key}`} style={{ textAlign: 'center', margin: '10px 0 4px' }}>
+                  <span className="pill" style={{ fontSize: 11 }}>
+                    {new Date(it.at).toLocaleDateString(appLocale(), {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                  </span>
+                </div>
+              ) : null;
+            lastDay = dayKey;
+            if (it.kind === 'sys') {
+              return (
+                <Fragment key={it.key}>
+                  {sep}
+                  <div
+                    className="muted"
+                    style={{ textAlign: 'center', fontSize: 12, margin: '4px 0' }}
+                  >
+                    {it.label}
+                  </div>
+                </Fragment>
+              );
+            }
+            const m = it.m;
             const mine = !!myId && m.senderUserId === myId;
             return (
-              <div key={m.id} className={mine ? 'bubble me' : 'bubble them'}>
-                <span>{m.body}</span>
-                <span className="bubble-time">{when(m.createdAt)}</span>
-              </div>
+              <Fragment key={it.key}>
+                {sep}
+                <div className={mine ? 'bubble me' : 'bubble them'}>
+                  {m.attachments?.length ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: m.attachments.length > 1 ? '1fr 1fr' : '1fr',
+                        gap: 4,
+                        marginBottom: m.body ? 6 : 0,
+                      }}
+                    >
+                      {m.attachments.map((a, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          aria-label={tr('Ampliar imagem')}
+                          onClick={() => setViewer(a)}
+                          style={{ padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={a}
+                            alt={tr('Foto enviada na conversa')}
+                            style={{ maxWidth: 140, width: '100%', borderRadius: 8, display: 'block' }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {m.body ? <span>{m.body}</span> : null}
+                  <span className="bubble-time">{when(m.createdAt)}</span>
+                </div>
+              </Fragment>
             );
-          })
-        )}
+          });
+          return (
+            <>
+              {out}
+              {messages.length === 0 ? <p className="muted">{tr('Ainda sem mensagens.')}</p> : null}
+            </>
+          );
+        })()}
       </div>
 
       {consultation.status !== 'CLOSED' && consultation.status !== 'REFUNDED' ? (
