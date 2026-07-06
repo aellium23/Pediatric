@@ -1611,6 +1611,7 @@ function Thread({
   onChanged,
   onBack,
   onMsg,
+  onNewConsultation,
 }: {
   consultation: ConsultationDto;
   canClose: boolean;
@@ -1618,10 +1619,15 @@ function Thread({
   onChanged: () => void;
   onBack: () => void;
   onMsg: (m: string) => void;
+  /** Parent side only: start a new consultation with this pediatrician (CLOSED CTA). */
+  onNewConsultation?: () => void;
 }) {
   const { tr } = useT();
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [draft, setDraft] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]); // pending attachments (data URLs)
+  const [viewer, setViewer] = useState<string | null>(null); // fullscreen image
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [video, setVideo] = useState<{ url: string; token: string } | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -3263,6 +3269,7 @@ function ConsultTab({
       <TriageDialog
         childId={child}
         serviceId={triageServiceId}
+        pedId={triageFor.id}
         onCancel={() => setTriageFor(null)}
         onDone={(consultationId) => {
           setTriageFor(null);
@@ -3593,12 +3600,14 @@ const RED_FLAGS = [
 function TriageDialog({
   childId,
   serviceId,
+  pedId,
   onCancel,
   onDone,
   onMsg,
 }: {
   childId: string;
   serviceId: string;
+  pedId: string;
   onCancel: () => void;
   onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
@@ -3612,6 +3621,14 @@ function TriageDialog({
   const [episodeId, setEpisodeId] = useState('');
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Honest expectation at the purchase moment: price + reply preview (server-
+  // computed from the doctor's message windows, already capped at the SLA).
+  const [svcInfo, setSvcInfo] = useState<{
+    priceCents: number;
+    slaHours: number;
+    targetHours?: number;
+    preview: string | null;
+  } | null>(null);
   const severe = RED_FLAGS.some((f) => f.severe && flags[f.key]);
 
   useEffect(() => {
@@ -3619,6 +3636,26 @@ function TriageDialog({
       .then((d) => setEpisodes(d.episodes.filter((e) => e.status === 'OPEN')))
       .catch(() => {});
   }, [childId]);
+
+  useEffect(() => {
+    let live = true;
+    (Api.pedDetail(pedId) as Promise<PediatricianDetail>)
+      .then((d) => {
+        if (!live) return;
+        const svc = d.services.find((s) => s.id === serviceId);
+        if (svc)
+          setSvcInfo({
+            priceCents: svc.priceCents,
+            slaHours: svc.slaHours,
+            targetHours: svc.targetHours,
+            preview: d.expectedReplyPreview ?? null,
+          });
+      })
+      .catch(() => {}); // purely informative — the dialog works without it
+    return () => {
+      live = false;
+    };
+  }, [pedId, serviceId]);
 
   async function submit() {
     if (!serviceId) return onMsg(tr('Sem serviço de mensagem.'));
@@ -3710,9 +3747,37 @@ function TriageDialog({
         ) : null}
       </div>
 
-      <button className="btn" onClick={submit} disabled={busy}>
-        {tr('Enviar pergunta ao pediatra')}
+      {/* When to expect the reply — off-hours sends get the 🌙 heads-up. */}
+      {svcInfo ? (
+        <div className="card" style={{ marginTop: 12, borderColor: 'var(--info)' }}>
+          {svcInfo.preview ? (
+            new Date(svcInfo.preview).getTime() >
+            Date.now() + ((svcInfo.targetHours ?? 0) + 0.5) * 3_600_000 ? (
+              <div>
+                🌙 {tr('Fora do horário de mensagens')} · {tr('resposta prevista até')}{' '}
+                <strong>{when(svcInfo.preview)}</strong>
+              </div>
+            ) : (
+              <div>
+                {tr('Resposta prevista até')} <strong>{when(svcInfo.preview)}</strong>
+              </div>
+            )
+          ) : null}
+          <div className="muted" style={{ fontSize: 13, marginTop: svcInfo.preview ? 4 : 0 }}>
+            ✅ {tr('Garantia: resposta em')} {svcInfo.slaHours}h {tr('ou reembolso total')}
+          </div>
+        </div>
+      ) : null}
+
+      <button className="btn" onClick={submit} disabled={busy} style={{ marginTop: 12 }}>
+        {svcInfo
+          ? `${tr('Enviar pergunta')} · ${euro(svcInfo.priceCents)}`
+          : tr('Enviar pergunta ao pediatra')}
       </button>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+        {tr('Pagas uma vez por consulta. Perguntas de seguimento até ao encerramento estão incluídas.')}{' '}
+        {tr('Só cobramos quando o pediatra responde — sem resposta dentro da garantia, reembolso automático.')}
+      </p>
     </div>
   );
 }
