@@ -140,6 +140,43 @@ describe('SchedulingService.slots — dated blocks override the weekly template'
   });
 });
 
+describe('SchedulingService.slots — closed (vacation) rows', () => {
+  function serviceWith(findMany: jest.Mock) {
+    const prisma: any = {
+      pediatrician: pediatricianMock(),
+      availability: { findMany },
+      videoSession: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    return new SchedulingService(prisma, {} as any, {} as any, { emit: jest.fn() } as any);
+  }
+
+  it('a template day whose only dated VIDEO row is closed yields ZERO slots', async () => {
+    const findMany = jest
+      .fn()
+      // Dated query: only the closed marker — it overrides the template…
+      .mockResolvedValueOnce([
+        { startMinute: 0, endMinute: 0, slotMinutes: 20, closed: true },
+      ])
+      // …so the template (which has hours) must never be consulted.
+      .mockResolvedValueOnce([{ startMinute: 600, endMinute: 660, slotMinutes: 20 }]);
+    const service = serviceWith(findMany);
+    expect(await service.slots('p1', '2999-01-01')).toEqual([]);
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('a closed dated row coexisting with a normal dated row: only the normal row generates slots', async () => {
+    const findMany = jest.fn().mockResolvedValueOnce([
+      { startMinute: 0, endMinute: 0, slotMinutes: 20, closed: true },
+      { startMinute: 600, endMinute: 640, slotMinutes: 20 },
+    ]);
+    const service = serviceWith(findMany);
+    expect(await service.slots('p1', '2999-01-01')).toEqual([
+      '2999-01-01T10:00:00.000Z',
+      '2999-01-01T10:20:00.000Z',
+    ]);
+  });
+});
+
 describe('SchedulingService.setAvailability — dated blocks', () => {
   function buildSet() {
     const created: any[] = [];

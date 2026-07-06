@@ -23,6 +23,9 @@ export interface AvailabilityRow {
   startMinute: number;
   endMinute: number;
   date: Date | null; // midnight-UTC day key when dated; null = weekly template
+  // Closed (vacation) marker: participates in the dated-override rule but
+  // contributes no window — a day with only closed dated rows has no hours.
+  closed?: boolean;
 }
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -59,7 +62,10 @@ export function computeExpectedReplyAt(
     const key = day.toISOString().slice(0, 10);
     // A calendar day's weekday is timezone-independent, so the ISO date's
     // UTC weekday IS the local weekday.
-    const blocks = dated.get(key) ?? weekly.get(day.getUTCDay()) ?? [];
+    // Closed rows stay in the maps so a dated closed row still overrides the
+    // weekly template (→ that day contributes nothing), but they are never
+    // counted as windows themselves.
+    const blocks = (dated.get(key) ?? weekly.get(day.getUTCDay()) ?? []).filter((b) => !b.closed);
     for (const b of [...blocks].sort((a, z) => a.startMinute - z.startMinute)) {
       const winStart = wallClockToUTC(key, b.startMinute, tz)!.getTime();
       const winEnd = wallClockToUTC(key, b.endMinute, tz)!.getTime();

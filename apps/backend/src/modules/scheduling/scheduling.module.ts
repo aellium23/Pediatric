@@ -12,7 +12,12 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { SchedulingService } from './scheduling.service';
-import { SetAvailabilityDto, UpdateAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
+import {
+  SetAvailabilityDto,
+  UpdateAvailabilityDto,
+  BookVideoDto,
+  UnavailabilityDto,
+} from './dto/scheduling.dto';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsModule } from '../payments/payments.module';
@@ -53,6 +58,22 @@ class SchedulingController {
     @Body() dto: UpdateAvailabilityDto,
   ) {
     return this.service.updateAvailability(user.userId, id, dto);
+  }
+
+  @Get('my-bookings')
+  @Roles(Role.PEDIATRICIAN)
+  myBookings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.myBookings(user.userId, from, to);
+  }
+
+  @Post('unavailability')
+  @Roles(Role.PEDIATRICIAN)
+  markUnavailable(@CurrentUser() user: AuthenticatedUser, @Body() dto: UnavailabilityDto) {
+    return this.service.markUnavailable(user.userId, dto);
   }
 
   @Get('pediatricians/:id/slots')

@@ -422,6 +422,11 @@ model Availability {
   // Concrete calendar date (midnight UTC). Null = weekly recurring template.
   // On a date with dated blocks (same kind), only those count; the template is the fallback.
   date           DateTime?
+  // A dated closed row marks the day+kind as unavailable (vacation/férias):
+  // it participates in the dated-override rule (so the weekly template does
+  // NOT apply that day) but contributes no window. Stored inert with
+  // startMinute = endMinute = 0.
+  closed         Boolean          @default(false)
 
   @@index([pediatricianId, weekday])
   @@index([pediatricianId, date])

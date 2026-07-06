@@ -115,6 +115,27 @@ export class UpdateAvailabilityDto {
   confirm?: boolean;
 }
 
+export class UnavailabilityDto {
+  @ApiProperty({
+    example: '2026-08-03',
+    description: 'First closed day (YYYY-MM-DD, pediatrician-local calendar).',
+  })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ example: '2026-08-14', description: 'Last closed day (inclusive).' })
+  @IsDateString()
+  to!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Set true to confirm closing days that cancel (and refund) already-booked consultations.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  confirm?: boolean;
+}
+
 export class BookVideoDto {
   @ApiProperty() @IsUUID() childId!: string;
   @ApiProperty() @IsUUID() serviceId!: string;

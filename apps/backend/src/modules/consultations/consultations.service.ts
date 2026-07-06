@@ -72,9 +72,18 @@ export class ConsultationsService {
     // ceiling. Video is scheduled, so it has no reply expectation.
     let expectedReplyAt: Date | null = null;
     if (service.type !== ServiceType.VIDEO) {
+      // Closed (vacation) rows are included on purpose: computeExpectedReplyAt
+      // needs them for the dated-override rule and skips them as windows.
       const windows = await this.prisma.availability.findMany({
         where: { pediatricianId: service.pediatricianId },
-        select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
+        select: {
+          kind: true,
+          weekday: true,
+          startMinute: true,
+          endMinute: true,
+          date: true,
+          closed: true,
+        },
       });
       // Message windows are wall-clock in the pediatrician's timezone.
       expectedReplyAt = computeExpectedReplyAt(

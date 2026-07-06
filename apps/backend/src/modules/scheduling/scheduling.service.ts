@@ -19,7 +19,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ConsultationRebookOfferedEvent } from '../consultations/events';
-import { SetAvailabilityDto, UpdateAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
+import {
+  SetAvailabilityDto,
+  UpdateAvailabilityDto,
+  BookVideoDto,
+  UnavailabilityDto,
+} from './dto/scheduling.dto';
 import { localISODay, utcDayWindowLocal, wallClockToUTC } from './wall-clock';
 
 /** A future booked consultation that an availability change would orphan. */
@@ -33,6 +38,35 @@ export type AffectedBooking = {
 
 /** Wall-clock minute window (in the pediatrician's timezone). */
 type MinuteWindow = { startMinute: number; endMinute: number };
+
+const DAY_MS = 24 * 3600 * 1000;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** Longest range accepted by my-bookings and the vacation endpoint (2 months). */
+const MAX_RANGE_DAYS = 62;
+
+/**
+ * Validates a [from, to] ISO-day range: well-formed dates, from ≤ to, span of
+ * at most MAX_RANGE_DAYS. Returns the inclusive day count.
+ */
+function parseDayRange(from: string | undefined, to: string | undefined): number {
+  if (!from || !to || !ISO_DAY.test(from) || !ISO_DAY.test(to)) {
+    throw new BadRequestException('Datas inválidas (formato YYYY-MM-DD).');
+  }
+  // The strict ISO parser rejects impossible dates (e.g. 2026-02-31 → NaN).
+  const fromMs = Date.parse(`${from}T00:00:00.000Z`);
+  const toMs = Date.parse(`${to}T00:00:00.000Z`);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+    throw new BadRequestException('Datas inválidas.');
+  }
+  if (toMs < fromMs) {
+    throw new BadRequestException('A data final é anterior à inicial.');
+  }
+  const days = Math.round((toMs - fromMs) / DAY_MS) + 1;
+  if (days > MAX_RANGE_DAYS) {
+    throw new BadRequestException(`O intervalo máximo é de ${MAX_RANGE_DAYS} dias.`);
+  }
+  return days;
+}
 
 function initialsOf(name: string | null | undefined): string {
   if (!name) return '';
@@ -97,6 +131,138 @@ export class SchedulingService {
   }
 
   /**
+   * The pediatrician's own VIDEO bookings for the agenda/calendar view:
+   * sessions of live consultations (OPEN/TRIAGE/ANSWERED) scheduled inside
+   * the [from, to] LOCAL calendar-day range (pediatrician's timezone).
+   *
+   * Full child names are returned on purpose — the pediatrician already sees
+   * them in the inbox; this is the same privacy level, unlike the initials in
+   * the impact dialog shown before anything is committed.
+   */
+  async myBookings(userId: string, from?: string, to?: string) {
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    parseDayRange(from, to);
+    const tz = ped.timezone ?? 'Europe/Lisbon';
+    // [local midnight of `from`, local midnight of the day AFTER `to`).
+    const { start } = utcDayWindowLocal(from!, tz);
+    const { end } = utcDayWindowLocal(to!, tz);
+    const sessions = await this.prisma.videoSession.findMany({
+      where: {
+        scheduledAt: { gte: start, lt: end },
+        consultation: {
+          pediatricianId: ped.id,
+          status: {
+            in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE, ConsultationStatus.ANSWERED],
+          },
+        },
+      },
+      select: {
+        scheduledAt: true,
+        consultation: {
+          select: { id: true, status: true, child: { select: { name: true } } },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    return sessions.map((s) => ({
+      consultationId: s.consultation.id,
+      scheduledAt: s.scheduledAt,
+      status: s.consultation.status,
+      childName: s.consultation.child?.name ?? '',
+    }));
+  }
+
+  /**
+   * Vacation / closed days: marks every day in [from, to] as fully
+   * unavailable for BOTH kinds by creating dated `closed` rows (one per kind
+   * per day). Closed rows participate in the dated-override rule but define
+   * no window, so the weekly template stops applying on those days.
+   *
+   * Booked OPEN/TRIAGE video sessions inside the range gate the operation:
+   * without `confirm` it 409s with the affected list (same shape as an
+   * availability edit); with `confirm` each one is refunded
+   * ('pediatrician_unavailable'), marked REFUNDED and a rebook event is
+   * emitted — see settleAffected.
+   *
+   * Idempotent: days that already have a closed row of a kind are skipped, so
+   * overlapping ranges never duplicate markers. Deleting a closed row via the
+   * normal DELETE endpoint reopens that day (kind-wise) for free.
+   */
+  async markUnavailable(userId: string, dto: UnavailabilityDto) {
+    const ped = await this.prisma.pediatrician.findUniqueOrThrow({ where: { userId } });
+    const tz = ped.timezone ?? 'Europe/Lisbon';
+    const from = dto.from?.slice(0, 10);
+    const to = dto.to?.slice(0, 10);
+    const days = parseDayRange(from, to);
+    // "Past" is judged on the pediatrician's own calendar: local today is ok.
+    if (from! < localISODay(new Date(), tz)) {
+      throw new BadRequestException('O início do período não pode estar no passado.');
+    }
+
+    // Impact check for the WHOLE span (local midnight of `from` to local
+    // midnight after `to`): every still-live booked video session in it
+    // becomes impossible once the days close.
+    const { start } = utcDayWindowLocal(from!, tz);
+    const { end } = utcDayWindowLocal(to!, tz);
+    const sessions = await this.prisma.videoSession.findMany({
+      where: {
+        scheduledAt: { gte: start, lt: end },
+        consultation: {
+          pediatricianId: ped.id,
+          status: { in: [ConsultationStatus.OPEN, ConsultationStatus.TRIAGE] },
+        },
+      },
+      select: {
+        scheduledAt: true,
+        consultation: { select: { id: true, child: { select: { name: true } } } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    const affected: AffectedBooking[] = sessions.map((s) => ({
+      consultationId: s.consultation.id,
+      scheduledAt: s.scheduledAt,
+      childInitials: initialsOf(s.consultation.child?.name),
+    }));
+    await this.settleAffected(affected, dto.confirm === true);
+
+    const fromKey = new Date(`${from}T00:00:00.000Z`);
+    const existing = await this.prisma.availability.findMany({
+      where: {
+        pediatricianId: ped.id,
+        closed: true,
+        date: { gte: fromKey, lte: new Date(`${to}T00:00:00.000Z`) },
+      },
+      select: { kind: true, date: true },
+    });
+    const have = new Set(existing.map((e) => `${e.kind}:${e.date!.toISOString().slice(0, 10)}`));
+    const rows: Prisma.AvailabilityCreateManyInput[] = [];
+    for (let i = 0; i < days; i++) {
+      const date = new Date(fromKey.getTime() + i * DAY_MS);
+      const iso = date.toISOString().slice(0, 10);
+      for (const kind of [AvailabilityKind.VIDEO, AvailabilityKind.MESSAGES]) {
+        if (have.has(`${kind}:${iso}`)) continue; // already closed → idempotent
+        rows.push({
+          pediatricianId: ped.id,
+          kind,
+          weekday: date.getUTCDay(),
+          // Inert marker: startMinute === endMinute === 0 (the DTOs require
+          // end > start, so no normal row can ever look like this). Every
+          // window consumer either filters `closed` or no-ops on an empty span.
+          startMinute: 0,
+          endMinute: 0,
+          slotMinutes: 20,
+          date,
+          closed: true,
+        });
+      }
+    }
+    if (rows.length) {
+      await this.prisma.availability.createMany({ data: rows });
+    }
+    return { from, to, days, created: rows.length, cancelled: affected.length };
+  }
+
+  /**
    * Future booked (OPEN/TRIAGE) video consultations whose scheduled instant
    * falls inside `block`'s wall-clock window — i.e. the bookings a delete or
    * edit of that block would orphan. When `newWindow` is given (an edit),
@@ -119,6 +285,10 @@ export class SchedulingService {
     },
     newWindow?: MinuteWindow | null,
   ): Promise<AffectedBooking[]> {
+    // An inert row (endMinute ≤ startMinute — e.g. a closed/vacation marker,
+    // stored as 0–0) defines no window, so it can never orphan a booking.
+    // Bail out before any query rather than evaluating an inverted window.
+    if (block.endMinute <= block.startMinute) return [];
     const ped = await this.prisma.pediatrician.findUnique({
       where: { id: pediatricianId },
       select: { timezone: true },
@@ -225,8 +395,10 @@ export class SchedulingService {
     if (!block || block.pediatricianId !== ped.id) {
       throw new ForbiddenException('Este bloco de disponibilidade não é teu.');
     }
-    // Only VIDEO blocks can have bookings; MESSAGES blocks are freely removable.
-    if (block.kind === AvailabilityKind.VIDEO) {
+    // Only VIDEO blocks can have bookings; MESSAGES blocks are freely
+    // removable, and so are closed (vacation) rows — they define no window,
+    // so deleting one simply reopens the day for that kind.
+    if (block.kind === AvailabilityKind.VIDEO && !block.closed) {
       const affected = await this.affectedBookings(block.pediatricianId, block);
       await this.settleAffected(affected, confirm);
     }
@@ -388,11 +560,15 @@ export class SchedulingService {
     const dated = await this.prisma.availability.findMany({
       where: { pediatricianId, kind: AvailabilityKind.VIDEO, date: dayKey },
     });
-    const blocks = dated.length
+    const rows = dated.length
       ? dated
       : await this.prisma.availability.findMany({
           where: { pediatricianId, kind: AvailabilityKind.VIDEO, weekday, date: null },
         });
+    // Closed (vacation) rows take part in the dated-override selection above —
+    // a day whose only dated VIDEO row is closed yields zero slots even when
+    // the weekly template has hours — but they never define a window.
+    const blocks = rows.filter((b) => !b.closed);
     // Clash window = the UTC span of the LOCAL calendar day (local midnight to
     // next local midnight), since slot instants live inside that span.
     const { start: winStart, end: winEnd } = utcDayWindowLocal(dateStr, tz);

@@ -83,7 +83,8 @@ export class PediatriciansService {
     const out = new Map<string, number[]>();
     if (!ids.length) return out;
     const blocks = await this.prisma.availability.findMany({
-      where: { pediatricianId: { in: ids }, kind: AvailabilityKind.VIDEO },
+      // closed (vacation) rows define no window — they must not advertise a weekday.
+      where: { pediatricianId: { in: ids }, kind: AvailabilityKind.VIDEO, closed: false },
       select: { pediatricianId: true, weekday: true },
     });
     for (const b of blocks) {
@@ -103,7 +104,13 @@ export class PediatriciansService {
     const out = new Map<string, { weekday: number; startMinute: number; endMinute: number }[]>();
     if (!ids.length) return out;
     const blocks = await this.prisma.availability.findMany({
-      where: { pediatricianId: { in: ids }, kind: AvailabilityKind.MESSAGES, date: null },
+      // closed rows carry no hours — never part of the advertised windows.
+      where: {
+        pediatricianId: { in: ids },
+        kind: AvailabilityKind.MESSAGES,
+        date: null,
+        closed: false,
+      },
       select: { pediatricianId: true, weekday: true, startMinute: true, endMinute: true },
       orderBy: [{ weekday: 'asc' }, { startMinute: 'asc' }],
     });
@@ -155,9 +162,19 @@ export class PediatriciansService {
     const msgService = ped.services.find((s) => s.type === ServiceType.MESSAGE);
     let expectedReplyPreview: Date | null = null;
     if (msgService) {
+      // Closed rows are included on purpose: computeExpectedReplyAt needs them
+      // for the dated-override rule (a closed day contributes no window even
+      // when the weekly template has hours) and skips them as windows itself.
       const rows = await this.prisma.availability.findMany({
         where: { pediatricianId: ped.id },
-        select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
+        select: {
+          kind: true,
+          weekday: true,
+          startMinute: true,
+          endMinute: true,
+          date: true,
+          closed: true,
+        },
       });
       expectedReplyPreview = computeExpectedReplyAt(
         rows,

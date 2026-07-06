@@ -62,6 +62,56 @@ describe('computeExpectedReplyAt', () => {
     expect(out?.toISOString()).toBe('2999-01-10T11:00:00.000Z');
   });
 
+  it('skips closed weekly rows — they are never windows', () => {
+    const rows: AvailabilityRow[] = [
+      { kind: 'MESSAGES', weekday: 3, startMinute: 0, endMinute: 0, date: null, closed: true },
+    ];
+    // Only closed rows → no usable window anywhere in the horizon.
+    expect(computeExpectedReplyAt(rows, 4, new Date('2999-01-09T03:00:00.000Z'), 'UTC')).toBeNull();
+  });
+
+  it('a dated CLOSED row still overrides the template (vacation day contributes nothing)', () => {
+    // Wednesday 2999-01-09 is closed → the 9h–19h template is suppressed that
+    // day and the clock only runs from Thursday 09:00.
+    const rows: AvailabilityRow[] = [
+      ...WEEKDAYS_9_19,
+      {
+        kind: 'MESSAGES',
+        weekday: 3,
+        startMinute: 0,
+        endMinute: 0,
+        date: new Date('2999-01-09T00:00:00.000Z'),
+        closed: true,
+      },
+    ];
+    const out = computeExpectedReplyAt(rows, 4, new Date('2999-01-09T03:00:00.000Z'), 'UTC');
+    expect(out?.toISOString()).toBe('2999-01-10T13:00:00.000Z'); // Thu 09:00 + 4h
+  });
+
+  it('a closed dated row coexisting with a normal dated row: only the normal window counts', () => {
+    const rows: AvailabilityRow[] = [
+      ...WEEKDAYS_9_19,
+      {
+        kind: 'MESSAGES',
+        weekday: 3,
+        startMinute: 0,
+        endMinute: 0,
+        date: new Date('2999-01-09T00:00:00.000Z'),
+        closed: true,
+      },
+      {
+        kind: 'MESSAGES',
+        weekday: 3,
+        startMinute: 14 * 60,
+        endMinute: 16 * 60,
+        date: new Date('2999-01-09T00:00:00.000Z'),
+      },
+    ];
+    const out = computeExpectedReplyAt(rows, 4, new Date('2999-01-09T03:00:00.000Z'), 'UTC');
+    // 2h Wed (14–16) + 2h Thu from 09:00 → Thu 11:00 (same as the plain override case).
+    expect(out?.toISOString()).toBe('2999-01-10T11:00:00.000Z');
+  });
+
   it('returns null when windows are too sparse to reach the target in the horizon', () => {
     const tiny: AvailabilityRow[] = [
       { kind: 'MESSAGES', weekday: 1, startMinute: 540, endMinute: 550, date: null },
