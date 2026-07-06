@@ -151,4 +151,51 @@ describe('AuthService', () => {
       expect(create).not.toHaveBeenCalled();
     });
   });
+
+  describe('deactivated accounts', () => {
+    it('refuses devLogin for a disabled user and issues no tokens', async () => {
+      const { service, tokens } = build({
+        prisma: {
+          user: {
+            findUnique: jest.fn().mockResolvedValue({ id: 'x', role: Role.PARENT, status: 'disabled' }),
+            create: jest.fn(),
+          },
+        },
+      });
+      await expect(service.devLogin('a@b.pt')).rejects.toThrow(/desativada/i);
+      expect(tokens.issue).not.toHaveBeenCalled();
+    });
+
+    it('refuses OIDC sign-in for a disabled existing account', async () => {
+      const { service, tokens } = build({
+        prisma: {
+          user: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'exU', role: Role.PEDIATRICIAN }),
+            update: jest.fn().mockResolvedValue({ id: 'exU', role: Role.PEDIATRICIAN, status: 'disabled' }),
+            create: jest.fn(),
+          },
+        },
+        oidc: {
+          verifyGoogle: jest
+            .fn()
+            .mockResolvedValue({ provider: 'GOOGLE', sub: 'g-9', email: 'doc@x.pt', emailVerified: true }),
+        },
+      });
+      await expect(service.signInWithGoogle('tok')).rejects.toThrow(/desativada/i);
+      expect(tokens.issue).not.toHaveBeenCalled();
+    });
+
+    it('allows login for an active user (status set)', async () => {
+      const { service, tokens } = build({
+        prisma: {
+          user: {
+            findUnique: jest.fn().mockResolvedValue({ id: 'ok', role: Role.PARENT, status: 'active' }),
+            create: jest.fn(),
+          },
+        },
+      });
+      await service.devLogin('a@b.pt');
+      expect(tokens.issue).toHaveBeenCalledWith('ok', Role.PARENT);
+    });
+  });
 });

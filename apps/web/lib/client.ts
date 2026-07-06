@@ -585,6 +585,8 @@ export const Api = {
     request(`/admin/users/${id}`) as Promise<AdminUserDetail>,
   changeUserRole: (id: string, role: string) =>
     request(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  setUserStatus: (id: string, status: 'active' | 'disabled') =>
+    request(`/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   adminAudit: (skip = 0) => request(`/admin/audit?skip=${skip}`) as Promise<AuditRow[]>,
 
   // Content library

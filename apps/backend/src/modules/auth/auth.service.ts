@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthProvider, Prisma, Role, User } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OidcService, OidcIdentity } from './oidc.service';
@@ -16,17 +16,20 @@ export class AuthService {
   async signInWithApple(identityToken: string): Promise<TokenResponseDto> {
     const identity = await this.oidc.verifyApple(identityToken);
     const user = await this.upsertFromOidc(identity);
+    this.assertActive(user);
     return this.tokens.issue(user.id, user.role);
   }
 
   async signInWithGoogle(idToken: string): Promise<TokenResponseDto> {
     const identity = await this.oidc.verifyGoogle(idToken);
     const user = await this.upsertFromOidc(identity);
+    this.assertActive(user);
     return this.tokens.issue(user.id, user.role);
   }
 
   async issueForUser(userId: string): Promise<TokenResponseDto> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    this.assertActive(user);
     return this.tokens.issue(user.id, user.role);
   }
 
@@ -37,7 +40,15 @@ export class AuthService {
     user ??= await this.prisma.user.create({
       data: { email, emailVerified: true, role },
     });
+    this.assertActive(user);
     return this.tokens.issue(user.id, user.role);
+  }
+
+  /** A deactivated account cannot obtain new tokens (see AdminService.setUserStatus). */
+  private assertActive(user: Pick<User, 'status'>): void {
+    if (user.status === 'disabled') {
+      throw new ForbiddenException('Conta desativada. Contacte o suporte.');
+    }
   }
 
   private async upsertFromOidc(identity: OidcIdentity): Promise<User> {

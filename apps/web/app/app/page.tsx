@@ -1459,6 +1459,47 @@ const HELP: Record<string, { title: string; intro: string; items: HelpItem[] }> 
       { icon: '🔒', title: 'Confidencial', desc: 'O contexto clínico é cifrado e fica entre médicos.' },
     ],
   },
+  // Admin tabs
+  overview: {
+    title: 'Visão da plataforma',
+    intro: 'O estado geral do negócio num só ecrã: pessoas, dinheiro e mercado.',
+    items: [
+      { icon: '📊', title: 'Indicadores no topo', desc: 'Utilizadores, famílias, receita e comissões acumuladas.' },
+      { icon: '📝', title: 'Revisão de conteúdos', desc: 'Artigos submetidos por pediatras à espera de aprovação.' },
+      { icon: '🗺️', title: 'Mercado', desc: 'Procura vs. oferta por região e especialidade — onde reforçar.' },
+      { icon: '📈', title: 'Tendência mensal', desc: 'Consultas e novas famílias mês a mês; passa o rato para valores.' },
+      { icon: '👥', title: 'Repartições', desc: 'Utilizadores por perfil, consultas por estado, pediatras por estado.' },
+    ],
+  },
+  verify: {
+    title: 'Pediatras',
+    intro: 'Verifica as credenciais dos pediatras antes de aparecerem às famílias.',
+    items: [
+      { icon: '⏳', title: 'Fila de verificação', desc: 'Pediatras pendentes, com os documentos que enviaram.' },
+      { icon: '📎', title: 'Ver documentos', desc: 'Abre a cédula e credenciais para confirmar.' },
+      { icon: '✅', title: 'Aprovar', desc: 'Depois de verificar, ativa o pediatra no marketplace.' },
+      { icon: '⛔', title: 'Suspender', desc: 'Retira um pediatra se algo não estiver conforme.' },
+    ],
+  },
+  admin: {
+    title: 'Consultas',
+    intro: 'Todas as consultas da plataforma, para supervisão e reembolsos.',
+    items: [
+      { icon: '🔎', title: 'Ver consultas', desc: 'Estado, tipo, valor e as partes envolvidas.' },
+      { icon: '↩️', title: 'Reembolsar', desc: 'Emite um reembolso com motivo — é uma ação financeira.' },
+      { icon: '🕐', title: 'Histórico', desc: 'Acompanha a evolução de cada caso ao longo do tempo.' },
+    ],
+  },
+  users: {
+    title: 'Utilizadores',
+    intro: 'Encontra qualquer conta, muda perfis e ativa ou desativa contas.',
+    items: [
+      { icon: '🔎', title: 'Pesquisar', desc: 'Escreve nome, email ou telefone para filtrar a lista.' },
+      { icon: '🔵', title: 'Filtrar por estado', desc: 'Vê só contas ativas, inativas ou todas.' },
+      { icon: '🎚️', title: 'Mudar perfil', desc: 'Altera o papel de um utilizador (só Admin).' },
+      { icon: '⛔', title: 'Desativar / reativar', desc: 'Desativar corta o acesso de imediato; reativar devolve-o.' },
+    ],
+  },
 };
 
 function HelpSheet({
@@ -7870,6 +7911,52 @@ function MarketTrendChart({ monthly }: { monthly: MarketMonthRow[] }) {
   const totConsults = monthly.reduce((s, m) => s + m.consultations, 0);
   const totFamilies = monthly.reduce((s, m) => s + m.newFamilies, 0);
   const ticks = [0, niceMax / 2, niceMax];
+  const colW = plotW / monthly.length;
+  return (
+    <MarketTrendChartView
+      w={w}
+      h={h}
+      padL={padL}
+      padR={padR}
+      baseline={baseline}
+      padT={padT}
+      colW={colW}
+      x={x}
+      y={y}
+      ticks={ticks}
+      fmtN={fmtN}
+      monthLabel={monthLabel}
+      barPath={barPath}
+      linePath={linePath}
+      monthly={monthly}
+      last={last}
+      totConsults={totConsults}
+      totFamilies={totFamilies}
+    />
+  );
+}
+
+// Presentational layer for MarketTrendChart, with an interactive hover tooltip
+// (full-height hit areas per month; the hovered column is highlighted and a
+// value card follows the cursor's column). Split out so the hover useState
+// lives below the early "no activity" return of MarketTrendChart.
+function MarketTrendChartView(props: {
+  w: number; h: number; padL: number; padR: number; baseline: number; padT: number;
+  colW: number;
+  x: (i: number) => number; y: (v: number) => number;
+  ticks: number[]; fmtN: (v: number) => string; monthLabel: (m: string) => string;
+  barPath: (i: number, v: number) => string; linePath: string;
+  monthly: MarketMonthRow[]; last: MarketMonthRow; totConsults: number; totFamilies: number;
+}) {
+  const { tr } = useT();
+  const {
+    w, h, padL, padR, baseline, padT, colW, x, y, ticks, fmtN, monthLabel,
+    barPath, linePath, monthly, last, totConsults, totFamilies,
+  } = props;
+  const [hover, setHover] = useState<number | null>(null);
+  const hv = hover != null ? monthly[hover] : null;
+  const leftPct = hover != null ? Math.min(86, Math.max(14, (x(hover) / w) * 100)) : 50;
+
   return (
     <div>
       <div className="row" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, marginBottom: 4 }}>
@@ -7888,62 +7975,138 @@ function MarketTrendChart({ monthly }: { monthly: MarketMonthRow[] }) {
           {tr('Novas famílias')}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        width="100%"
-        role="img"
-        aria-label={`${tr('Tendência mensal: consultas em barras e novas famílias em linha.')} ${tr('Consultas')} ${totConsults} · ${tr('Novas famílias')} ${totFamilies}`}
-      >
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
-            <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
-              {fmtN(t)}
-            </text>
-          </g>
-        ))}
-        {monthly.map((m, i) => {
-          const byType = Object.entries(m.byServiceType)
-            .map(([k, v]) => `${tr(svcLabel(k))} ${v}`)
-            .join(' · ');
-          return (
+      <div style={{ position: 'relative' }}>
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          width="100%"
+          role="img"
+          aria-label={`${tr('Tendência mensal: consultas em barras e novas famílias em linha.')} ${tr('Consultas')} ${totConsults} · ${tr('Novas famílias')} ${totFamilies}`}
+          style={{ display: 'block' }}
+        >
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
+              <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
+                {fmtN(t)}
+              </text>
+            </g>
+          ))}
+          {/* Vertical guide on the hovered column. */}
+          {hover != null ? (
+            <line
+              x1={x(hover)}
+              x2={x(hover)}
+              y1={padT}
+              y2={baseline}
+              stroke="var(--accent)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+              opacity="0.5"
+            />
+          ) : null}
+          {monthly.map((m, i) => (
             <g key={m.month}>
-              <title>
-                {`${monthLabel(m.month)} · ${tr('Consultas')} ${m.consultations}${byType ? ` (${byType})` : ''} · ${tr('Novas famílias')} ${m.newFamilies}`}
-              </title>
-              {m.consultations > 0 ? <path d={barPath(i, m.consultations)} fill="var(--accent)" /> : null}
+              {m.consultations > 0 ? (
+                <path
+                  d={barPath(i, m.consultations)}
+                  fill="var(--accent)"
+                  opacity={hover == null || hover === i ? 1 : 0.4}
+                  style={{ transition: 'opacity .12s' }}
+                />
+              ) : null}
               <text x={x(i)} y={h - 5} textAnchor="middle" fontSize="9" fill="var(--muted)">
                 {monthLabel(m.month)}
               </text>
             </g>
-          );
-        })}
-        <path
-          d={linePath}
-          fill="none"
-          stroke="var(--info)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        {monthly.map((m, i) => (
-          <g key={m.month} aria-hidden="true">
-            <circle cx={x(i)} cy={y(m.newFamilies)} r="5.5" fill="var(--surface)" />
-            <circle cx={x(i)} cy={y(m.newFamilies)} r="4" fill="var(--info)" />
-          </g>
-        ))}
-        {last.consultations > 0 ? (
-          <text
-            x={x(monthly.length - 1)}
-            y={y(last.consultations) - 4}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--text-2)"
+          ))}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="var(--info)"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {monthly.map((m, i) => (
+            <g key={m.month} aria-hidden="true">
+              <circle cx={x(i)} cy={y(m.newFamilies)} r={hover === i ? 6.5 : 5.5} fill="var(--surface)" style={{ transition: 'r .12s' }} />
+              <circle cx={x(i)} cy={y(m.newFamilies)} r={hover === i ? 5 : 4} fill="var(--info)" style={{ transition: 'r .12s' }} />
+            </g>
+          ))}
+          {last.consultations > 0 && hover == null ? (
+            <text
+              x={x(monthly.length - 1)}
+              y={y(last.consultations) - 4}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--text-2)"
+            >
+              {last.consultations}
+            </text>
+          ) : null}
+          {/* Full-height transparent hit areas — one per month. */}
+          {monthly.map((m, i) => (
+            <rect
+              key={m.month}
+              x={x(i) - colW / 2}
+              y={padT}
+              width={colW}
+              height={baseline - padT}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover((cur) => (cur === i ? null : cur))}
+              style={{ cursor: 'pointer' }}
+            >
+              <title>
+                {`${monthLabel(m.month)} · ${tr('Consultas')} ${m.consultations} · ${tr('Novas famílias')} ${m.newFamilies}`}
+              </title>
+            </rect>
+          ))}
+        </svg>
+        {hv ? (
+          <div
+            role="status"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: `${leftPct}%`,
+              transform: 'translateX(-50%)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: '0 6px 20px rgba(0,0,0,.14)',
+              padding: '8px 10px',
+              pointerEvents: 'none',
+              zIndex: 3,
+              minWidth: 132,
+              fontSize: 12,
+            }}
           >
-            {last.consultations}
-          </text>
+            <div style={{ fontWeight: 700, marginBottom: 4, textTransform: 'capitalize' }}>
+              {monthLabel(hv.month)}
+            </div>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)' }} />
+                {tr('Consultas')}
+              </span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{hv.consultations}</strong>
+            </div>
+            {Object.entries(hv.byServiceType).length > 0 ? (
+              <div className="muted" style={{ fontSize: 11, margin: '1px 0 4px 13px' }}>
+                {Object.entries(hv.byServiceType).map(([k, v]) => `${tr(svcLabel(k))} ${v}`).join(' · ')}
+              </div>
+            ) : null}
+            <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden="true" style={{ width: 10, borderTop: '2px solid var(--info)' }} />
+                {tr('Novas famílias')}
+              </span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{hv.newFamilies}</strong>
+            </div>
+          </div>
         ) : null}
-      </svg>
+      </div>
     </div>
   );
 }
@@ -7977,6 +8140,9 @@ function MarketSection() {
   return (
     <div className="section">
       <h3>{tr('Mercado')}</h3>
+      <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+        {tr('Penetração e equilíbrio entre procura e oferta, por região e por especialidade. Ajuda a decidir onde reforçar pediatras.')}
+      </p>
       <div className="row" style={{ gap: 6, marginBottom: 8 }}>
         {[6, 12].map((n) => (
           <button
@@ -7992,7 +8158,10 @@ function MarketSection() {
       {/* Hold the previous render at reduced opacity while refetching — no skeleton flash. */}
       <div style={{ opacity: refetching ? 0.6 : 1 }}>
         <div className="card" style={{ overflowX: 'auto' }}>
-          <h4 style={{ margin: '0 0 4px' }}>{tr('Por região')}</h4>
+          <h4 style={{ margin: '0 0 2px' }}>{tr('Por região')}</h4>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
+            {tr('Procura (famílias, crianças, consultas) vs. oferta (pediatras e horas/semana disponíveis) por distrito. Muitas consultas com poucas horas = falta de oferta.')}
+          </p>
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <thead>
               <tr>
@@ -8021,7 +8190,10 @@ function MarketSection() {
         </div>
 
         <div className="card" style={{ overflowX: 'auto', marginTop: 10 }}>
-          <h4 style={{ margin: '0 0 4px' }}>{tr('Por especialidade')}</h4>
+          <h4 style={{ margin: '0 0 2px' }}>{tr('Por especialidade')}</h4>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
+            {tr('Consultas e pediatras ativos por especialidade, com a espera média para vídeo (h). Espera alta indica procura acima da oferta.')}
+          </p>
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <thead>
               <tr>
@@ -8050,7 +8222,10 @@ function MarketSection() {
         </div>
 
         <div className="card" style={{ marginTop: 10 }}>
-          <h4 style={{ margin: '0 0 6px' }}>{tr('Tendência mensal')}</h4>
+          <h4 style={{ margin: '0 0 2px' }}>{tr('Tendência mensal')}</h4>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
+            {tr('Consultas realizadas (barras) e novas famílias (linha) mês a mês. Passa o rato numa coluna para ver os valores.')}
+          </p>
           <MarketTrendChart monthly={market.monthly} />
         </div>
       </div>
@@ -8224,25 +8399,34 @@ function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [busy, setBusy] = useState('');
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'disabled'>('all');
+  const [loading, setLoading] = useState(true);
+  const meId = currentUserId();
 
-  async function load() {
+  async function load(query?: string) {
+    setLoading(true);
     try {
-      setRows(await Api.adminUsers());
+      setRows(await Api.adminUsers(query?.trim() || undefined));
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setLoading(false);
     }
   }
+  // Debounced server-side search (name / email / phone / id).
   useEffect(() => {
-    void load();
+    const t = setTimeout(() => void load(q), 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [q]);
 
   async function setRole(id: string, role: string) {
     setBusy(id);
     try {
       await Api.changeUserRole(id, role);
       onMsg(tr('Perfil atualizado ✓'));
-      await load();
+      await load(q);
     } catch (e) {
       onMsg(isForbidden(e) ? tr('Sem permissão para alterar perfis (só Admin).') : `Erro: ${String(e)}`);
     } finally {
@@ -8250,29 +8434,123 @@ function UsersTab({ onMsg }: { onMsg: (m: string) => void }) {
     }
   }
 
+  async function toggleStatus(u: AdminUserRow) {
+    const disable = u.status !== 'disabled';
+    if (disable && u.id === meId) {
+      onMsg(tr('Não podes desativar a tua própria conta.'));
+      return;
+    }
+    const who = u.name || u.email || u.id.slice(0, 8);
+    if (
+      disable &&
+      !window.confirm(`${tr('Desativar')} ${who}? ${tr('A conta perde acesso imediato e não consegue entrar.')}`)
+    )
+      return;
+    setBusy(u.id);
+    try {
+      await Api.setUserStatus(u.id, disable ? 'disabled' : 'active');
+      onMsg(disable ? tr('Conta desativada ✓') : tr('Conta reativada ✓'));
+      await load(q);
+    } catch (e) {
+      onMsg(isForbidden(e) ? tr('Sem permissão (só Admin).') : `Erro: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const shown = rows.filter((u) => filter === 'all' || (u.status ?? 'active') === filter);
+  const counts = {
+    all: rows.length,
+    active: rows.filter((u) => (u.status ?? 'active') !== 'disabled').length,
+    disabled: rows.filter((u) => (u.status ?? 'active') === 'disabled').length,
+  };
+  const filters: { key: 'all' | 'active' | 'disabled'; label: string }[] = [
+    { key: 'all', label: 'Todos' },
+    { key: 'active', label: 'Ativos' },
+    { key: 'disabled', label: 'Inativos' },
+  ];
+
   return (
     <div className="section">
       <h2>{tr('Utilizadores')}</h2>
-      <div className="grid">
-        {rows.map((u) => (
-          <div key={u.id} className="card">
-            <strong>{u.email ?? u.id.slice(0, 8)}</strong>
-            <div className="muted">{new Date(u.createdAt).toLocaleDateString(appLocale())}</div>
-            <select
-              value={u.role}
-              onChange={(e) => setRole(u.id, e.target.value)}
-              disabled={busy === u.id}
-              style={{ marginTop: 8 }}
-            >
-              {ALL_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {tr(roleLabel(r))}
-                </option>
-              ))}
-            </select>
-          </div>
+      <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+        {tr('Pesquisa por nome, email ou telefone, filtra por estado e ativa ou desativa contas. Desativar remove o acesso de imediato.')}
+      </p>
+      <input
+        className="search"
+        placeholder={tr('Procurar por nome, email ou telefone…')}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+        {filters.map((f) => (
+          <button
+            key={f.key}
+            className={`chip${filter === f.key ? ' active' : ''}`}
+            onClick={() => setFilter(f.key)}
+          >
+            {tr(f.label)} · {counts[f.key]}
+          </button>
         ))}
       </div>
+      {loading ? (
+        <p className="muted">{tr('A carregar…')}</p>
+      ) : shown.length === 0 ? (
+        <p className="muted">{q.trim() ? tr('Sem resultados para esta pesquisa.') : tr('Sem utilizadores.')}</p>
+      ) : (
+        <div className="grid">
+          {shown.map((u) => {
+            const disabled = (u.status ?? 'active') === 'disabled';
+            return (
+              <div key={u.id} className="card" style={{ opacity: disabled ? 0.72 : 1 }}>
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {u.name || u.email || u.id.slice(0, 8)}
+                    </strong>
+                    {u.name && u.email ? (
+                      <div className="muted" style={{ fontSize: 12 }}>{u.email}</div>
+                    ) : null}
+                  </div>
+                  <span
+                    className="pill"
+                    style={{
+                      background: disabled ? 'var(--danger-bg, rgba(200,60,60,.12))' : 'var(--ok-bg, rgba(40,140,90,.12))',
+                      color: disabled ? 'var(--danger, #c0392b)' : 'var(--ok, #1e824c)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {disabled ? tr('Inativo') : tr('Ativo')}
+                  </span>
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  {tr('Desde')} {new Date(u.createdAt).toLocaleDateString(appLocale())}
+                </div>
+                <select
+                  value={u.role}
+                  onChange={(e) => setRole(u.id, e.target.value)}
+                  disabled={busy === u.id}
+                  style={{ marginTop: 8, width: '100%' }}
+                >
+                  {ALL_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {tr(roleLabel(r))}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={`btn small ${disabled ? '' : 'secondary'}`}
+                  onClick={() => toggleStatus(u)}
+                  disabled={busy === u.id || (!disabled && u.id === meId)}
+                  style={{ marginTop: 8, width: '100%' }}
+                >
+                  {disabled ? tr('Reativar conta') : tr('Desativar conta')}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

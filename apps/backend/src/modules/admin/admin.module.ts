@@ -57,6 +57,12 @@ class ReviewDocDto {
   note?: string;
 }
 
+class SetUserStatusDto {
+  @ApiProperty({ enum: ['active', 'disabled'] })
+  @IsIn(['active', 'disabled'])
+  status!: string;
+}
+
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
@@ -419,6 +425,25 @@ export class AdminService {
     });
   }
 
+  /**
+   * Activate/deactivate a user account. Disabling revokes the refresh tokens
+   * so access ends when the short-lived access token expires (the JWT strategy
+   * is stateless by design) and login is refused while disabled (see
+   * AuthService). Reactivating simply clears the flag; the user logs in again.
+   */
+  async setUserStatus(id: string, status: string) {
+    const next = status === 'disabled' ? 'disabled' : 'active';
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { status: next },
+      select: { id: true, email: true, status: true },
+    });
+    if (next === 'disabled') {
+      await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
+    }
+    return user;
+  }
+
   async audit(skip = 0, take = 100) {
     return this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
@@ -503,6 +528,12 @@ class AdminController {
   @Roles(Role.PLATFORM_ADMIN)
   changeRole(@Param('id') id: string, @Body() dto: ChangeRoleDto) {
     return this.service.changeRole(id, dto.role);
+  }
+
+  @Patch('users/:id/status')
+  @Roles(Role.PLATFORM_ADMIN)
+  setUserStatus(@Param('id') id: string, @Body() dto: SetUserStatusDto) {
+    return this.service.setUserStatus(id, dto.status);
   }
 
   @Get('audit')

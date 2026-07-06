@@ -112,4 +112,49 @@ describe('AdminService', () => {
       );
     });
   });
+
+  describe('setUserStatus', () => {
+    it('disables a user and revokes their refresh tokens', async () => {
+      const deleteMany = jest.fn().mockResolvedValue({ count: 2 });
+      const { service, prisma } = build({
+        prisma: {
+          user: { update: jest.fn().mockResolvedValue({ id: 'u1', email: 'x@y.pt', status: 'disabled' }) },
+          refreshToken: { deleteMany },
+        },
+      });
+      await service.setUserStatus('u1', 'disabled');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' }, data: { status: 'disabled' } }),
+      );
+      expect(deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
+    });
+
+    it('reactivating does not touch refresh tokens', async () => {
+      const deleteMany = jest.fn();
+      const { service, prisma } = build({
+        prisma: {
+          user: { update: jest.fn().mockResolvedValue({ id: 'u1', email: 'x@y.pt', status: 'active' }) },
+          refreshToken: { deleteMany },
+        },
+      });
+      await service.setUserStatus('u1', 'active');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'active' } }),
+      );
+      expect(deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('coerces any non-disabled value to active (no unexpected states)', async () => {
+      const { service, prisma } = build({
+        prisma: {
+          user: { update: jest.fn().mockResolvedValue({ id: 'u1', email: 'x@y.pt', status: 'active' }) },
+          refreshToken: { deleteMany: jest.fn() },
+        },
+      });
+      await service.setUserStatus('u1', 'whatever');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'active' } }),
+      );
+    });
+  });
 });
