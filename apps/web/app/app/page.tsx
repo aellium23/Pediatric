@@ -5923,11 +5923,14 @@ function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
     );
 
   const isPaid = (s: string) => s === 'ANSWERED' || s === 'CLOSED';
-  const shown = rows.filter((c) =>
+  // Period first (movement date = scheduled slot for video, opening otherwise),
+  // then status; the loaded-volume KPIs follow the chosen period.
+  const inRange = rows.filter((c) => inFinPeriod(c.scheduledAt ?? c.openedAt, period));
+  const shown = inRange.filter((c) =>
     filter === 'all' ? true : filter === 'paid' ? isPaid(c.status) : c.status === filter,
   );
-  const volume = rows.filter((c) => c.status !== 'REFUNDED' && c.status !== 'CANCELLED').reduce((s, c) => s + c.priceCents, 0);
-  const refunded = rows.filter((c) => c.status === 'REFUNDED').reduce((s, c) => s + c.priceCents, 0);
+  const volume = inRange.filter((c) => c.status !== 'REFUNDED' && c.status !== 'CANCELLED').reduce((s, c) => s + c.priceCents, 0);
+  const refunded = inRange.filter((c) => c.status === 'REFUNDED').reduce((s, c) => s + c.priceCents, 0);
 
   return (
     <div className="section">
@@ -5937,9 +5940,22 @@ function FinMovementsTab({ onMsg }: { onMsg: (m: string) => void }) {
         Tesouraria.
       </p>
       <div className="grid">
-        <Kpi label="Volume carregado" value={euro(volume)} hint={`${rows.length} movimento(s)${more ? '+' : ''}`} />
+        <Kpi label="Volume carregado" value={euro(volume)} hint={`${inRange.length} movimento(s)${more ? '+' : ''}`} />
         <Kpi label="Reembolsado (carregado)" value={euro(refunded)} />
         <Kpi label="Movimentos carregados" value={`${rows.length}${more ? '+' : ''}`} />
+      </div>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0 0' }}>
+        {([
+          ['today', 'Hoje'],
+          ['month', 'Este mês'],
+          ['quarter', 'Este trimestre'],
+          ['year', 'Ano fiscal'],
+          ['all', 'Tudo'],
+        ] as const).map(([k, label]) => (
+          <button key={k} className={`chip${period === k ? ' active' : ''}`} onClick={() => setPeriod(k)}>
+            {label}
+          </button>
+        ))}
       </div>
       <div className="row" style={{ flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
         {([
@@ -6227,26 +6243,127 @@ function SupportUsersTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [role, setRole] = useState('');
+  const [openUser, setOpenUser] = useState<AdminUserRow | null>(null);
+  const [detail, setDetail] = useState<AdminUserDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Server-side search (?q= matches id/email/name/phone), debounced 300 ms.
   useEffect(() => {
-    Api.adminUsers()
-      .then(setRows)
-      .catch((e) => onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      Api.adminUsers(q.trim() || undefined)
+        .then((r) => {
+          if (!cancelled) setRows(r);
+        })
+        .catch((e) => onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`))
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [q]);
+
+  function openDetail(u: AdminUserRow) {
+    setOpenUser(u);
+    setDetail(null);
+    setDetailLoading(true);
+    Api.adminUserDetail(u.id)
+      .then(setDetail)
+      .catch((e) => onMsg(isForbidden(e) ? 'Sem permissão.' : `Erro: ${String(e)}`))
+      .finally(() => setDetailLoading(false));
+  }
+
+  // ── User-360 detail view ──
+  if (openUser) {
+    const u = detail?.user;
+    return (
+      <div className="section">
+        <button
+          className="btn secondary small"
+          onClick={() => {
+            setOpenUser(null);
+            setDetail(null);
+          }}
+          style={{ marginBottom: 12 }}
+        >
+          ← Voltar
+        </button>
+        <h2>{openUser.name ?? openUser.email ?? openUser.id.slice(0, 8)}</h2>
+        <p className="muted" style={{ fontSize: 12 }}>{SUPPORT_ESCALATION}</p>
+        {detailLoading ? (
+          <Skeleton rows={3} />
+        ) : !u ? (
+          <EmptyState title="Sem dados" hint="Não foi possível carregar o utilizador." />
+        ) : (
+          <>
+            <div className="card">
+              <div style={{ marginBottom: 4 }}>
+                <span className="pill">{roleLabel(u.role)}</span>{' '}
+                <span className={u.status === 'active' ? 'pill ok' : 'pill warn'}>{u.status}</span>
+              </div>
+              {u.name ? <div><strong>{u.name}</strong></div> : null}
+              <div className="muted" style={{ fontSize: 13 }}>
+                {u.email ?? '—'}
+                {u.phone ? ` · 📞 ${u.phone}` : ''}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Conta criada a {new Date(u.createdAt).toLocaleDateString('pt-PT')}
+              </div>
+              <div className="row" style={{ marginTop: 8 }}>
+                {u.email ? (
+                  <button className="btn small secondary" onClick={() => copyText(u.email!, onMsg)}>📋 Email</button>
+                ) : null}
+                <button className="btn small secondary" onClick={() => copyText(u.id, onMsg)}>📋 ID</button>
+              </div>
+            </div>
+
+            <h3 style={{ marginTop: 18 }}>
+              Consultas ({detail!.consultations.length})
+            </h3>
+            {detail!.consultations.length === 0 ? (
+              <p className="muted">Sem consultas associadas a este utilizador.</p>
+            ) : (
+              <div className="grid">
+                {detail!.consultations.map((c) => (
+                  <div key={c.id} className="card">
+                    <span className={statusPill(c.status)}>{statusLabel(c.status)}</span>{' '}
+                    <strong>{svcLabel(c.type)}</strong>
+                    {c.child?.name ? <span className="muted"> · {c.child.name}</span> : null}
+                    <div className="muted" style={{ fontSize: 13 }}>
+                      {c.pediatrician?.displayName ?? '—'}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {c.scheduledAt
+                        ? `📅 ${new Date(c.scheduledAt).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}`
+                        : `Aberta a ${new Date(c.openedAt).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}`}
+                      {c.closedAt
+                        ? ` · fechada a ${new Date(c.closedAt).toLocaleDateString('pt-PT')}`
+                        : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
 
   const roles = Array.from(new Set(rows.map((u) => u.role)));
-  const needle = q.trim().toLowerCase();
-  const shown = rows.filter(
-    (u) => (!role || u.role === role) && (!needle || `${u.email ?? ''} ${u.id}`.toLowerCase().includes(needle)),
-  );
+  const shown = rows.filter((u) => !role || u.role === role);
 
   return (
     <div className="section">
       <h2>Procurar utilizador</h2>
       <input
         className="search"
-        placeholder="Procurar por email ou ID…"
+        placeholder="Procurar por nome, email, telefone ou ID…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
@@ -6266,22 +6383,25 @@ function SupportUsersTab({ onMsg }: { onMsg: (m: string) => void }) {
       ) : (
         <div className="grid">
           {shown.map((u) => (
-            <div key={u.id} className="card">
-              <strong>{u.email ?? u.id.slice(0, 8)}</strong>
+            <button
+              key={u.id}
+              className="card"
+              onClick={() => openDetail(u)}
+              style={{ textAlign: 'left', cursor: 'pointer' }}
+            >
+              <strong>{u.name ?? u.email ?? u.id.slice(0, 8)}</strong>
               <div style={{ marginTop: 4 }}>
                 <span className="pill">{roleLabel(u.role)}</span>{' '}
                 <span className={u.status === 'active' ? 'pill ok' : 'pill warn'}>{u.status}</span>
               </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {u.email ?? '—'}
+                {u.phone ? ` · 📞 ${u.phone}` : ''}
+              </div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Conta criada a {new Date(u.createdAt).toLocaleDateString('pt-PT')}
+                Conta criada a {new Date(u.createdAt).toLocaleDateString('pt-PT')} · toca para abrir a ficha →
               </div>
-              <div className="row" style={{ marginTop: 6 }}>
-                {u.email ? (
-                  <button className="btn small secondary" onClick={() => copyText(u.email!, onMsg)}>📋 Email</button>
-                ) : null}
-                <button className="btn small secondary" onClick={() => copyText(u.id, onMsg)}>📋 ID</button>
-              </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
