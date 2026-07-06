@@ -201,6 +201,40 @@ function messageWindowsSummary(windows: MessageWindow[] | undefined, t: (s: stri
     .join(' · ');
 }
 
+/** IANA timezone of this device — what every family-facing time renders in. */
+const deviceTZ = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+/** PT names for the zones families actually see; anything else falls back to the raw segment. */
+const TZ_CITY_PT: Record<string, string> = {
+  Lisbon: 'Lisboa',
+  Azores: 'Açores',
+  Madeira: 'Madeira',
+  Madrid: 'Madrid',
+  Luanda: 'Luanda',
+};
+/** Human city label for an IANA zone id: 'Europe/Lisbon' → 'Lisboa'. */
+function tzCity(tz: string): string {
+  const seg = tz.split('/').pop() ?? tz;
+  return TZ_CITY_PT[seg] ?? seg.replace(/_/g, ' ');
+}
+/**
+ * "13:00 em Lisboa" — the instant on the doctor's wall clock, for the moments
+ * where the family commits to a time. Null when the device already shares the
+ * doctor's timezone (or the zone id is unknown) — a hint must never break booking.
+ */
+function tzHint(pedTz: string | undefined, instantISO: string): string | null {
+  if (!pedTz || deviceTZ() === pedTz) return null;
+  try {
+    const t = new Date(instantISO).toLocaleTimeString(appLocale(), {
+      timeZone: pedTz,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${t} ${trs('em')} ${tzCity(pedTz)}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Group list rows for scanability: months in the current year, whole years
  *  before ("julho", "junho", …, "2025"). Rows must arrive newest-first. */
 function groupByPeriod<T>(rows: T[], dateOf: (r: T) => string): { label: string; items: T[] }[] {
@@ -3745,11 +3779,19 @@ function PedDetail({
   const [reviews, setReviews] = useState<
     { id: string; rating: number; comment: string | null; createdAt: string }[]
   >([]);
+  // Doctor's timezone (public detail) — the message-window hours are the
+  // DOCTOR's wall clock, so families elsewhere get "(hora de Lisboa)".
+  const [pedTz, setPedTz] = useState<string | undefined>(
+    (ped as PediatricianDetail).timezone,
+  );
 
   useEffect(() => {
     Api.reviews(ped.id)
       .then((r) => setReviews(r as typeof reviews))
       .catch((e) => onMsg(`Erro: ${String(e)}`));
+    (Api.pedDetail(ped.id) as Promise<PediatricianDetail>)
+      .then((d) => setPedTz(d.timezone))
+      .catch(() => {}); // hint only — the card renders fine without it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ped.id]);
 
@@ -3812,15 +3854,19 @@ function PedDetail({
         const msgSvc = ped.services.find((s) => s.type === 'MESSAGE');
         if (!msgSvc) return null;
         const winSum = messageWindowsSummary(ped.messageWindows, tr);
+        // Window hours are the doctor's wall clock — flag it when the family
+        // is in another timezone (e.g. "seg–sex 9h–19h (hora de Lisboa)").
+        const tzSuffix =
+          winSum && pedTz && pedTz !== deviceTZ() ? ` (${tr('hora de')} ${tzCity(pedTz)})` : '';
         return (
           <div className="muted" style={{ fontSize: 13, marginTop: 8, display: 'grid', gap: 2 }}>
             {msgSvc.targetHours ? (
               <span>
                 💬 {tr('Responde em')} ~{msgSvc.targetHours}h {tr('em horário de mensagens')}
-                {winSum ? ` · ${winSum}` : ''}
+                {winSum ? ` · ${winSum}${tzSuffix}` : ''}
               </span>
             ) : winSum ? (
-              <span>💬 {winSum}</span>
+              <span>💬 {winSum}{tzSuffix}</span>
             ) : null}
             <span>
               ✅ {tr('Garantia')}: {msgSvc.slaHours}h {tr('ou reembolso')}
@@ -4062,6 +4108,12 @@ function BookVideo({
   // Two safe taps: pick a slot → review the summary (who/when/price + consent)
   // → confirm. A stray tap never books.
   const [pendingSlot, setPendingSlot] = useState<string | null>(null);
+  // Doctor's IANA timezone (public detail) — hint-only, so the parent knows
+  // "10:00 for you" may be "13:00 for the doctor". The list card doesn't carry
+  // it, so it is fetched alongside the slots; failures just hide the hint.
+  const [pedTz, setPedTz] = useState<string | undefined>(
+    (ped as PediatricianDetail).timezone,
+  );
   const vidSvc = ped.services.find((s) => s.type === 'VIDEO');
 
   // Load the next available days up front, so the parent picks a time directly
@@ -4078,6 +4130,11 @@ function BookVideo({
         if (live) setLoading(false);
       }
     })();
+    (Api.pedDetail(ped.id) as Promise<PediatricianDetail>)
+      .then((d) => {
+        if (live) setPedTz(d.timezone);
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
@@ -4106,6 +4163,7 @@ function BookVideo({
 
   if (pendingSlot) {
     const when = new Date(pendingSlot);
+    const hint = tzHint(pedTz, pendingSlot);
     return (
       <div className="section">
         <button
@@ -4125,6 +4183,9 @@ function BookVideo({
             📅{' '}
             {when.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' })} ·{' '}
             {when.toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}
+            {hint ? (
+              <span className="muted" style={{ textTransform: 'none' }}> ({hint})</span>
+            ) : null}
           </p>
           {vidSvc ? (
             <p style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>{euro(vidSvc.priceCents)}</p>
@@ -4162,6 +4223,11 @@ function BookVideo({
       <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>
         {tr('Escolhe um horário — confirmas os detalhes no passo seguinte.')}
       </p>
+      {pedTz && pedTz !== deviceTZ() ? (
+        <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+          🕐 {tr('Horários no teu fuso horário')} · {tr('o pediatra está em')} {tzCity(pedTz)}
+        </p>
+      ) : null}
       {loading ? (
         <Skeleton rows={2} />
       ) : days.length === 0 ? (
@@ -5320,7 +5386,15 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   // Kind filter for month/week (day always shows everything — it's the
   // editing surface). Persisted like the other pedia_* preferences.
   const [agKind, setAgKind] = useState<'all' | 'VIDEO' | 'MESSAGES'>('all');
+  // My working timezone (profile) — the grid's hours are wall clock in it.
+  const [myTz, setMyTz] = useState<string | undefined>(undefined);
   const today = utcToday();
+
+  useEffect(() => {
+    Api.me()
+      .then((m) => setMyTz(m.timezone))
+      .catch(() => {}); // label only — the agenda works without it
+  }, []);
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' && localStorage.getItem('pedia_ag_kind');
@@ -5486,6 +5560,10 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         </div>
         <strong className="agcal-period">{period}</strong>
       </div>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        🕐 {tr('Horas no teu fuso de trabalho')}
+        {myTz ? ` (${tzCity(myTz)})` : ''}.
+      </p>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '0 0 8px' }}>
         <div className="seg" role="radiogroup" aria-label={tr('Tipo de bloco')}>
           <button
@@ -5851,6 +5929,15 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
 }
 
 // ───────────────────────── Pediatrician: Profile + services ─────────────────────────
+/** Timezones the platform's doctors actually work from (PT + ES + AO). */
+const COMMON_TZS = [
+  'Europe/Lisbon',
+  'Atlantic/Azores',
+  'Atlantic/Madeira',
+  'Europe/Madrid',
+  'Africa/Luanda',
+];
+
 function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave: () => void }) {
   const { tr } = useT();
   const [me, setMe] = useState<PedMeDto | null>(null);
@@ -5859,12 +5946,14 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
   const [stype, setStype] = useState('MESSAGE');
   const [sprice, setSprice] = useState('18');
   const [ssla, setSsla] = useState('4');
+  const [tz, setTz] = useState('');
 
   async function load() {
     try {
       const m = await Api.me();
       setMe(m);
       setBio(m.bio ?? '');
+      setTz(m.timezone ?? '');
     } catch (e) {
       onMsg(`Erro a carregar perfil: ${String(e)}`);
     }
@@ -5879,6 +5968,21 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
     try {
       await Api.updateMe({ bio });
       onMsg(tr('Perfil atualizado ✓'));
+      await load();
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveTz(next?: string) {
+    const value = next ?? tz;
+    if (!value) return;
+    setBusy(true);
+    try {
+      await Api.updateMe({ timezone: value });
+      setTz(value);
+      onMsg(tr('Fuso horário atualizado ✓'));
       await load();
     } catch (e) {
       onMsg(`Erro: ${String(e)}`);
@@ -5935,6 +6039,52 @@ function PedProfileTab({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeave
         <button className="btn" onClick={saveBio} disabled={busy}>
           {tr('Guardar')}
         </button>
+      </div>
+      <div className="card section">
+        <h3>{tr('Fuso horário')}</h3>
+        <p className="muted" style={{ fontSize: 13 }}>
+          {tr('A agenda e o horário de mensagens seguem este fuso — as famílias veem as horas convertidas para o delas.')}
+        </p>
+        {(() => {
+          // The select always contains: the common zones, the saved zone (even
+          // if exotic), and the device zone when it isn't listed yet.
+          const dev = deviceTZ();
+          const options = [...COMMON_TZS];
+          if (tz && !options.includes(tz)) options.push(tz);
+          if (dev && !options.includes(dev)) options.push(dev);
+          return (
+            <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <select value={tz} onChange={(e) => setTz(e.target.value)}>
+                {!tz ? <option value="">—</option> : null}
+                {options.map((o) => (
+                  <option key={o} value={o}>
+                    {tzCity(o)} · {o}
+                    {o === dev && !COMMON_TZS.includes(o) ? ` (${tr('detetado no dispositivo')})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn small"
+                onClick={() => void saveTz()}
+                disabled={busy || !tz || tz === (me.timezone ?? '')}
+              >
+                {tr('Guardar')}
+              </button>
+            </div>
+          );
+        })()}
+        {me.timezone && me.timezone !== deviceTZ() ? (
+          <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
+            {tr('O teu dispositivo está em')} {tzCity(deviceTZ())}.{' '}
+            <button
+              className="btn secondary small"
+              onClick={() => void saveTz(deviceTZ())}
+              disabled={busy}
+            >
+              {tr('Usar este')}
+            </button>
+          </p>
+        ) : null}
       </div>
 
       <h3 style={{ marginTop: 20 }}>{tr('Serviços')}</h3>

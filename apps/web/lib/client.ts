@@ -269,6 +269,8 @@ export interface PedMeDto {
   status: string;
   licenseNumber?: string;
   stripeAccountId?: string | null;
+  /** IANA timezone the doctor's availability minutes are interpreted in. */
+  timezone?: string;
   services: ServiceDto[];
 }
 
@@ -413,7 +415,7 @@ export const Api = {
     return request(`/pediatricians/me/finance${qs ? `?${qs}` : ''}`) as Promise<FinanceDto>;
   },
   me: () => request('/pediatricians/me') as Promise<PedMeDto>,
-  updateMe: (data: Partial<{ bio: string; experienceYears: number; languages: string[]; specialties: string[] }>) =>
+  updateMe: (data: Partial<{ bio: string; experienceYears: number; languages: string[]; specialties: string[]; timezone: string }>) =>
     request('/pediatricians/me', { method: 'PATCH', body: JSON.stringify(data) }),
   addService: (data: { type: string; priceCents: number; slaHours: number; scopeText?: string }) =>
     request('/pediatricians/me/services', { method: 'POST', body: JSON.stringify(data) }),

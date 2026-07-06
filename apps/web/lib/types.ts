@@ -33,4 +33,6 @@ export interface PediatricianCard {
  *  "if you send now, expect a reply by…" preview (capped at the SLA). */
 export interface PediatricianDetail extends PediatricianCard {
   expectedReplyPreview?: string | null;
+  /** IANA timezone of the doctor's working hours (e.g. 'Europe/Lisbon'). */
+  timezone?: string;
 }
