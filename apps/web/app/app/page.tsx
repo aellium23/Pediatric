@@ -49,6 +49,7 @@ import {
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
+import { assess, type AssistResult } from '@/lib/assist';
 
 // LiveKit room is browser-only — load it without SSR.
 const VideoRoom = dynamic(() => import('./VideoRoom'), { ssr: false });
@@ -783,6 +784,8 @@ export default function MultiProfileApp() {
   // Cross-tab deep link: "open this consultation" (from Início, Avisos or a
   // just-created consultation) — consumed by MyConsultsTab/InboxTab on mount.
   const [focusConsult, setFocusConsult] = useState<string | null>(null);
+  // Specialty pre-selected by the Home assistant when routing to "Consultar".
+  const [consultSpec, setConsultSpec] = useState<string | undefined>(undefined);
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
   const [unread, setUnread] = useState(0);
@@ -979,11 +982,23 @@ export default function MultiProfileApp() {
               setMsg('');
               setTab(k);
             }}
+            onGoConsult={(spec) => {
+              setConsultSpec(spec);
+              setMsg('');
+              setTab('consult');
+            }}
             onOpenConsultation={openConsultation}
           />
         ) : null}
         {tab === 'children' ? <ChildrenTab onMsg={setMsg} /> : null}
-        {tab === 'consult' ? <ConsultTab onMsg={setMsg} onOpenConsultation={openConsultation} /> : null}
+        {tab === 'consult' ? (
+          <ConsultTab
+            onMsg={setMsg}
+            onOpenConsultation={openConsultation}
+            initialSpecialty={consultSpec}
+            onSpecialtyConsumed={() => setConsultSpec(undefined)}
+          />
+        ) : null}
         {tab === 'myconsults' ? (
           <MyConsultsTab
             onMsg={setMsg}
@@ -2342,190 +2357,225 @@ function Thread({
 // ───────────────────────── Parent: Início (home) ─────────────────────────
 /** Answers "what should I do now?": primary action, what's happening,
  *  the children, and a taste of Saber+ — no forms, no jargon. */
+// First-help copy per assistant topic — safe, general, NON-diagnostic. PT keys
+// are tr()-wrapped at render; every card also shows the shared disclaimer.
+const ASSIST_COPY: Record<string, string> = {
+  emergency:
+    'Se há sinais graves, não esperes. Liga já 112. Para aconselhamento imediato, liga SNS 24 (808 24 24 24).',
+  fever:
+    'Mantém a criança hidratada e vestida de forma leve e vigia a temperatura. Se a febre passar dos 3 dias, ou surgir prostração, dificuldade a respirar ou manchas na pele, procura ajuda com urgência.',
+  highfever:
+    'Febre há vários dias merece avaliação. Mantém a hidratação e vigia sinais de alarme. O melhor é falares com um pediatra ainda hoje.',
+  dehydration:
+    'Oferece líquidos em pequenas quantidades e com frequência. Se não urina há muitas horas, está muito prostrado ou sem lágrimas, procura ajuda hoje.',
+  persistentvomit:
+    'Oferece líquidos aos golos. Vómitos que não param, com sangue, ou sem urinar merecem avaliação hoje.',
+  severepain: 'Dor intensa merece avaliação. Um pediatra pode orientar-te ainda hoje.',
+  skin:
+    'Muitas erupções da pele são benignas. Evita coçar e mantém a pele limpa e hidratada. Um dermatologista pediátrico pode avaliar por vídeo ou mensagem.',
+  allergy:
+    'Sintomas de alergia (espirros, comichão, olhos a lacrimejar) aliviam evitando o desencadeante. Um alergologista ajuda a confirmar e tratar.',
+  respiratory:
+    'Tosse e pieira devem ser vigiadas. Se houver dificuldade a respirar, lábios azulados ou adejo nasal, é urgente. Caso contrário, um pneumologista pediátrico pode avaliar.',
+  digestive:
+    'Em queixas digestivas, mantém a hidratação e uma alimentação leve. Se houver sangue, vómitos persistentes ou dor intensa, procura ajuda. Um gastroenterologista pode orientar.',
+  neuro:
+    'Dores de cabeça frequentes merecem avaliação. Se forem súbitas e muito intensas, ou com vómitos e sonolência, procura ajuda urgente.',
+  cardiac:
+    'Sopros e palpitações devem ser avaliados por um cardiologista pediátrico. Se houver falta de ar ou lábios azulados, é urgente.',
+  newborn:
+    'Nos recém-nascidos, qualquer febre ou recusa alimentar merece avaliação rápida. Um neonatologista ou pediatra pode orientar-te.',
+  sleep:
+    'Rotinas de sono consistentes ajudam. Se o sono estiver muito perturbado, um pediatra pode aconselhar-te.',
+  cold:
+    'As constipações melhoram com repouso e hidratação. Vigia a febre e a respiração. Um pediatra ajuda se os sintomas persistirem.',
+  vaccine: 'Posso ajudar a esclarecer o plano de vacinas. Um pediatra confirma o que falta e quando.',
+  growth:
+    'Para dúvidas de crescimento, o registo de peso e altura ajuda. Vê as curvas na ficha da criança; um pediatra interpreta contigo.',
+  general:
+    'Conta-me um pouco mais — o que se passa e há quanto tempo. A partir daí encaminho-te para o pediatra certo.',
+};
+
+// Quick-start chips: label shown, fill submitted as if typed.
+const ASSIST_CHIPS: { label: string; fill: string }[] = [
+  { label: 'Febre', fill: 'Tem febre' },
+  { label: 'Erupção na pele', fill: 'Tem uma erupção na pele com comichão' },
+  { label: 'Tosse', fill: 'Está com tosse' },
+  { label: 'Dor de barriga', fill: 'Tem dor de barriga e vómitos' },
+  { label: 'Não dorme', fill: 'Não dorme bem à noite' },
+];
+
+// Parent Home — an AI-style assistant box ("Em que posso ajudar?"). Deliberately
+// minimal: the parent describes the problem in natural language, gets safe first
+// guidance + red-flag escalation, and is routed to the right pediatrician. All
+// other surfaces live in the bottom tab bar. Analysis is fully client-side
+// (lib/assist) so it works offline / without an AI key and nothing clinical
+// leaves the device until a consultation is actually started.
 function HomeTab({
   profile,
-  onMsg,
   onGo,
+  onGoConsult,
   onOpenConsultation,
 }: {
   profile: Profile;
   onMsg: (m: string) => void;
   onGo: (tab: string) => void;
+  onGoConsult: (specialty?: string) => void;
   onOpenConsultation: (id: string) => void;
 }) {
   const { tr } = useT();
-  const [children, setChildren] = useState<ChildDto[]>([]);
   const [consults, setConsults] = useState<ConsultationDto[]>([]);
   const [articles, setArticles] = useState<ArticleCard[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState('');
+  const [result, setResult] = useState<AssistResult | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [c, m, a] = await Promise.all([
-          Api.children().catch(() => [] as ChildDto[]),
-          Api.myConsultations().catch(() => [] as ConsultationDto[]),
-          Api.articles().catch(() => [] as ArticleCard[]),
-        ]);
-        setChildren(c);
-        setConsults(m);
-        setArticles(a.slice(0, 2));
-      } finally {
-        setLoading(false);
-      }
-    })();
+    Api.myConsultations().then(setConsults).catch(() => {});
+    Api.articles().then(setArticles).catch(() => {});
   }, []);
 
-  const now = Date.now();
-  const upcomingVideo = consults
-    .filter(
-      (c) =>
-        c.type === 'VIDEO' &&
-        c.scheduledAt &&
-        new Date(c.scheduledAt).getTime() > now - 30 * 60 * 1000 &&
-        !['CLOSED', 'REFUNDED', 'EXPIRED'].includes(c.status),
-    )
-    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())[0];
   const answered = consults.filter((c) => c.status === 'ANSWERED');
-
   const firstName = (profile.name || '').split(' ')[0];
-  const ageLabel = (birth: string) => {
-    const months = Math.floor((now - new Date(birth).getTime()) / (30.44 * 86_400_000));
-    return months < 24 ? `${months} m` : `${Math.floor(months / 12)} ${tr('anos')}`;
-  };
+
+  function ask(q: string) {
+    const t = q.trim();
+    if (!t) return;
+    setText(t);
+    setResult(assess(t));
+  }
+
+  const specName = result?.specialty ? tr(specLabel(result.specialty)) : tr('Pediatria geral');
+  const topicArticle = result
+    ? articles.find((a) => norm(`${a.title} ${a.category ?? ''}`).includes(norm(specName)))
+    : undefined;
 
   return (
     <div className="section">
-      <h2 style={{ marginBottom: 0 }}>{tr('Olá')}, {firstName} 👋</h2>
-      <p className="muted" style={{ marginTop: 2, textTransform: 'capitalize' }}>
-        {new Date().toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}
-      </p>
-
-      <button
-        className="card accent"
-        onClick={() => onGo('consult')}
-        style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left' }}
-      >
-        <strong style={{ fontSize: 17 }}>{tr('Falar com um pediatra')}</strong>
-        <span className="muted" style={{ display: 'block', marginTop: 2 }}>
-          {tr('Envia uma pergunta ou marca uma videoconsulta — resposta de um pediatra verificado.')}
-        </span>
-      </button>
-
-      {upcomingVideo ? (
-        <button
-          className="card"
-          onClick={() => onOpenConsultation(upcomingVideo.id)}
-          style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
-        >
-          <span className="pill">{tr('A seguir')}</span>
-          <strong style={{ display: 'block', marginTop: 6 }}>
-            {tr('Videoconsulta')}{upcomingVideo.child?.name ? ` · ${upcomingVideo.child.name}` : ''}
-          </strong>
-          <span className="muted">
-            {new Date(upcomingVideo.scheduledAt!).toLocaleString(appLocale(), {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}{' '}
-            · {tr('toca para abrir')}
-          </span>
-        </button>
-      ) : null}
-
       {answered.length > 0 ? (
         <button
           className="card"
           onClick={() => onOpenConsultation(answered[0].id)}
-          style={{ marginTop: 10, display: 'block', width: '100%', textAlign: 'left' }}
+          style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 12 }}
         >
           <span className="pill ok">{tr('Resposta nova')}</span>
           <strong style={{ display: 'block', marginTop: 6 }}>
-            {tr('O pediatra respondeu')}{answered[0].child?.name ? ` ${tr('sobre')} ${answered[0].child.name}` : ''}
+            {tr('O pediatra respondeu')}
+            {answered[0].child?.name ? ` ${tr('sobre')} ${answered[0].child.name}` : ''}
           </strong>
           <span className="muted">{tr('Toca para ler a resposta.')}</span>
         </button>
       ) : null}
 
-      <h3 style={{ marginTop: 18 }}>{tr('As crianças')}</h3>
-      {loading ? (
-        <Skeleton rows={1} />
-      ) : children.length === 0 ? (
-        <button
-          className="card"
-          onClick={() => onGo('children')}
-          style={{ display: 'block', width: '100%', textAlign: 'left' }}
-        >
-          <strong>{tr('Adicionar o meu filho')}</strong>
-          <span className="muted" style={{ display: 'block', marginTop: 2 }}>
-            {tr('Guarda vacinas, crescimento e consultas num só sítio, em segurança.')}
-          </span>
-        </button>
-      ) : (
-        <div className="row" style={{ flexWrap: 'wrap' }}>
-          {children.map((c) => (
-            <button
-              key={c.id}
-              className="chip"
-              onClick={() => onGo('children')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <ChildAvatar photoUrl={c.photoUrl} size={28} /> {c.name} · {ageLabel(c.birthDate)}
-            </button>
-          ))}
+      <div style={{ textAlign: 'center', marginTop: '6vh' }}>
+        <div className="muted" style={{ fontSize: 13 }}>{tr('Assistente HOC')}</div>
+        <h1 style={{ fontSize: 26, margin: '6px 0 4px', lineHeight: 1.2 }}>
+          {firstName ? `${tr('Olá')}, ${firstName}. ` : ''}
+          {tr('Em que posso ajudar?')}
+        </h1>
+        <p className="muted" style={{ margin: '0 auto 16px', maxWidth: 460 }}>
+          {tr('Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.')}
+        </p>
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); ask(text); }} style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div style={{ position: 'relative' }}>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                ask(text);
+              }
+            }}
+            placeholder={tr('Ex.: febre há 2 dias, 3 anos, e está muito queixoso')}
+            rows={2}
+            style={{ width: '100%', borderRadius: 16, padding: '14px 54px 14px 16px', resize: 'none', fontSize: 16 }}
+          />
+          <button
+            type="submit"
+            className="btn"
+            aria-label={tr('Perguntar')}
+            style={{ position: 'absolute', right: 8, bottom: 10, borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
+          >
+            →
+          </button>
         </div>
-      )}
+        {!result ? (
+          <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+            {ASSIST_CHIPS.map((c) => (
+              <button key={c.label} type="button" className="chip" onClick={() => ask(tr(c.fill))}>
+                {tr(c.label)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </form>
 
-      {consults.length ? (
-        <>
-          <h3 style={{ marginTop: 18 }}>{tr('Últimas consultas')}</h3>
-          {consults.slice(0, 3).map((c) => (
-            <button
-              key={c.id}
+      {result ? (
+        <div style={{ maxWidth: 560, margin: '16px auto 0' }}>
+          {result.severity === 'emergency' ? (
+            <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14' }}>
+              <strong style={{ fontSize: 16 }}>{tr('Isto pode ser urgente')}</strong>
+              <p style={{ margin: '6px 0 10px' }}>{tr(ASSIST_COPY.emergency)}</p>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <a
+                  className="btn"
+                  href="tel:112"
+                  style={{ background: '#c0392b', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+                >
+                  {tr('Ligar 112')}
+                </a>
+                <a
+                  className="btn secondary"
+                  href="tel:808242424"
+                  style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+                >
+                  {tr('Ligar SNS 24')}
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div
               className="card"
-              onClick={() => onOpenConsultation(c.id)}
-              style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8 }}
+              style={result.severity === 'caution' ? { borderColor: '#e9c46a', background: '#fdf4dd', color: '#3d2f00' } : undefined}
             >
-              <span className={statusPill(c.status)}>{tr(statusLabel(c.status))}</span>{' '}
-              <strong>{tr(svcLabel(c.type))}</strong>
-              {c.child?.name ? <span className="muted"> · {c.child.name}</span> : null}
-              <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
-                {new Date(c.openedAt).toLocaleDateString(appLocale(), {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}{' '}
-                · {tr('toca para rever')}
-              </span>
-            </button>
-          ))}
-          <button className="btn secondary small" onClick={() => onGo('myconsults')} style={{ marginTop: 8 }}>
-            {tr('Ver todas as consultas')}
+              <div className="muted" style={{ fontSize: 12, marginBottom: 2 }}>{tr('Primeira orientação')}</div>
+              <p style={{ margin: '0 0 10px' }}>{tr(ASSIST_COPY[result.topic] ?? ASSIST_COPY.general)}</p>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="btn" onClick={() => onGoConsult(result.specialty ?? undefined)}>
+                  {result.severity === 'caution' ? tr('Falar com um pediatra hoje') : tr('Falar com um pediatra')}
+                </button>
+                {result.specialty ? (
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    {tr('Sugestão:')} {specName}
+                  </span>
+                ) : null}
+              </div>
+              {topicArticle ? (
+                <button className="btn secondary small" onClick={() => onGo('content')} style={{ marginTop: 8 }}>
+                  {tr('Ler no Saber+')} · {topicArticle.title}
+                </button>
+              ) : null}
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 12, margin: '8px 4px 0' }}>
+            {tr('Isto é uma orientação geral e não substitui uma avaliação médica.')}
+          </p>
+          <button
+            className="btn secondary small"
+            onClick={() => { setResult(null); setText(''); }}
+            style={{ marginTop: 8 }}
+          >
+            {tr('Nova pergunta')}
           </button>
-        </>
+        </div>
       ) : null}
 
-      {articles.length ? (
-        <>
-          <h3 style={{ marginTop: 18 }}>{tr('Saber+')}</h3>
-          {articles.map((a) => (
-            <button
-              key={a.id}
-              className="card"
-              onClick={() => onGo('content')}
-              style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8 }}
-            >
-              <span className="badge">{a.category}</span>
-              <strong style={{ display: 'block', marginTop: 2 }}>{a.title}</strong>
-            </button>
-          ))}
-          <button className="btn secondary small" onClick={() => onGo('content')} style={{ marginTop: 8 }}>
-            {tr('Ver todos os conteúdos')}
-          </button>
-        </>
-      ) : null}
+      <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 24 }}>
+        {tr('Emergência?')} <a href="tel:112">112</a> · {tr('SNS 24')}{' '}
+        <a href="tel:808242424">808 24 24 24</a>
+      </p>
     </div>
   );
 }
@@ -3629,9 +3679,14 @@ function BoletimView({
 function ConsultTab({
   onMsg,
   onOpenConsultation,
+  initialSpecialty,
+  onSpecialtyConsumed,
 }: {
   onMsg: (m: string) => void;
   onOpenConsultation?: (id: string) => void;
+  // Pre-selected specialty when arriving from the Home assistant's routing.
+  initialSpecialty?: string;
+  onSpecialtyConsumed?: () => void;
 }) {
   const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
@@ -3645,7 +3700,7 @@ function ConsultTab({
   const [busy, setBusy] = useState(false);
   // filters — specialty is a tap-to-filter chip set (parents don't know
   // specialty names, so we show the ones that actually exist, translated).
-  const [fSpec, setFSpec] = useState('');
+  const [fSpec, setFSpec] = useState(initialSpecialty ?? '');
   const [allSpecs, setAllSpecs] = useState<string[]>([]);
   const [fMaxEuro, setFMaxEuro] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
@@ -3678,7 +3733,8 @@ function ConsultTab({
     }
   }
   useEffect(() => {
-    void load();
+    void load(initialSpecialty || undefined);
+    if (initialSpecialty) onSpecialtyConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -8722,6 +8778,51 @@ function FinanceEvolutionChart({ months }: { months: FinanceSeriesMonth[] }) {
   const totGross = months.reduce((s, m) => s + m.grossCents, 0);
   const totPlat = months.reduce((s, m) => s + m.platformCents, 0);
   const ticks = [0, niceMax / 2, niceMax];
+  const colW = plotW / months.length;
+  return (
+    <FinanceEvolutionChartView
+      w={w}
+      h={h}
+      padL={padL}
+      padR={padR}
+      padT={padT}
+      baseline={baseline}
+      colW={colW}
+      x={x}
+      y={y}
+      ticks={ticks}
+      fmt={fmt}
+      monthLabel={monthLabel}
+      barPath={barPath}
+      linePath={linePath}
+      months={months}
+      last={last}
+      totGross={totGross}
+      totPlat={totPlat}
+    />
+  );
+}
+
+// Presentational layer for FinanceEvolutionChart, with the same interactive
+// hover tooltip as the market chart. Split out so the hover useState lives
+// below the early "no billing yet" return.
+function FinanceEvolutionChartView(props: {
+  w: number; h: number; padL: number; padR: number; padT: number; baseline: number;
+  colW: number;
+  x: (i: number) => number; y: (v: number) => number;
+  ticks: number[]; fmt: (cents: number) => string; monthLabel: (m: string) => string;
+  barPath: (i: number, v: number) => string; linePath: string;
+  months: FinanceSeriesMonth[]; last: FinanceSeriesMonth; totGross: number; totPlat: number;
+}) {
+  const { tr } = useT();
+  const {
+    w, h, padL, padR, padT, baseline, colW, x, y, ticks, fmt, monthLabel,
+    barPath, linePath, months, last, totGross, totPlat,
+  } = props;
+  const [hover, setHover] = useState<number | null>(null);
+  const hv = hover != null ? months[hover] : null;
+  const leftPct = hover != null ? Math.min(86, Math.max(14, (x(hover) / w) * 100)) : 50;
+
   return (
     <div>
       <div className="row" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, marginBottom: 4 }}>
@@ -8740,57 +8841,135 @@ function FinanceEvolutionChart({ months }: { months: FinanceSeriesMonth[] }) {
           {tr('Comissão HOC')}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        width="100%"
-        role="img"
-        aria-label={`${tr('Evolução mensal: faturação bruta em barras e comissão HOC em linha.')} ${tr('Total bruto')} ${euro(totGross)} · ${tr('Comissão HOC')} ${euro(totPlat)}`}
-      >
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
-            <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
-              {fmt(t)}
+      <div style={{ position: 'relative' }}>
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          width="100%"
+          role="img"
+          aria-label={`${tr('Evolução mensal: faturação bruta em barras e comissão HOC em linha.')} ${tr('Total bruto')} ${euro(totGross)} · ${tr('Comissão HOC')} ${euro(totPlat)}`}
+          style={{ display: 'block' }}
+        >
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
+              <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
+                {fmt(t)}
+              </text>
+            </g>
+          ))}
+          {hover != null ? (
+            <line
+              x1={x(hover)}
+              x2={x(hover)}
+              y1={padT}
+              y2={baseline}
+              stroke="var(--brand-2)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+              opacity="0.5"
+            />
+          ) : null}
+          {months.map((m, i) => (
+            <g key={m.month}>
+              {m.grossCents > 0 ? (
+                <path
+                  d={barPath(i, m.grossCents)}
+                  fill="var(--brand-2)"
+                  opacity={hover == null || hover === i ? 1 : 0.4}
+                  style={{ transition: 'opacity .12s' }}
+                />
+              ) : null}
+              <text x={x(i)} y={h - 5} textAnchor="middle" fontSize="9" fill="var(--muted)">
+                {monthLabel(m.month)}
+              </text>
+            </g>
+          ))}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="var(--accent-press)"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {months.map((m, i) => (
+            <g key={m.month} aria-hidden="true">
+              <circle cx={x(i)} cy={y(m.platformCents)} r={hover === i ? 6.5 : 5.5} fill="var(--surface)" style={{ transition: 'r .12s' }} />
+              <circle cx={x(i)} cy={y(m.platformCents)} r={hover === i ? 5 : 4} fill="var(--accent-press)" style={{ transition: 'r .12s' }} />
+            </g>
+          ))}
+          {last.grossCents > 0 && hover == null ? (
+            <text
+              x={x(months.length - 1)}
+              y={y(last.grossCents) - 4}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--text-2)"
+            >
+              {fmt(last.grossCents)}
             </text>
-          </g>
-        ))}
-        {months.map((m, i) => (
-          <g key={m.month}>
-            <title>
-              {`${monthLabel(m.month)} · ${tr('Bruto')} ${euro(m.grossCents)} · ${tr('Comissão')} ${euro(m.platformCents)}${m.refundedCents ? ` · ${tr('Reembolsos')} ${euro(m.refundedCents)}` : ''}`}
-            </title>
-            {m.grossCents > 0 ? <path d={barPath(i, m.grossCents)} fill="var(--brand-2)" /> : null}
-            <text x={x(i)} y={h - 5} textAnchor="middle" fontSize="9" fill="var(--muted)">
-              {monthLabel(m.month)}
-            </text>
-          </g>
-        ))}
-        <path
-          d={linePath}
-          fill="none"
-          stroke="var(--accent-press)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        {months.map((m, i) => (
-          <g key={m.month} aria-hidden="true">
-            <circle cx={x(i)} cy={y(m.platformCents)} r="5.5" fill="var(--surface)" />
-            <circle cx={x(i)} cy={y(m.platformCents)} r="4" fill="var(--accent-press)" />
-          </g>
-        ))}
-        {last.grossCents > 0 ? (
-          <text
-            x={x(months.length - 1)}
-            y={y(last.grossCents) - 4}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--text-2)"
+          ) : null}
+          {months.map((m, i) => (
+            <rect
+              key={m.month}
+              x={x(i) - colW / 2}
+              y={padT}
+              width={colW}
+              height={baseline - padT}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover((cur) => (cur === i ? null : cur))}
+              style={{ cursor: 'pointer' }}
+            >
+              <title>
+                {`${monthLabel(m.month)} · ${tr('Bruto')} ${euro(m.grossCents)} · ${tr('Comissão')} ${euro(m.platformCents)}`}
+              </title>
+            </rect>
+          ))}
+        </svg>
+        {hv ? (
+          <div
+            role="status"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: `${leftPct}%`,
+              transform: 'translateX(-50%)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: '0 6px 20px rgba(0,0,0,.14)',
+              padding: '8px 10px',
+              pointerEvents: 'none',
+              zIndex: 3,
+              minWidth: 140,
+              fontSize: 12,
+            }}
           >
-            {fmt(last.grossCents)}
-          </text>
+            <div style={{ fontWeight: 700, marginBottom: 4, textTransform: 'capitalize' }}>{monthLabel(hv.month)}</div>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--brand-2)' }} />
+                {tr('Bruto')}
+              </span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{euro(hv.grossCents)}</strong>
+            </div>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden="true" style={{ width: 10, borderTop: '2px solid var(--accent-press)' }} />
+                {tr('Comissão')}
+              </span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{euro(hv.platformCents)}</strong>
+            </div>
+            {hv.refundedCents ? (
+              <div className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+                <span className="muted">{tr('Reembolsos')}</span>
+                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{euro(hv.refundedCents)}</strong>
+              </div>
+            ) : null}
+          </div>
         ) : null}
-      </svg>
+      </div>
     </div>
   );
 }
