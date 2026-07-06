@@ -1299,6 +1299,20 @@ button.card:active {
 .agcal-mbar.msg {
   background: var(--info);
 }
+/* Week header: mirrors the grid layout (axis spacer + 7 equal columns). */
+.agcal-head {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+}
+.agcal-axislbl {
+  flex: 0 0 40px;
+}
+@media (max-width: 540px) {
+  .agcal-axislbl {
+    flex-basis: 34px;
+  }
+}
 .agcal-daylbl {
   flex: 1 1 0;
   min-width: 0;
