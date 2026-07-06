@@ -76,8 +76,17 @@ export class PediatriciansController {
 
   @Get('me/finance')
   @Roles(Role.PEDIATRICIAN)
-  finance(@CurrentUser() user: AuthenticatedUser) {
-    return this.service.finance(user.userId);
+  finance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const parse = (s?: string) => {
+      if (!s) return undefined;
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+    return this.service.finance(user.userId, parse(from), parse(to));
   }
 
   @Post('me/services')

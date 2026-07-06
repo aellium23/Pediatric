@@ -91,4 +91,81 @@ describe('ContentService', () => {
       await expect(service.getPublished('nope')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+
+  describe('review workflow', () => {
+    it('pediatrician submitting goes to PENDING_REVIEW, never straight to published', async () => {
+      const { service, prisma } = build();
+      await service.create(author, { title: 'Sono', body: '...', published: true });
+      expect(prisma.article.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PENDING_REVIEW', published: false }),
+        }),
+      );
+    });
+
+    it('platform admin submitting publishes directly', async () => {
+      const { service, prisma } = build();
+      await service.create(admin, { title: 'Sono', body: '...', published: true });
+      expect(prisma.article.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PUBLISHED', published: true }),
+        }),
+      );
+    });
+
+    it('author editing a live article sends it back through review', async () => {
+      const { service, prisma } = build({
+        article: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'a1', authorUserId: 'u-author', status: 'PUBLISHED' }),
+          update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'a1', ...data })),
+        },
+      });
+      const res = await service.update(author, 'a1', { body: 'texto novo' });
+      expect(res.status).toBe('PENDING_REVIEW');
+      expect(res.published).toBe(false);
+      expect(prisma.article.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PENDING_REVIEW', published: false, reviewNote: null }),
+        }),
+      );
+    });
+
+    it('approve publishes and stamps the reviewer', async () => {
+      const { service, prisma } = build({
+        article: {
+          findUnique: jest.fn().mockResolvedValue({ id: 'a1', status: 'PENDING_REVIEW' }),
+          update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'a1', ...data })),
+        },
+      });
+      const res = await service.approve(admin, 'a1');
+      expect(res.status).toBe('PUBLISHED');
+      expect(res.published).toBe(true);
+      expect(prisma.article.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ reviewedById: 'u-admin' }),
+        }),
+      );
+    });
+
+    it('reject unpublishes and stores the note', async () => {
+      const { service } = build({
+        article: {
+          findUnique: jest.fn().mockResolvedValue({ id: 'a1', status: 'PENDING_REVIEW' }),
+          update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'a1', ...data })),
+        },
+      });
+      const res = await service.reject(admin, 'a1', 'Falta referenciar a fonte.');
+      expect(res.status).toBe('REJECTED');
+      expect(res.published).toBe(false);
+      expect(res.reviewNote).toBe('Falta referenciar a fonte.');
+    });
+
+    it('approve/reject throw for a missing article', async () => {
+      const { service } = build();
+      await expect(service.approve(admin, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.reject(admin, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

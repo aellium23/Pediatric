@@ -76,6 +76,59 @@ export class AdminService {
     };
   }
 
+  /**
+   * Monthly billing/commission series for the FINANCE evolution charts.
+   * Buckets by Payment.capturedAt (revenue recognition) and Refund.createdAt;
+   * months without movement still appear so charts have a continuous axis.
+   */
+  async financeSeries(months = 12) {
+    const take = Math.min(Math.max(Math.trunc(months) || 12, 1), 36);
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth() - (take - 1), 1);
+    const [captured, refunds] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { status: PaymentStatus.CAPTURED, capturedAt: { gte: from } },
+        select: {
+          capturedAt: true,
+          split: { select: { platformFeeCents: true, pediatricianAmount: true } },
+        },
+      }),
+      this.prisma.refund.findMany({
+        where: { createdAt: { gte: from } },
+        select: { createdAt: true, amountCents: true },
+      }),
+    ]);
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const series = new Map<
+      string,
+      { month: string; grossCents: number; platformCents: number; pediatricianCents: number; refundedCents: number; count: number }
+    >();
+    for (let i = 0; i < take; i++) {
+      const d = new Date(from.getFullYear(), from.getMonth() + i, 1);
+      series.set(key(d), {
+        month: key(d),
+        grossCents: 0,
+        platformCents: 0,
+        pediatricianCents: 0,
+        refundedCents: 0,
+        count: 0,
+      });
+    }
+    for (const p of captured) {
+      const b = p.capturedAt && series.get(key(p.capturedAt));
+      if (!b || !p.split) continue;
+      b.grossCents += p.split.platformFeeCents + p.split.pediatricianAmount;
+      b.platformCents += p.split.platformFeeCents;
+      b.pediatricianCents += p.split.pediatricianAmount;
+      b.count += 1;
+    }
+    for (const r of refunds) {
+      const b = series.get(key(r.createdAt));
+      if (b) b.refundedCents += r.amountCents;
+    }
+    return { months: [...series.values()], currency: 'EUR' };
+  }
+
   /** Verification queue: pediatricians filtered by status (default PENDING). */
   async listPediatricians(status?: PediatricianStatus) {
     return this.prisma.pediatrician.findMany({
@@ -207,6 +260,12 @@ class AdminController {
   @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE, Role.FINANCE)
   metrics() {
     return this.service.metrics();
+  }
+
+  @Get('finance/series')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  financeSeries(@Query('months') months?: string) {
+    return this.service.financeSeries(months ? Number(months) : 12);
   }
 
   @Get('pediatricians')

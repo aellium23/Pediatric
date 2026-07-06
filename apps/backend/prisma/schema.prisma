@@ -617,18 +617,32 @@ model Favorite {
 }
 
 // ── Content library (Phase J) ────────────────────────
+enum ArticleStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
 model Article {
-  id           String   @id @default(uuid())
-  slug         String   @unique
+  id           String        @id @default(uuid())
+  slug         String        @unique
   title        String
-  category     String   @default("geral")
+  category     String        @default("geral")
   body         String
   authorUserId String?
-  published    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // `published` remains the public-listing flag; `status` drives the
+  // editorial workflow (pediatrician submits → clinical/platform admin reviews).
+  published    Boolean       @default(false)
+  status       ArticleStatus @default(DRAFT)
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([published])
+  @@index([status])
 }
 
 // ── Doctor-to-doctor second opinion (referrals) ──────

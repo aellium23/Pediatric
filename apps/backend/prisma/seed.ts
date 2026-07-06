@@ -919,6 +919,224 @@ Procure ajuda se:
 • Vermelhidão que aumenta, quente e dolorosa, com pus ou febre (infeção da pele).
 • Picada de carraça: retire-a cedo, por completo, e vigie a pele e o estado geral nas semanas seguintes.`,
   },
+  // ───────────────── Novos conteúdos (2ª leva) ─────────────────
+  {
+    slug: 'convulsao-febril',
+    title: 'Convulsão febril: o que fazer',
+    category: 'Urgências',
+    body: `A convulsão febril acontece em 2 a 5% das crianças entre os 6 meses e os 5 anos, com a subida rápida da febre. Assusta muito, mas na maioria dos casos é breve e não deixa sequelas.
+
+Durante a crise:
+• Deite a criança de lado, num local seguro, e afaste objetos.
+• Não coloque nada na boca nem tente segurar os movimentos.
+• Cronometre a duração e, se possível, filme — ajuda o médico.
+
+Ligue 112 se:
+• Durar mais de 5 minutos ou repetir no mesmo dia.
+• A criança não recuperar a consciência, ficar com lábios azulados ou tiver dificuldade a respirar.
+• For a primeira convulsão da criança.
+
+Depois da crise, a criança deve ser sempre observada por um médico. Ter tido uma convulsão febril não significa epilepsia; cerca de 1 em 3 crianças pode repetir noutra febre.`,
+  },
+  {
+    slug: 'queimaduras-primeiros-socorros',
+    title: 'Queimaduras: primeiros socorros',
+    category: 'Urgências',
+    body: `As queimaduras em crianças acontecem sobretudo na cozinha e no banho — líquidos quentes são a causa mais comum.
+
+O que fazer de imediato:
+• Arrefeça com água corrente tépida durante 20 minutos (não use gelo, manteiga ou pasta de dentes).
+• Retire roupa e acessórios que não estejam colados à pele.
+• Cubra com pano limpo e húmido; não rebente bolhas.
+
+Procure ajuda urgente se:
+• A queimadura atingir a cara, mãos, pés, genitais ou articulações.
+• For maior do que a palma da mão da criança, profunda ou com bolhas extensas.
+• For por eletricidade ou químicos.
+• Houver febre ou sinais de infeção nos dias seguintes.
+
+Prevenção: cabos de panelas para dentro, água do banho a 37 ºC (teste com o cotovelo), bebidas quentes longe da borda da mesa.`,
+  },
+  {
+    slug: 'intoxicacoes-e-produtos-perigosos',
+    title: 'Intoxicações: prevenção e o que fazer',
+    category: 'Urgências',
+    body: `Medicamentos, produtos de limpeza e cápsulas de detergente são as causas mais frequentes de intoxicação em crianças pequenas.
+
+Se suspeitar de ingestão:
+• Ligue de imediato ao Centro de Informação Antivenenos (CIAV): 800 250 250 — 24h/dia.
+• Não provoque o vómito nem dê leite ou água sem indicação.
+• Guarde a embalagem do produto para mostrar/ler ao telefone.
+
+Ligue 112 se a criança estiver sonolenta, com dificuldade a respirar, convulsão ou vómitos persistentes.
+
+Prevenção:
+• Medicamentos e produtos de limpeza fechados à chave e fora do alcance — nunca em garrafas de água ou refrigerante.
+• Prefira embalagens com tampa de segurança.
+• Atenção redobrada em casa de avós e em férias.`,
+  },
+  {
+    slug: 'doenca-mao-pe-boca',
+    title: 'Doença mão-pé-boca',
+    category: 'Doenças comuns',
+    body: `Infeção viral muito comum em creches: pequenas aftas na boca e borbulhas nas mãos, pés e zona da fralda, por vezes com febre baixa. Melhora sozinha em 7 a 10 dias.
+
+Em casa:
+• Ofereça líquidos frescos e alimentos moles e frios (iogurte, puré) — as aftas doem.
+• Antipirético se houver desconforto, na dose ajustada ao peso.
+• Lave bem as mãos (a transmissão é fecal-oral e por gotículas).
+
+Sinais de alarme:
+• Recusa total de líquidos, boca seca, fraldas secas (desidratação).
+• Prostração, febre alta persistente.
+
+A criança pode voltar à creche quando estiver sem febre e as lesões estiverem a secar. As unhas podem descamar semanas depois — é benigno.`,
+  },
+  {
+    slug: 'escarlatina',
+    title: 'Escarlatina',
+    category: 'Doenças comuns',
+    body: `Infeção bacteriana (estreptococo do grupo A) típica da idade escolar: febre, dor de garganta e um exantema áspero como lixa, mais intenso nas pregas, por vezes com "língua de framboesa".
+
+O que saber:
+• Precisa de antibiótico receitado pelo médico — ao contrário da maioria das infeções da garganta, que são virais.
+• Com antibiótico, deixa de ser contagiosa em 24 horas e a criança pode voltar à escola quando estiver sem febre e bem.
+• Completar o antibiótico até ao fim, mesmo que melhore antes.
+
+Sinais de alarme:
+• Dificuldade a engolir ou a respirar, baba excessiva.
+• Prostração, vómitos persistentes, urina escura semanas depois.
+
+A descamação da pele (dedos, mãos) 1 a 2 semanas depois faz parte da doença.`,
+  },
+  {
+    slug: 'impetigo',
+    title: 'Impétigo (feridas com crostas)',
+    category: 'Pele',
+    body: `Infeção superficial da pele, frequente no verão e em idade pré-escolar: feridas com crosta cor de mel, à volta do nariz e da boca ou em picadas coçadas.
+
+O que fazer:
+• Consulte o pediatra — trata-se com pomada antibiótica (casos localizados) ou antibiótico oral.
+• Lave suavemente as crostas com água e sabão; unhas curtas.
+• Toalhas e fronhas individuais; lavar as mãos com frequência.
+
+Contágio: é contagioso por contacto até 24-48h de tratamento; a criança deve ficar em casa da creche/escola até as lesões estarem tratadas ou cobertas.
+
+Procure ajuda se: a vermelhidão alastrar rapidamente, houver febre, dor intensa ou a criança ficar prostrada.`,
+  },
+  {
+    slug: 'piolhos',
+    title: 'Piolhos: eliminar sem drama',
+    category: 'Prevenção',
+    body: `Os piolhos são um clássico da idade escolar — não são sinal de falta de higiene e não transmitem doenças.
+
+Como tratar:
+• Use um produto pediculicida adequado à idade (peça conselho ao farmacêutico) e repita ao fim de 7 a 9 dias.
+• Passe o pente fino no cabelo húmido com amaciador, madeixa a madeixa, de 3 em 3 dias durante 2 semanas.
+• Verifique todas as pessoas da casa; trate só quem tiver piolhos ou lêndeas vivas.
+
+Roupa de cama e bonés: lavar a 60 ºC ou fechar num saco 48 horas. Não é preciso desinfetar a casa.
+
+A criança pode ir à escola depois do primeiro tratamento. Avise a escola para que outras famílias verifiquem também.`,
+  },
+  {
+    slug: 'denticao-e-saude-oral',
+    title: 'Dentição e saúde oral',
+    category: 'Bebé',
+    body: `Os primeiros dentes nascem em média aos 6 meses (com grande variação). Podem causar irritabilidade, baba e gengivas inchadas — mas febre alta e diarreia NÃO são da dentição: procure outra causa.
+
+Para aliviar:
+• Mordedores frios (não congelados) e massagem da gengiva com dedo limpo.
+• Evite géis com anestésicos e colares de âmbar (risco sem benefício).
+
+Escovagem:
+• Desde o primeiro dente, 2× por dia, com pasta com flúor (1000-1500 ppm) do tamanho de um grão de arroz (até aos 3 anos) e depois de uma ervilha.
+• Os pais devem escovar/supervisionar até pelo menos aos 7-8 anos.
+• Primeira consulta de saúde oral no primeiro ano de vida; cheque digital dentista (SNS) em idades-chave.
+
+Evite açúcar antes dos 2 anos e nunca adoce a chupeta; o biberão noturno com leite ou sumo é a principal causa de cáries precoces.`,
+  },
+  {
+    slug: 'lavagem-nasal',
+    title: 'Nariz entupido: a lavagem nasal',
+    category: 'Bebé',
+    body: `Os bebés respiram sobretudo pelo nariz — quando está entupido, custa-lhes comer e dormir. A lavagem nasal com soro é o "medicamento" mais eficaz e seguro para a obstrução nasal.
+
+Como fazer:
+• Deite o bebé de lado (ou sentado, se for maior) e aplique soro fisiológico ou água do mar na narina de cima.
+• Antes das refeições e do sono, quantas vezes for preciso.
+• O aspirador nasal pode ajudar antes de mamar, sem exagerar (irrita a mucosa).
+
+É normal o bebé chorar durante a lavagem — não faz mal e o alívio compensa.
+
+Procure ajuda se: houver dificuldade a respirar (respiração rápida, afundamento das costelas), recusa alimentar persistente ou febre em bebé com menos de 3 meses.`,
+  },
+  {
+    slug: 'xixi-na-cama-enurese',
+    title: 'Xixi na cama (enurese)',
+    category: 'Desenvolvimento',
+    body: `Fazer xixi na cama é muito comum: aos 5 anos acontece a 1 em cada 6 crianças, e resolve-se quase sempre com o tempo. Não é preguiça nem má educação — o amadurecimento do controlo noturno varia muito.
+
+O que ajuda:
+• Nunca castigar nem envergonhar; a criança não controla.
+• Rotina de idas à casa de banho (incluindo antes de deitar) e reforço positivo.
+• Evitar grandes quantidades de líquidos e bebidas com gás/cafeína ao fim do dia.
+• Proteger o colchão e desdramatizar as noites molhadas.
+
+Fale com o pediatra se:
+• Persistir depois dos 6-7 anos e incomodar a criança (há tratamentos: alarmes, medicação).
+• A criança voltar a molhar a cama depois de meses seca, ou tiver também perdas de dia, dor a urinar ou muita sede (excluir causas médicas).`,
+  },
+  {
+    slug: 'ansiedade-e-bem-estar-emocional',
+    title: 'Ansiedade e bem-estar emocional',
+    category: 'Desenvolvimento',
+    body: `Medos e preocupações fazem parte do crescimento (escuro, separação, escola). A ansiedade merece atenção quando é intensa, dura semanas e interfere com o dia a dia — sono, escola, amigos, refeições.
+
+O que ajuda em casa:
+• Valide o que a criança sente ("percebo que isso te assusta") sem reforçar o evitamento.
+• Rotinas previsíveis, sono suficiente, exercício e tempo de brincadeira livre.
+• Limite as notícias e redes sociais; converse sobre o que vê online.
+• Seja modelo: mostre como lida com as suas próprias preocupações.
+
+Procure ajuda profissional se:
+• Recusa escolar persistente, queixas físicas repetidas sem causa (dores de barriga, cabeça).
+• Tristeza persistente, isolamento, alterações grandes de sono ou apetite.
+• Qualquer referência a fazer mal a si próprio — leve sempre a sério e procure ajuda de imediato.`,
+  },
+  {
+    slug: 'puberdade-o-que-esperar',
+    title: 'Puberdade: o que esperar',
+    category: 'Desenvolvimento',
+    body: `A puberdade começa em média entre os 8 e os 13 anos nas raparigas e entre os 9 e os 14 nos rapazes. Cada corpo tem o seu ritmo — comparações com colegas geram ansiedade desnecessária.
+
+O que é normal:
+• Estirão de crescimento, alterações de humor, necessidade de mais sono (e horários "de coruja").
+• Nas raparigas: desenvolvimento mamário primeiro; a primeira menstruação surge cerca de 2 anos depois.
+• Nos rapazes: aumento testicular primeiro; mudança de voz e "esticão" mais tardios.
+
+Converse cedo e com naturalidade — vale mais várias conversas pequenas do que "a grande conversa". Livros adequados à idade ajudam.
+
+Fale com o pediatra se: sinais de puberdade antes dos 8 anos (raparigas) / 9 anos (rapazes), ausência de sinais depois dos 13/14, ou se o desenvolvimento parar de progredir.`,
+  },
+  {
+    slug: 'viajar-com-criancas',
+    title: 'Viajar com crianças: guia prático',
+    category: 'Prevenção',
+    body: `Com alguma preparação, viajar com crianças corre bem em qualquer idade.
+
+Antes de partir:
+• Verifique o boletim de vacinas; para destinos tropicais, consulte uma consulta do viajante 4-6 semanas antes.
+• Leve a medicação habitual na bagagem de mão, com receita, e um pequeno kit: antipirético, soro fisiológico, sais de reidratação, pensos, termómetro.
+• Seguro de viagem e Cartão Europeu de Seguro de Doença (na UE).
+
+Durante a viagem:
+• Avião: mamar/chupeta na descolagem e aterragem alivia os ouvidos.
+• Carro: cadeira adequada ao peso/idade sempre, mesmo em trajetos curtos; pausas a cada 2 horas.
+• Calor: sombra, chapéu, protetor solar e água com frequência; nunca deixar a criança no carro.
+
+No destino: atenção à água e alimentos crus em países de risco; a diarreia do viajante trata-se sobretudo com reidratação.`,
+  },
 ];
 
 async function main(): Promise<void> {
@@ -1245,8 +1463,8 @@ async function main(): Promise<void> {
   for (const a of ARTICLES) {
     await prisma.article.upsert({
       where: { slug: a.slug },
-      update: { title: a.title, body: a.body, category: a.category, published: true },
-      create: { ...a, published: true, authorUserId: inesUser ?? marta.id },
+      update: { title: a.title, body: a.body, category: a.category, published: true, status: 'PUBLISHED' },
+      create: { ...a, published: true, status: 'PUBLISHED', authorUserId: inesUser ?? marta.id },
     });
   }
 

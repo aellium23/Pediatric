@@ -171,11 +171,30 @@ export class PediatriciansService {
     return { onboardingUrl: url };
   }
 
-  /** Financial dashboard: net earnings, commission paid, counts. */
-  async finance(userId: string) {
+  /**
+   * Financial dashboard: net earnings, commission paid, counts.
+   * Optional [from, to) window (on Payment.capturedAt) powers the period
+   * filters; the per-consultation statement is what an accountant asks for.
+   */
+  async finance(userId: string, from?: Date, to?: Date) {
     const ped = await this.getMe(userId);
+    const window =
+      from || to
+        ? { capturedAt: { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } }
+        : {};
     const splits = await this.prisma.split.findMany({
-      where: { payment: { consultation: { pediatricianId: ped.id } } },
+      where: { payment: { consultation: { pediatricianId: ped.id }, ...window } },
+      include: {
+        payment: {
+          select: {
+            capturedAt: true,
+            consultationId: true,
+            consultation: { select: { type: true } },
+          },
+        },
+      },
+      orderBy: { payment: { capturedAt: 'desc' } },
+      take: 500,
     });
     const netCents = splits.reduce((s, x) => s + x.pediatricianAmount, 0);
     const commissionCents = splits.reduce((s, x) => s + x.platformFeeCents, 0);
@@ -189,6 +208,15 @@ export class PediatriciansService {
       commissionCents,
       commissionInvoices: invoices,
       currency: 'EUR',
+      // No family/child names here on purpose — the statement is financial.
+      statement: splits.map((x) => ({
+        consultationId: x.payment.consultationId,
+        type: x.payment.consultation.type,
+        capturedAt: x.payment.capturedAt,
+        grossCents: x.platformFeeCents + x.pediatricianAmount,
+        feeCents: x.platformFeeCents,
+        netCents: x.pediatricianAmount,
+      })),
     };
   }
 
