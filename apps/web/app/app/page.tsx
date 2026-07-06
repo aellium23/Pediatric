@@ -5361,14 +5361,23 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const isMsg = (a: AvailabilityDto) => (a.kind ?? 'VIDEO') === 'MESSAGES';
   const kindLabel = (a: AvailabilityDto) => (isMsg(a) ? `💬 ${tr('Mensagens')}` : `🎥 ${tr('Vídeo')}`);
 
-  /** Effective blocks for a UTC day: dated blocks override the weekly template. */
-  function effective(t: number): { blocks: AvailabilityDto[]; dated: boolean } {
+  /**
+   * Effective blocks for a UTC day. The dated-override rule is applied PER
+   * KIND (matching the backend): a dated video block replaces only the video
+   * template that day — the message windows keep their own template.
+   * Whether a block is recurring is intrinsic: `!a.date`.
+   */
+  function effective(t: number): { blocks: AvailabilityDto[] } {
     const key = isoDay(t);
-    const byStart = (a: AvailabilityDto, b: AvailabilityDto) => a.startMinute - b.startMinute;
-    const dated = rows.filter((r) => r.date && r.date.slice(0, 10) === key);
-    if (dated.length) return { blocks: dated.sort(byStart), dated: true };
     const wd = new Date(t).getUTCDay();
-    return { blocks: rows.filter((r) => !r.date && r.weekday === wd).sort(byStart), dated: false };
+    const pick = (msg: boolean) => {
+      const dated = rows.filter((r) => isMsg(r) === msg && r.date && r.date.slice(0, 10) === key);
+      if (dated.length) return dated;
+      return rows.filter((r) => isMsg(r) === msg && !r.date && r.weekday === wd);
+    };
+    return {
+      blocks: [...pick(false), ...pick(true)].sort((a, b) => a.startMinute - b.startMinute),
+    };
   }
   function openQuickAdd(t: number, s: number, e: number) {
     setQa(t);
@@ -5496,7 +5505,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               >
                 <span className="num">{new Date(t).getUTCDate()}</span>
                 {eff.blocks.slice(0, 3).map((b) => (
-                  <span key={b.id} className={`agcal-mbar${eff.dated ? '' : ' tmpl'}${isMsg(b) ? ' msg' : ''}`} />
+                  <span key={b.id} className={`agcal-mbar${b.date ? '' : ' tmpl'}${isMsg(b) ? ' msg' : ''}`} />
                 ))}
                 {eff.blocks.length > 3 ? <span className="agcal-mmore">+{eff.blocks.length - 3}</span> : null}
               </button>
@@ -5538,28 +5547,39 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                       onClick={() => openQuickAdd(t, h * 60, (h + 1) * 60)}
                     />
                   ))}
-                  {eff.blocks.map((a) => {
-                    const s = Math.max(a.startMinute, AGC_START_H * 60);
-                    const e = Math.min(a.endMinute, AGC_END_H * 60);
-                    if (e <= s) return null;
-                    const isSel = sel?.id === a.id && sel.t === t;
-                    return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        className={`agcal-block${eff.dated ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
-                        style={{
-                          top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
-                          height: `${((e - s) / AGC_SPAN) * 100}%`,
-                        }}
-                        aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)} · ${isMsg(a) ? tr('Mensagens') : tr('Vídeo')}${eff.dated ? '' : ` · ${tr('recorrente')}`}`}
-                        onClick={() => setSel(isSel ? null : { id: a.id, t })}
-                      >
-                        {isMsg(a) ? '💬 ' : ''}{hhmm(a.startMinute)}
-                        {!eff.dated ? <span className="agcal-rec">{tr('recorrente')}</span> : null}
-                      </button>
-                    );
-                  })}
+                  {(() => {
+                    // Video and message blocks often share the same hours —
+                    // give each kind its own lane so labels never overlap.
+                    const lanes =
+                      eff.blocks.some((b) => isMsg(b)) && eff.blocks.some((b) => !isMsg(b));
+                    return eff.blocks.map((a) => {
+                      const s = Math.max(a.startMinute, AGC_START_H * 60);
+                      const e = Math.min(a.endMinute, AGC_END_H * 60);
+                      if (e <= s) return null;
+                      const isSel = sel?.id === a.id && sel.t === t;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          className={`agcal-block${a.date ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
+                          style={{
+                            top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
+                            height: `${((e - s) / AGC_SPAN) * 100}%`,
+                            ...(lanes
+                              ? isMsg(a)
+                                ? { left: '52%', right: 2 }
+                                : { left: 2, right: '52%' }
+                              : {}),
+                          }}
+                          aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)} · ${isMsg(a) ? tr('Mensagens') : tr('Vídeo')}${a.date ? '' : ` · ${tr('recorrente')}`}`}
+                          onClick={() => setSel(isSel ? null : { id: a.id, t })}
+                        >
+                          {isMsg(a) ? '💬 ' : ''}{hhmm(a.startMinute)}
+                          {!a.date ? <span className="agcal-rec">{tr('recorrente')}</span> : null}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               );
             })}
@@ -5583,7 +5603,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                   <button
                     key={a.id}
                     type="button"
-                    className={`card agcal-daycard${dayEff.dated ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
+                    className={`card agcal-daycard${a.date ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
                     onClick={() => setSel(isSel ? null : { id: a.id, t: cursor })}
                   >
                     <strong>
@@ -5591,7 +5611,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                     </strong>{' '}
                     {kindLabel(a)}
                     <div className="muted">
-                      {dayEff.dated ? tr('Dia específico') : tr('recorrente')}
+                      {a.date ? tr('Dia específico') : tr('recorrente')}
                       {isMsg(a) ? '' : ` · ${tr('slots')} ${a.slotMinutes} min`}
                     </div>
                   </button>
