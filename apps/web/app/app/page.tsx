@@ -788,6 +788,7 @@ export default function MultiProfileApp() {
   // routing to "Consultar" (so the parent doesn't re-type what they described).
   const [consultSpec, setConsultSpec] = useState<string | undefined>(undefined);
   const [consultPrefill, setConsultPrefill] = useState<string | undefined>(undefined);
+  const [consultChild, setConsultChild] = useState<string | undefined>(undefined);
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
   const [unread, setUnread] = useState(0);
@@ -984,9 +985,10 @@ export default function MultiProfileApp() {
               setMsg('');
               setTab(k);
             }}
-            onGoConsult={(spec, prefill) => {
+            onGoConsult={(spec, prefill, cid) => {
               setConsultSpec(spec);
               setConsultPrefill(prefill);
+              setConsultChild(cid);
               setMsg('');
               setTab('consult');
             }}
@@ -1000,9 +1002,11 @@ export default function MultiProfileApp() {
             onOpenConsultation={openConsultation}
             initialSpecialty={consultSpec}
             initialQuestion={consultPrefill}
+            initialChildId={consultChild}
             onSpecialtyConsumed={() => {
               setConsultSpec(undefined);
               setConsultPrefill(undefined);
+              setConsultChild(undefined);
             }}
           />
         ) : null}
@@ -2442,11 +2446,13 @@ function HomeTab({
   profile: Profile;
   onMsg: (m: string) => void;
   onGo: (tab: string) => void;
-  onGoConsult: (specialty?: string, prefill?: string) => void;
+  onGoConsult: (specialty?: string, prefill?: string, childId?: string) => void;
   onOpenConsultation: (id: string) => void;
 }) {
   const { tr } = useT();
   const [consults, setConsults] = useState<ConsultationDto[]>([]);
+  const [children, setChildren] = useState<ChildDto[]>([]);
+  const [childId, setChildId] = useState('');
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -2466,6 +2472,13 @@ function HomeTab({
 
   useEffect(() => {
     Api.myConsultations().then(setConsults).catch(() => {});
+    Api.children()
+      .then((cs) => {
+        setChildren(cs);
+        // With a single child there's nothing to ask — select it automatically.
+        if (cs.length === 1) setChildId(cs[0].id);
+      })
+      .catch(() => {});
     try {
       setReadAnswers(JSON.parse(localStorage.getItem('pedia_read_answers') || '{}'));
     } catch {
@@ -2542,6 +2555,16 @@ function HomeTab({
   const started = msgs.length > 0;
   const prefill = msgs.filter((m) => m.role === 'user').map((m) => m.text).join('. ');
 
+  const childAge = (birth?: string) => {
+    if (!birth) return '';
+    const months = Math.floor((Date.now() - new Date(birth).getTime()) / (30.44 * 86_400_000));
+    return months < 24 ? `${months} ${tr('meses')}` : `${Math.floor(months / 12)} ${tr('anos')}`;
+  };
+  const selectedChild = children.find((c) => c.id === childId) || null;
+  const childCtx = selectedChild
+    ? `${selectedChild.name}${selectedChild.birthDate ? `, ${childAge(selectedChild.birthDate)}` : ''}`
+    : undefined;
+
   function send(raw: string) {
     const t = raw.trim();
     if (!t || busy) return;
@@ -2562,7 +2585,7 @@ function HomeTab({
     setBusy(true);
     const seq = ++askSeq.current;
     const fallback = tr(ASSIST_COPY[det.topic] ?? ASSIST_COPY.general);
-    Api.aiAssistChat(history, nextSpec ? tr(specLabel(nextSpec)) : undefined)
+    Api.aiAssistChat(history, nextSpec ? tr(specLabel(nextSpec)) : undefined, childCtx)
       .then((res) => {
         if (askSeq.current !== seq) return;
         const text = (res.text || '').trim();
@@ -2594,18 +2617,18 @@ function HomeTab({
   async function goToConsult() {
     if (routing) return;
     if (!msgs.length) {
-      onGoConsult(spec ?? undefined, undefined);
+      onGoConsult(spec ?? undefined, undefined, childId || undefined);
       return;
     }
     setRouting(true);
     let handover = prefill;
     try {
-      const res = await Api.aiAssistSummary(msgs);
+      const res = await Api.aiAssistSummary(msgs, childCtx);
       if (res.text && res.text.trim()) handover = res.text.trim();
     } catch {
       /* keep the raw messages */
     }
-    onGoConsult(spec ?? undefined, handover);
+    onGoConsult(spec ?? undefined, handover, childId || undefined);
   }
 
   return (
@@ -2729,6 +2752,28 @@ function HomeTab({
             </div>
           ) : null}
           <div ref={endRef} />
+        </div>
+      ) : null}
+
+      {/* Which child? Only asked when there's more than one — a single child is
+          selected automatically. */}
+      {children.length > 1 ? (
+        <div style={{ maxWidth: 640, margin: '14px auto 0' }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>{tr('Sobre qual criança?')}</div>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+            {children.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={`chip${childId === c.id ? ' active' : ''}`}
+                aria-pressed={childId === c.id}
+                onClick={() => setChildId(c.id)}
+                style={{ flex: '0 0 auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <ChildAvatar photoUrl={c.photoUrl} size={22} /> {c.name}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -3983,21 +4028,23 @@ function ConsultTab({
   onOpenConsultation,
   initialSpecialty,
   initialQuestion,
+  initialChildId,
   onSpecialtyConsumed,
 }: {
   onMsg: (m: string) => void;
   onOpenConsultation?: (id: string) => void;
-  // Pre-selected specialty + pre-filled question when arriving from the Home
-  // assistant's routing (so the parent doesn't re-type what they described).
+  // Pre-selected specialty + pre-filled question + child when arriving from the
+  // Home assistant's routing (so the parent doesn't re-type what they described).
   initialSpecialty?: string;
   initialQuestion?: string;
+  initialChildId?: string;
   onSpecialtyConsumed?: () => void;
 }) {
   const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [peds, setPeds] = useState<PediatricianCard[]>([]);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
-  const [child, setChild] = useState('');
+  const [child, setChild] = useState(initialChildId ?? '');
   const [booking, setBooking] = useState<PediatricianCard | null>(null);
   const [detail, setDetail] = useState<PediatricianCard | null>(null);
   const [triageFor, setTriageFor] = useState<PediatricianCard | null>(null);

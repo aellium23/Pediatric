@@ -127,6 +127,7 @@ export class AiService {
   async assistChat(input: {
     messages: { role: string; text: string }[];
     specialty?: string | null;
+    child?: string | null;
   }): Promise<string> {
     const raw = Array.isArray(input.messages) ? input.messages : [];
     const msgs = raw
@@ -138,6 +139,7 @@ export class AiService {
       }));
     if (!this.enabled || !msgs.length || msgs[msgs.length - 1].role !== 'user') return '';
     let system = AiService.ASSIST_CHAT_SYSTEM;
+    if (input.child) system += ` A criança em questão é: ${String(input.child).slice(0, 120)}.`;
     if (input.specialty) system += ` A especialidade sugerida até agora é: ${input.specialty}.`;
     return this.callRaw(system, msgs, 400);
   }
@@ -147,13 +149,19 @@ export class AiService {
    * parent sends to the pediatrician. Returns '' in demo mode (no key) so the
    * client falls back to the parent's raw messages.
    */
-  async summarizeForHandover(messages: { role: string; text: string }[]): Promise<string> {
+  async summarizeForHandover(
+    messages: { role: string; text: string }[],
+    child?: string | null,
+  ): Promise<string> {
     const raw = Array.isArray(messages) ? messages : [];
     const turns = raw.filter((m) => m && typeof m.text === 'string' && m.text.trim()).slice(-16);
     if (!this.enabled || !turns.length) return '';
-    const transcript = turns
-      .map((m) => `${m.role === 'assistant' ? 'Assistente' : 'Pai/Mãe'}: ${m.text.trim().slice(0, 1000)}`)
-      .join('\n');
+    const header = child ? `Criança: ${String(child).slice(0, 120)}\n` : '';
+    const transcript =
+      header +
+      turns
+        .map((m) => `${m.role === 'assistant' ? 'Assistente' : 'Pai/Mãe'}: ${m.text.trim().slice(0, 1000)}`)
+        .join('\n');
     return this.callMessages(AiService.SUMMARY_SYSTEM, transcript, 300);
   }
 
@@ -252,6 +260,12 @@ class AssistChatDto {
   @IsString()
   @MaxLength(80)
   specialty?: string;
+
+  @ApiProperty({ required: false, description: 'Child context (name, age)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  child?: string;
 }
 
 @ApiTags('ai')
@@ -289,7 +303,7 @@ class AiController {
   @Post('assist-summary')
   @Roles(Role.PARENT)
   async assistSummary(@Body() dto: AssistChatDto): Promise<{ text: string }> {
-    const text = await this.ai.summarizeForHandover(dto.messages);
+    const text = await this.ai.summarizeForHandover(dto.messages, dto.child);
     return { text };
   }
 }

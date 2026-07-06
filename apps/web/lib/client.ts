@@ -477,16 +477,20 @@ export const Api = {
       body: JSON.stringify({ message, baseGuidance, specialty }),
     }) as Promise<{ text: string }>,
   // Multi-turn Home assistant. Returns { text: '' } in demo mode (no AI key).
-  aiAssistChat: (messages: { role: 'user' | 'assistant'; text: string }[], specialty?: string) =>
+  aiAssistChat: (
+    messages: { role: 'user' | 'assistant'; text: string }[],
+    specialty?: string,
+    child?: string,
+  ) =>
     request('/ai/assist-chat', {
       method: 'POST',
-      body: JSON.stringify({ messages, specialty }),
+      body: JSON.stringify({ messages, specialty, child }),
     }) as Promise<{ text: string }>,
   // Summarize the assistant conversation as handover for the pediatrician.
-  aiAssistSummary: (messages: { role: 'user' | 'assistant'; text: string }[]) =>
+  aiAssistSummary: (messages: { role: 'user' | 'assistant'; text: string }[], child?: string) =>
     request('/ai/assist-summary', {
       method: 'POST',
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, child }),
     }) as Promise<{ text: string }>,
 
   // Pediatrician

@@ -10,6 +10,7 @@
  */
 export const TR: Record<'en' | 'es', Record<string, string>> = {
   en: {
+    "Sobre qual criança?": "About which child?",
     "Ditar por voz": "Dictate by voice",
     "A ouvir… fala e depois toca em ■ para parar.": "Listening… speak, then tap ■ to stop.",
     "Resposta lida": "Reply read",
@@ -1068,6 +1069,7 @@ export const TR: Record<'en' | 'es', Record<string, string>> = {
     "Ainda sem atividade neste período — o gráfico aparece com as primeiras consultas.": "No activity in this period yet — the chart appears with the first consultations.",
   },
   es: {
+    "Sobre qual criança?": "¿Sobre qué niño?",
     "Ditar por voz": "Dictar por voz",
     "A ouvir… fala e depois toca em ■ para parar.": "Escuchando… habla y luego toca ■ para parar.",
     "Resposta lida": "Respuesta leída",
