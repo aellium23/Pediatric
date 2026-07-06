@@ -3540,6 +3540,28 @@ function PedDetail({
           ),
         )}
       </div>
+      {/* Honest reply expectation for the async (message) service: aspiration
+          inside message hours, the weekly windows, and the refund guarantee. */}
+      {(() => {
+        const msgSvc = ped.services.find((s) => s.type === 'MESSAGE');
+        if (!msgSvc) return null;
+        const winSum = messageWindowsSummary(ped.messageWindows, tr);
+        return (
+          <div className="muted" style={{ fontSize: 13, marginTop: 8, display: 'grid', gap: 2 }}>
+            {msgSvc.targetHours ? (
+              <span>
+                💬 {tr('Responde em')} ~{msgSvc.targetHours}h {tr('em horário de mensagens')}
+                {winSum ? ` · ${winSum}` : ''}
+              </span>
+            ) : winSum ? (
+              <span>💬 {winSum}</span>
+            ) : null}
+            <span>
+              ✅ {tr('Garantia')}: {msgSvc.slaHours}h {tr('ou reembolso')}
+            </span>
+          </div>
+        );
+      })()}
 
       <h3 style={{ marginTop: 18 }}>{tr('Avaliações')}</h3>
       {reviews.length === 0 ? (

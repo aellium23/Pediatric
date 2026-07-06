@@ -1297,6 +1297,13 @@ button.card:active {
 .agcal-mbar.tmpl {
   background: repeating-linear-gradient(45deg, var(--border-strong) 0 3px, transparent 3px 6px);
 }
+/* MESSAGES blocks (message hours) — blue/info, vs gold for video. */
+.agcal-mbar.msg {
+  background: var(--info);
+}
+.agcal-mbar.msg.tmpl {
+  background: repeating-linear-gradient(45deg, var(--info) 0 3px, transparent 3px 6px);
+}
 .agcal-mmore {
   font-size: 10px;
   color: var(--muted);
@@ -1389,6 +1396,18 @@ button.card:active {
   background: transparent;
   opacity: 0.7;
 }
+.agcal-block.msg {
+  border-color: var(--info);
+  background: var(--info-bg);
+}
+.agcal-block.msg.tmpl {
+  background: transparent;
+}
+.agcal-block.msg.selected {
+  background: var(--info);
+  border-color: var(--info);
+  color: var(--surface);
+}
 .agcal-rec {
   display: block;
   font-size: 8px;
@@ -1412,6 +1431,13 @@ button.card:active {
 .agcal-daycard.selected {
   background: var(--accent-tint);
   border-color: var(--accent);
+}
+.agcal-daycard.msg {
+  border-color: var(--info);
+}
+.agcal-daycard.msg.selected {
+  background: var(--info-bg);
+  border-color: var(--info);
 }
 .agcal-tmplsec {
   margin-top: 14px;
