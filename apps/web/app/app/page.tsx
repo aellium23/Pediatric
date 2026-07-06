@@ -41,7 +41,7 @@ import {
   type ChildTimeline,
   type TimelineEvent,
 } from '@/lib/client';
-import type { PediatricianCard } from '@/lib/types';
+import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
 
@@ -155,6 +155,52 @@ function availabilityLabel(days?: number[]): string | null {
   }
   return sorted.map((d) => WEEKDAYS[d]).join(' · ');
 }
+/** "9h" / "9h30" — compact hour label for message-window summaries. */
+function fmtHourShort(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+}
+/**
+ * Compact weekly summary of message windows, e.g. "seg–sex 9h–19h". Groups
+ * weekdays (Monday-first) that share the exact same time range and compresses
+ * consecutive runs of 3+ days into "first–last"; otherwise lists the days.
+ * `t` translates the weekday abbreviations (WEEKDAYS keys are in the dicts).
+ */
+function messageWindowsSummary(windows: MessageWindow[] | undefined, t: (s: string) => string): string | null {
+  if (!windows || windows.length === 0) return null;
+  const MON_FIRST = [1, 2, 3, 4, 5, 6, 0];
+  const day = (i: number) => t(WEEKDAYS[MON_FIRST[i]]).toLowerCase();
+  const byRange = new Map<string, number[]>(); // "start-end" → Monday-first indexes
+  for (const w of windows) {
+    const k = `${w.startMinute}-${w.endMinute}`;
+    const idx = MON_FIRST.indexOf(w.weekday);
+    if (idx < 0) continue;
+    const arr = byRange.get(k) ?? [];
+    if (!arr.includes(idx)) arr.push(idx);
+    byRange.set(k, arr);
+  }
+  const parts: { first: number; text: string }[] = [];
+  for (const [k, idxs] of byRange) {
+    idxs.sort((a, b) => a - b);
+    const runs: number[][] = [];
+    for (const i of idxs) {
+      const last = runs[runs.length - 1];
+      if (last && i === last[last.length - 1] + 1) last.push(i);
+      else runs.push([i]);
+    }
+    const days = runs
+      .map((r) => (r.length >= 3 ? `${day(r[0])}–${day(r[r.length - 1])}` : r.map(day).join(', ')))
+      .join(', ');
+    const [s, e] = k.split('-').map(Number);
+    parts.push({ first: idxs[0], text: `${days} ${fmtHourShort(s)}–${fmtHourShort(e)}` });
+  }
+  return parts
+    .sort((a, b) => a.first - b.first)
+    .map((p) => p.text)
+    .join(' · ');
+}
+
 /** Group list rows for scanability: months in the current year, whole years
  *  before ("julho", "junho", …, "2025"). Rows must arrive newest-first. */
 function groupByPeriod<T>(rows: T[], dateOf: (r: T) => string): { label: string; items: T[] }[] {
@@ -368,6 +414,38 @@ async function downscalePhoto(file: File): Promise<string> {
   ctx.drawImage(img, 0, 0, w, h);
   let out = canvas.toDataURL('image/jpeg', 0.82);
   if (out.length > 250_000) out = canvas.toDataURL('image/jpeg', 0.6);
+  return out;
+}
+
+/**
+ * Chat photo downscale — clinical detail matters (rashes, lesions), so keep a
+ * much larger long edge than avatar photos: ≤1280px, JPEG q0.8, re-encoded at
+ * q0.6 if the data URL still exceeds ~500k chars (API payload limit).
+ */
+async function downscaleClinicalPhoto(file: File): Promise<string> {
+  const raw: string = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('read-failed'));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('decode-failed'));
+    im.src = raw;
+  });
+  const scale = Math.min(1, 1280 / Math.max(img.width, img.height, 1));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas-unavailable');
+  ctx.drawImage(img, 0, 0, w, h);
+  let out = canvas.toDataURL('image/jpeg', 0.8);
+  if (out.length > 500_000) out = canvas.toDataURL('image/jpeg', 0.6);
   return out;
 }
 
@@ -4808,9 +4886,11 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('13:00');
   const [repeat, setRepeat] = useState(1);
+  const [kind, setKind] = useState<'VIDEO' | 'MESSAGES'>('VIDEO'); // quick-add block kind
   const [twd, setTwd] = useState(1); // legacy weekly-template form
   const [tStart, setTStart] = useState('09:00');
   const [tEnd, setTEnd] = useState('13:00');
+  const [tKind, setTKind] = useState<'VIDEO' | 'MESSAGES'>('VIDEO');
   const [busy, setBusy] = useState(false);
   const today = utcToday();
 
@@ -4826,7 +4906,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function add(data: { date?: string; repeatWeeks?: number; weekday?: number; startMinute: number; endMinute: number }) {
+  async function add(data: { date?: string; repeatWeeks?: number; weekday?: number; startMinute: number; endMinute: number; kind?: 'VIDEO' | 'MESSAGES' }) {
     setBusy(true);
     try {
       await Api.addAvailability({ ...data, slotMinutes: 20 });
@@ -4851,6 +4931,10 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
       setBusy(false);
     }
   }
+
+  /** Rows default to VIDEO — older backends may omit the kind entirely. */
+  const isMsg = (a: AvailabilityDto) => (a.kind ?? 'VIDEO') === 'MESSAGES';
+  const kindLabel = (a: AvailabilityDto) => (isMsg(a) ? `💬 ${tr('Mensagens')}` : `🎥 ${tr('Vídeo')}`);
 
   /** Effective blocks for a UTC day: dated blocks override the weekly template. */
   function effective(t: number): { blocks: AvailabilityDto[]; dated: boolean } {
@@ -4907,8 +4991,10 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
       <div className="card" style={{ marginTop: 10 }}>
         <strong>{fmtUTC(sel.t, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> ·{' '}
         {hhmm(selRow.startMinute)}–{hhmm(selRow.endMinute)}
+        <div style={{ marginTop: 2 }}>{kindLabel(selRow)}</div>
         <div className="muted">
-          {selRow.date ? tr('Dia específico') : tr('Recorrente (semana-tipo)')} · {tr('slots')} {selRow.slotMinutes} min
+          {selRow.date ? tr('Dia específico') : tr('Recorrente (semana-tipo)')}
+          {isMsg(selRow) ? '' : ` · ${tr('slots')} ${selRow.slotMinutes} min`}
         </div>
         {!selRow.date ? (
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
@@ -4950,6 +5036,9 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
         </div>
         <strong className="agcal-period">{period}</strong>
       </div>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        {tr('Dourado = vídeo · Azul = mensagens')}
+      </p>
 
       {rows.length === 0 && qa === null ? (
         <div className="card" style={{ margin: '8px 0' }}>
@@ -4982,7 +5071,7 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
               >
                 <span className="num">{new Date(t).getUTCDate()}</span>
                 {eff.blocks.slice(0, 3).map((b) => (
-                  <span key={b.id} className={`agcal-mbar${eff.dated ? '' : ' tmpl'}`} />
+                  <span key={b.id} className={`agcal-mbar${eff.dated ? '' : ' tmpl'}${isMsg(b) ? ' msg' : ''}`} />
                 ))}
                 {eff.blocks.length > 3 ? <span className="agcal-mmore">+{eff.blocks.length - 3}</span> : null}
               </button>
@@ -5033,15 +5122,15 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                       <button
                         key={a.id}
                         type="button"
-                        className={`agcal-block${eff.dated ? '' : ' tmpl'}${isSel ? ' selected' : ''}`}
+                        className={`agcal-block${eff.dated ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
                         style={{
                           top: `${((s - AGC_START_H * 60) / AGC_SPAN) * 100}%`,
                           height: `${((e - s) / AGC_SPAN) * 100}%`,
                         }}
-                        aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)}${eff.dated ? '' : ` · ${tr('recorrente')}`}`}
+                        aria-label={`${dLbl} ${hhmm(a.startMinute)}–${hhmm(a.endMinute)} · ${isMsg(a) ? tr('Mensagens') : tr('Vídeo')}${eff.dated ? '' : ` · ${tr('recorrente')}`}`}
                         onClick={() => setSel(isSel ? null : { id: a.id, t })}
                       >
-                        {hhmm(a.startMinute)}
+                        {isMsg(a) ? '💬 ' : ''}{hhmm(a.startMinute)}
                         {!eff.dated ? <span className="agcal-rec">{tr('recorrente')}</span> : null}
                       </button>
                     );
@@ -5069,14 +5158,16 @@ function AgendaTab({ onMsg }: { onMsg: (m: string) => void }) {
                   <button
                     key={a.id}
                     type="button"
-                    className={`card agcal-daycard${dayEff.dated ? '' : ' tmpl'}${isSel ? ' selected' : ''}`}
+                    className={`card agcal-daycard${dayEff.dated ? '' : ' tmpl'}${isMsg(a) ? ' msg' : ''}${isSel ? ' selected' : ''}`}
                     onClick={() => setSel(isSel ? null : { id: a.id, t: cursor })}
                   >
                     <strong>
                       {hhmm(a.startMinute)}–{hhmm(a.endMinute)}
-                    </strong>
+                    </strong>{' '}
+                    {kindLabel(a)}
                     <div className="muted">
-                      {dayEff.dated ? tr('Dia específico') : tr('recorrente')} · {tr('slots')} {a.slotMinutes} min
+                      {dayEff.dated ? tr('Dia específico') : tr('recorrente')}
+                      {isMsg(a) ? '' : ` · ${tr('slots')} ${a.slotMinutes} min`}
                     </div>
                   </button>
                 );

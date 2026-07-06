@@ -206,8 +206,11 @@ export interface ConsultationDto {
   currency: string;
   openedAt: string;
   slaDueAt: string | null;
+  /** Honest reply expectation persisted at open (message windows + target); null for video. */
+  expectedReplyAt?: string | null;
   answeredAt: string | null;
   closedAt: string | null;
+  pediatricianId?: string;
   episodeId?: string | null;
   childId?: string | null;
   scheduledAt?: string | null;
@@ -220,6 +223,8 @@ export interface MessageDto {
   id: string;
   senderUserId: string;
   body: string;
+  /** Decrypted data-URL images (up to 3) attached to the message. */
+  attachments?: string[];
   aiGenerated: boolean;
   createdAt: string;
 }
@@ -273,6 +278,8 @@ export interface AvailabilityDto {
   startMinute: number;
   endMinute: number;
   slotMinutes: number;
+  /** VIDEO blocks generate bookable slots; MESSAGES blocks are "message hours". */
+  kind?: 'VIDEO' | 'MESSAGES';
   /** ISO datetime (midnight UTC) for a concrete dated block; null/absent = weekly-template block. */
   date?: string | null;
 }
@@ -332,6 +339,9 @@ export const Api = {
     return request(`/pediatricians${qs ? `?${qs}` : ''}`) as Promise<unknown[]>;
   },
   favorites: () => request('/pediatricians/favorites') as Promise<unknown[]>,
+  // Public doctor detail — adds messageWindows + expectedReplyPreview (cast to
+  // PediatricianDetail at the call site, like the marketplace list).
+  pedDetail: (id: string) => request(`/pediatricians/${id}`) as Promise<unknown>,
   addFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'POST' }),
   removeFavorite: (id: string) => request(`/pediatricians/${id}/favorite`, { method: 'DELETE' }),
   startConsultation: (data: {
@@ -363,8 +373,14 @@ export const Api = {
 
   // Shared (parent + pediatrician)
   messages: (id: string) => request(`/consultations/${id}/messages`) as Promise<MessageDto[]>,
-  sendMessage: (id: string, body: string) =>
-    request(`/consultations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  sendMessage: (id: string, body: string, attachments?: string[]) =>
+    request(`/consultations/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        body: body || undefined, // optional when attachments are present
+        attachments: attachments && attachments.length ? attachments : undefined,
+      }),
+    }),
   videoToken: (consultationId: string) =>
     request(`/video/${consultationId}/token`) as Promise<{
       token: string;
@@ -433,6 +449,7 @@ export const Api = {
     startMinute: number;
     endMinute: number;
     slotMinutes?: number;
+    kind?: 'VIDEO' | 'MESSAGES'; // default VIDEO (bookable slots) — MESSAGES = message hours
   }) =>
     request('/scheduling/availability', { method: 'POST', body: JSON.stringify(data) }),
   deleteAvailability: (id: string) =>
