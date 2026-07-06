@@ -173,6 +173,10 @@ model Pediatrician {
   status           PediatricianStatus   @default(PENDING)
   ratingAvg        Float                @default(0)
   region           String? // service region (e.g. Lisboa, Madeira, Açores) — for coverage
+  // IANA timezone name (e.g. Europe/Lisbon, Atlantic/Azores). Availability
+  // minutes (startMinute/endMinute) are wall-clock times in THIS timezone and
+  // are converted to UTC instants at slot-generation / reply-estimate time.
+  timezone         String               @default("Europe/Lisbon")
   stripeAccountId  String?
   createdAt        DateTime             @default(now())
 

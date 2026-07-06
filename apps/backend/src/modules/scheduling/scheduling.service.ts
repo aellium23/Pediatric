@@ -17,6 +17,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { PaymentsService } from '../payments/payments.service';
 import { SetAvailabilityDto, BookVideoDto } from './dto/scheduling.dto';
+import { localISODay, utcDayWindowLocal, wallClockToUTC } from './wall-clock';
 
 @Injectable()
 export class SchedulingService {
@@ -79,28 +80,45 @@ export class SchedulingService {
     return { deleted: true };
   }
 
-  /** Computes free slots for a pediatrician on a given UTC date. */
+  /**
+   * Computes free slots for a pediatrician on a given CALENDAR day in the
+   * pediatrician's own timezone. Availability minutes are wall-clock in that
+   * timezone; the returned slots are UTC instants (ISO strings).
+   */
   async slots(pediatricianId: string, dateStr: string): Promise<string[]> {
-    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
-    if (Number.isNaN(dayStart.getTime())) throw new BadRequestException('Data inválida.');
-    const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
-    const weekday = dayStart.getUTCDay();
+    // Midnight-UTC of the ISO day is still the storage key for dated blocks
+    // (convention unchanged — Availability.date is a date-only key).
+    const dayKey = new Date(`${dateStr}T00:00:00.000Z`);
+    if (Number.isNaN(dayKey.getTime())) throw new BadRequestException('Data inválida.');
+    const ped = await this.prisma.pediatrician.findUnique({
+      where: { id: pediatricianId },
+      select: { timezone: true },
+    });
+    const tz = ped?.timezone ?? 'Europe/Lisbon';
+    // Weekday of the LOCAL calendar day. Using the ISO date's UTC weekday is
+    // exact here: a calendar day's weekday is a property of the date itself,
+    // not of any timezone (2026-07-06 is a Monday in Lisbon, the Azores and
+    // Luanda alike). No tz math needed.
+    const weekday = dayKey.getUTCDay();
 
     // Only VIDEO blocks generate bookable slots. Dated blocks override the
     // weekly template for that day; the template only applies on days
     // without any dated block.
     const dated = await this.prisma.availability.findMany({
-      where: { pediatricianId, kind: AvailabilityKind.VIDEO, date: dayStart },
+      where: { pediatricianId, kind: AvailabilityKind.VIDEO, date: dayKey },
     });
     const blocks = dated.length
       ? dated
       : await this.prisma.availability.findMany({
           where: { pediatricianId, kind: AvailabilityKind.VIDEO, weekday, date: null },
         });
+    // Clash window = the UTC span of the LOCAL calendar day (local midnight to
+    // next local midnight), since slot instants live inside that span.
+    const { start: winStart, end: winEnd } = utcDayWindowLocal(dateStr, tz);
     const booked = await this.prisma.videoSession.findMany({
       where: {
         consultation: { pediatricianId },
-        scheduledAt: { gte: dayStart, lt: dayEnd },
+        scheduledAt: { gte: winStart, lt: winEnd },
       },
       select: { scheduledAt: true },
     });
@@ -110,8 +128,8 @@ export class SchedulingService {
     const out: string[] = [];
     for (const b of blocks) {
       for (let m = b.startMinute; m + b.slotMinutes <= b.endMinute; m += b.slotMinutes) {
-        const start = new Date(dayStart.getTime() + m * 60 * 1000);
-        if (start.getTime() > now && !taken.has(start.getTime())) {
+        const start = wallClockToUTC(dateStr, m, tz);
+        if (start && start.getTime() > now && !taken.has(start.getTime())) {
           out.push(start.toISOString());
         }
       }
@@ -166,13 +184,17 @@ export class SchedulingService {
 
     const service = await this.prisma.pediatricianService.findFirstOrThrow({
       where: { id: dto.serviceId, active: true, type: ServiceType.VIDEO },
+      include: { pediatrician: { select: { timezone: true } } },
     });
     const scheduledAt = new Date(dto.scheduledAt);
     if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
       throw new BadRequestException('A data/hora agendada tem de ser um momento futuro válido.');
     }
     // The slot must still be free and inside the pediatrician's availability.
-    const free = await this.slots(service.pediatricianId, scheduledAt.toISOString().slice(0, 10));
+    // slots() takes a calendar day in the PEDIATRICIAN's timezone, so derive
+    // the local day of the instant (its UTC date can differ near midnight).
+    const tz = service.pediatrician?.timezone ?? 'Europe/Lisbon';
+    const free = await this.slots(service.pediatricianId, localISODay(scheduledAt, tz));
     if (!free.includes(scheduledAt.toISOString())) {
       throw new BadRequestException('Esse horário já não está disponível. Escolhe outro.');
     }

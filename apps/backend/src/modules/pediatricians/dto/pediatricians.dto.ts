@@ -61,6 +61,14 @@ export class UpdateProfileDto {
   @IsArray()
   specialties?: string[];
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) region?: string;
+  // IANA timezone name (e.g. Europe/Lisbon, Atlantic/Azores) — availability
+  // minutes are wall-clock in this timezone. Semantic validation (does Intl
+  // know it?) happens in the service via isValidTimeZone.
+  @ApiPropertyOptional({ example: 'Europe/Lisbon' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
 }
 
 export class CreateServiceDto {

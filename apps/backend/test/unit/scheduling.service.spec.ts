@@ -2,8 +2,16 @@ import { BadRequestException } from '@nestjs/common';
 import { ConsentSubject } from '@prisma/client';
 import { SchedulingService } from '../../src/modules/scheduling/scheduling.service';
 
-function build(blocks: any[], booked: any[] = []) {
+// slots() now resolves the pediatrician's timezone (availability minutes are
+// wall-clock in it). Mocking timezone 'UTC' keeps the historical expectations
+// valid: under UTC, wall-clock minutes are UTC minutes.
+function pediatricianMock(timezone = 'UTC') {
+  return { findUnique: jest.fn().mockResolvedValue({ timezone }) };
+}
+
+function build(blocks: any[], booked: any[] = [], timezone = 'UTC') {
   const prisma: any = {
+    pediatrician: pediatricianMock(timezone),
     availability: { findMany: jest.fn().mockResolvedValue(blocks) },
     videoSession: { findMany: jest.fn().mockResolvedValue(booked) },
   };
@@ -42,6 +50,37 @@ describe('SchedulingService.slots', () => {
   });
 });
 
+describe('SchedulingService.slots — pediatrician timezone', () => {
+  it('a Lisbon pediatrician in July (WEST, UTC+1) yields instants 60min before the wall-clock minute', async () => {
+    // Block 09:00–10:00 LOCAL (Lisbon summer) → 08:00Z–09:00Z instants.
+    const service = build(
+      [{ startMinute: 540, endMinute: 600, slotMinutes: 20 }],
+      [],
+      'Europe/Lisbon',
+    );
+    const slots = await service.slots('p1', '2999-07-15');
+    expect(slots).toEqual([
+      '2999-07-15T08:00:00.000Z',
+      '2999-07-15T08:20:00.000Z',
+      '2999-07-15T08:40:00.000Z',
+    ]);
+  });
+
+  it('queries booked clashes over the LOCAL day window, not the UTC day', async () => {
+    const service = build(
+      [{ startMinute: 540, endMinute: 600, slotMinutes: 20 }],
+      [],
+      'Europe/Lisbon',
+    );
+    await service.slots('p1', '2999-07-15');
+    const where = ((service as any).prisma.videoSession.findMany as jest.Mock).mock.calls[0][0]
+      .where;
+    // Local midnight 2999-07-15 in Lisbon summer = 2999-07-14T23:00Z.
+    expect(where.scheduledAt.gte.toISOString()).toBe('2999-07-14T23:00:00.000Z');
+    expect(where.scheduledAt.lt.toISOString()).toBe('2999-07-15T23:00:00.000Z');
+  });
+});
+
 describe('SchedulingService.nextSlots', () => {
   it('returns only upcoming days that have free slots', async () => {
     // Availability on every weekday → the two future days always yield slots;
@@ -71,6 +110,7 @@ describe('SchedulingService.slots — dated blocks override the weekly template'
       // 1st call: dated blocks for the day
       .mockResolvedValueOnce([{ startMinute: 600, endMinute: 640, slotMinutes: 20 }]);
     const prisma: any = {
+      pediatrician: pediatricianMock(),
       availability: { findMany },
       videoSession: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -88,6 +128,7 @@ describe('SchedulingService.slots — dated blocks override the weekly template'
       .mockResolvedValueOnce([]) // no dated blocks
       .mockResolvedValueOnce([{ startMinute: 600, endMinute: 640, slotMinutes: 20 }]);
     const prisma: any = {
+      pediatrician: pediatricianMock(),
       availability: { findMany },
       videoSession: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -164,10 +205,18 @@ describe('SchedulingService.book — health-data consent', () => {
       child: { findUnique: jest.fn().mockResolvedValue({ id: 'ch1', familyId: 'f1' }) },
       familyMember: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
       consent: { findFirst: jest.fn().mockResolvedValue(existingHealthConsent) },
+      pediatrician: pediatricianMock(),
       pediatricianService: {
         findFirstOrThrow: jest
           .fn()
-          .mockResolvedValue({ id: 's1', pediatricianId: 'p1', priceCents: 4500, currency: 'EUR', scopeText: null }),
+          .mockResolvedValue({
+            id: 's1',
+            pediatricianId: 'p1',
+            priceCents: 4500,
+            currency: 'EUR',
+            scopeText: null,
+            pediatrician: { timezone: 'UTC' },
+          }),
       },
       availability: { findMany: jest.fn().mockResolvedValue(availability) },
       consultation: { create: jest.fn().mockResolvedValue({ id: 'c1' }) },

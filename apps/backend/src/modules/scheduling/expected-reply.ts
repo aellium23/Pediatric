@@ -8,14 +8,21 @@
  * target, or null when the pediatrician has no message windows at all (the
  * caller falls back to the wall-clock SLA).
  *
- * Pure function — callers pass the pediatrician's availability rows.
+ * Availability minutes are WALL-CLOCK times in the pediatrician's timezone
+ * (`tz`, IANA name): the iteration walks LOCAL calendar days starting from
+ * the local day of `from`, and each window's bounds are converted to UTC
+ * instants with wallClockToUTC.
+ *
+ * Pure function — callers pass the pediatrician's availability rows + tz.
  */
+import { localISODay, wallClockToUTC } from './wall-clock';
+
 export interface AvailabilityRow {
   kind: string; // 'VIDEO' | 'MESSAGES'
-  weekday: number; // 0=Sunday .. 6=Saturday (UTC)
+  weekday: number; // 0=Sunday .. 6=Saturday (of the local calendar day)
   startMinute: number;
   endMinute: number;
-  date: Date | null; // midnight UTC when dated; null = weekly template
+  date: Date | null; // midnight-UTC day key when dated; null = weekly template
 }
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -25,6 +32,7 @@ export function computeExpectedReplyAt(
   rows: AvailabilityRow[],
   targetHours: number,
   from: Date,
+  tz: string,
 ): Date | null {
   const windows = rows.filter((r) => r.kind === 'MESSAGES');
   if (!windows.length) return null;
@@ -43,19 +51,18 @@ export function computeExpectedReplyAt(
   let remainingMs = Math.max(targetHours, 0) * 3600 * 1000;
   if (remainingMs === 0) return from;
 
-  const dayStart0 = Date.UTC(
-    from.getUTCFullYear(),
-    from.getUTCMonth(),
-    from.getUTCDate(),
-  );
+  // Local calendar day of `from` in the pediatrician's timezone; subsequent
+  // days advance the ISO date itself (calendar arithmetic, no offsets).
+  const day0 = Date.parse(`${localISODay(from, tz)}T00:00:00.000Z`);
   for (let i = 0; i < HORIZON_DAYS; i++) {
-    const dayStart = dayStart0 + i * DAY_MS;
-    const day = new Date(dayStart);
+    const day = new Date(day0 + i * DAY_MS);
     const key = day.toISOString().slice(0, 10);
+    // A calendar day's weekday is timezone-independent, so the ISO date's
+    // UTC weekday IS the local weekday.
     const blocks = dated.get(key) ?? weekly.get(day.getUTCDay()) ?? [];
     for (const b of [...blocks].sort((a, z) => a.startMinute - z.startMinute)) {
-      const winStart = dayStart + b.startMinute * 60_000;
-      const winEnd = dayStart + b.endMinute * 60_000;
+      const winStart = wallClockToUTC(key, b.startMinute, tz)!.getTime();
+      const winEnd = wallClockToUTC(key, b.endMinute, tz)!.getTime();
       const start = Math.max(winStart, from.getTime());
       if (winEnd <= start) continue;
       const span = winEnd - start;

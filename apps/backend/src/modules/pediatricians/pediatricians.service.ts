@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AvailabilityKind, PediatricianStatus, Prisma, ServiceType } from '@prisma/client';
 import { computeExpectedReplyAt } from '../scheduling/expected-reply';
+import { isValidTimeZone } from '../scheduling/wall-clock';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../payments/stripe.service';
 import {
@@ -127,6 +129,9 @@ export class PediatriciansService {
         specialties: true,
         region: true,
         ratingAvg: true,
+        // Public: lets the web hint that slots/windows are wall-clock in the
+        // pediatrician's timezone ("hora de Lisboa").
+        timezone: true,
         services: {
           where: { active: true },
           select: {
@@ -154,7 +159,12 @@ export class PediatriciansService {
         where: { pediatricianId: ped.id },
         select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
       });
-      expectedReplyPreview = computeExpectedReplyAt(rows, msgService.targetHours, new Date());
+      expectedReplyPreview = computeExpectedReplyAt(
+        rows,
+        msgService.targetHours,
+        new Date(),
+        ped.timezone,
+      );
       const cap = new Date(Date.now() + msgService.slaHours * 3600 * 1000);
       if (!expectedReplyPreview || expectedReplyPreview > cap) expectedReplyPreview = cap;
     }
@@ -177,6 +187,9 @@ export class PediatriciansService {
 
   async updateMe(userId: string, dto: UpdateProfileDto) {
     const ped = await this.getMe(userId);
+    if (dto.timezone != null && !isValidTimeZone(dto.timezone)) {
+      throw new BadRequestException('Fuso horário inválido.');
+    }
     return this.prisma.pediatrician.update({
       where: { id: ped.id },
       data: {
@@ -185,6 +198,7 @@ export class PediatriciansService {
         languages: dto.languages,
         specialties: dto.specialties,
         region: dto.region,
+        timezone: dto.timezone,
       },
     });
   }

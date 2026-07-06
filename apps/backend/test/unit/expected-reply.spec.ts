@@ -12,25 +12,28 @@ const WEEKDAYS_9_19: AvailabilityRow[] = [1, 2, 3, 4, 5].map((weekday) => ({
   date: null,
 }));
 
+// All cases pass tz = 'UTC': under UTC, wall-clock minutes ARE UTC minutes,
+// so the pre-timezone expectations below stay valid verbatim. The
+// timezone-sensitive conversion itself is covered by wall-clock.spec.ts.
 describe('computeExpectedReplyAt', () => {
   it('returns null when the pediatrician has no message windows', () => {
     const videoOnly: AvailabilityRow[] = [
       { kind: 'VIDEO', weekday: 1, startMinute: 540, endMinute: 1140, date: null },
     ];
-    expect(computeExpectedReplyAt(videoOnly, 4, new Date('2999-01-06T03:00:00.000Z'))).toBeNull();
+    expect(computeExpectedReplyAt(videoOnly, 4, new Date('2999-01-06T03:00:00.000Z'), 'UTC')).toBeNull();
   });
 
   it('03:00 on a Wednesday with Mon–Fri 9h–19h windows → same day 13:00 (the worked example)', () => {
     // 2999-01-09 is a Wednesday (UTC).
     const from = new Date('2999-01-09T03:00:00.000Z');
     expect(new Date('2999-01-09').getUTCDay()).toBe(3);
-    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from);
+    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from, 'UTC');
     expect(out?.toISOString()).toBe('2999-01-09T13:00:00.000Z');
   });
 
   it('inside a window, the target counts from now', () => {
     const from = new Date('2999-01-09T10:00:00.000Z'); // Wed 10:00
-    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from);
+    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from, 'UTC');
     expect(out?.toISOString()).toBe('2999-01-09T14:00:00.000Z');
   });
 
@@ -38,7 +41,7 @@ describe('computeExpectedReplyAt', () => {
     // 2999-01-11 is Friday; 18:00 + 4h target → 1h left Friday, 3h Monday.
     const from = new Date('2999-01-11T18:00:00.000Z');
     expect(new Date('2999-01-11').getUTCDay()).toBe(5);
-    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from);
+    const out = computeExpectedReplyAt(WEEKDAYS_9_19, 4, from, 'UTC');
     expect(out?.toISOString()).toBe('2999-01-14T12:00:00.000Z'); // Mon 09:00 + 3h
   });
 
@@ -54,7 +57,7 @@ describe('computeExpectedReplyAt', () => {
         date: new Date('2999-01-09T00:00:00.000Z'),
       },
     ];
-    const out = computeExpectedReplyAt(rows, 4, new Date('2999-01-09T03:00:00.000Z'));
+    const out = computeExpectedReplyAt(rows, 4, new Date('2999-01-09T03:00:00.000Z'), 'UTC');
     // 2h Wed (14–16) + 2h Thu (from 09:00) → Thu 11:00.
     expect(out?.toISOString()).toBe('2999-01-10T11:00:00.000Z');
   });
@@ -64,6 +67,6 @@ describe('computeExpectedReplyAt', () => {
       { kind: 'MESSAGES', weekday: 1, startMinute: 540, endMinute: 550, date: null },
     ];
     // 10 min/week — 40h target unreachable in 28 days.
-    expect(computeExpectedReplyAt(tiny, 40, new Date('2999-01-06T03:00:00.000Z'))).toBeNull();
+    expect(computeExpectedReplyAt(tiny, 40, new Date('2999-01-06T03:00:00.000Z'), 'UTC')).toBeNull();
   });
 });

@@ -69,10 +69,15 @@ const PEDS: PedSpec[] = [
   { email: 'joaom@demo.pedia', name: 'Dr. João Mendes', license: 'OM-20099', region: 'Porto', specialties: ['neurology'], languages: ['pt', 'en'], experienceYears: 16, rating: 4.9, bio: 'Neurologia pediátrica (convulsões, desenvolvimento). Porto.', band: NIGHT, days: ALLWEEK },
 ];
 
+// Açores demo pediatricians live one hour behind the mainland — their
+// availability bands are wall-clock in Atlantic/Azores.
+const AZORES_EMAILS = new Set(['sofiap@demo.pedia', 'pedro@demo.pedia']);
+
 async function seedPediatricians() {
   const byEmail: Record<string, { pedId: string; userId: string }> = {};
   for (const p of PEDS) {
     const user = await upsertUser(p.email, Role.PEDIATRICIAN, { mfaEnabled: true });
+    const timezone = AZORES_EMAILS.has(p.email) ? 'Atlantic/Azores' : 'Europe/Lisbon';
     const ped = await prisma.pediatrician.upsert({
       where: { userId: user.id },
       update: {
@@ -83,6 +88,7 @@ async function seedPediatricians() {
         languages: p.languages,
         specialties: p.specialties,
         region: p.region,
+        timezone,
         status: PediatricianStatus.ACTIVE,
         ratingAvg: p.rating,
       },
@@ -96,6 +102,7 @@ async function seedPediatricians() {
         languages: p.languages,
         specialties: p.specialties,
         region: p.region,
+        timezone,
         status: PediatricianStatus.ACTIVE,
         ratingAvg: p.rating,
       },

@@ -57,7 +57,7 @@ export class ConsultationsService {
 
     const service = await this.prisma.pediatricianService.findFirst({
       where: { id: dto.serviceId, active: true },
-      include: { pediatrician: { select: { status: true } } },
+      include: { pediatrician: { select: { status: true, timezone: true } } },
     });
     if (!service) throw new NotFoundException('Serviço não encontrado.');
     // Only verified (ACTIVE) pediatricians can take paid consultations — the
@@ -76,7 +76,13 @@ export class ConsultationsService {
         where: { pediatricianId: service.pediatricianId },
         select: { kind: true, weekday: true, startMinute: true, endMinute: true, date: true },
       });
-      expectedReplyAt = computeExpectedReplyAt(windows, service.targetHours, new Date());
+      // Message windows are wall-clock in the pediatrician's timezone.
+      expectedReplyAt = computeExpectedReplyAt(
+        windows,
+        service.targetHours,
+        new Date(),
+        service.pediatrician.timezone,
+      );
       if (!expectedReplyAt || expectedReplyAt > slaDueAt) expectedReplyAt = slaDueAt;
     }
 
