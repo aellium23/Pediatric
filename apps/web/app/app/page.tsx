@@ -2428,6 +2428,10 @@ function HomeTab({
   const [articles, setArticles] = useState<ArticleCard[]>([]);
   const [text, setText] = useState('');
   const [result, setResult] = useState<AssistResult | null>(null);
+  // Optional warmer phrasing from the LLM (server-side, only when a key is set).
+  // The deterministic copy shows first; this replaces it if/when it arrives.
+  const [aiText, setAiText] = useState<string | null>(null);
+  const askSeq = useRef(0);
 
   useEffect(() => {
     Api.myConsultations().then(setConsults).catch(() => {});
@@ -2440,11 +2444,29 @@ function HomeTab({
   function ask(q: string) {
     const t = q.trim();
     if (!t) return;
+    const r = assess(t);
     setText(t);
-    setResult(assess(t));
+    setResult(r);
+    setAiText(null);
+    const seq = ++askSeq.current;
+    // Emergencies are handled entirely by the deterministic layer — never wait
+    // on (or route through) the LLM. For the rest, warm the tone if available;
+    // on 503 (demo mode) or any error, silently keep the deterministic copy.
+    if (r.severity !== 'emergency') {
+      const base = tr(ASSIST_COPY[r.topic] ?? ASSIST_COPY.general);
+      const spec = r.specialty ? tr(specLabel(r.specialty)) : undefined;
+      Api.aiAssist(t, base, spec)
+        .then((res) => {
+          if (askSeq.current === seq && res.text && res.text.trim() && res.text.trim() !== base) {
+            setAiText(res.text.trim());
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   const specName = result?.specialty ? tr(specLabel(result.specialty)) : tr('Pediatria geral');
+  const baseGuidance = result ? tr(ASSIST_COPY[result.topic] ?? ASSIST_COPY.general) : '';
   const topicArticle = result
     ? articles.find((a) => norm(`${a.title} ${a.category ?? ''}`).includes(norm(specName)))
     : undefined;
@@ -2541,7 +2563,7 @@ function HomeTab({
               style={result.severity === 'caution' ? { borderColor: '#e9c46a', background: '#fdf4dd', color: '#3d2f00' } : undefined}
             >
               <div className="muted" style={{ fontSize: 12, marginBottom: 2 }}>{tr('Primeira orientação')}</div>
-              <p style={{ margin: '0 0 10px' }}>{tr(ASSIST_COPY[result.topic] ?? ASSIST_COPY.general)}</p>
+              <p style={{ margin: '0 0 10px' }}>{aiText ?? baseGuidance}</p>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button className="btn" onClick={() => onGoConsult(result.specialty ?? undefined)}>
                   {result.severity === 'caution' ? tr('Falar com um pediatra hoje') : tr('Falar com um pediatra')}
@@ -2564,7 +2586,7 @@ function HomeTab({
           </p>
           <button
             className="btn secondary small"
-            onClick={() => { setResult(null); setText(''); }}
+            onClick={() => { setResult(null); setText(''); setAiText(null); }}
             style={{ marginTop: 8 }}
           >
             {tr('Nova pergunta')}

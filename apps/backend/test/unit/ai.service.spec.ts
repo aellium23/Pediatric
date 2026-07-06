@@ -94,4 +94,64 @@ describe('AiService', () => {
       expect(await ai.structureClinicalNote('nota original')).toBe('nota original');
     });
   });
+
+  describe('assistGuidance (parent Home)', () => {
+    it('rephrases the base guidance with the triage system prompt when enabled', async () => {
+      const ai = withKey('sk-ant-test');
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [{ type: 'text', text: 'Percebo a tua preocupação. Mantém-no hidratado e fala com um pediatra hoje.' }] }),
+        text: async () => '',
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const out = await ai.assistGuidance({
+        message: 'febre alta há 3 dias',
+        baseGuidance: 'Mantém a hidratação e fala com um pediatra hoje.',
+        specialty: 'Pediatria geral',
+      });
+      expect(out).toContain('pediatra');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      // Safety rules must be present in the system prompt.
+      expect(body.system).toContain('não diagnostiques');
+      expect(body.system).toMatch(/112|SNS 24/);
+      // The parent's message and base guidance are both handed to the model.
+      expect(body.messages[0].content).toContain('febre alta há 3 dias');
+      expect(body.messages[0].content).toContain('Mantém a hidratação');
+    });
+
+    it('returns the base guidance untouched when disabled (demo mode) — never 503', async () => {
+      const ai = withKey(undefined);
+      const out = await ai.assistGuidance({
+        message: 'tosse',
+        baseGuidance: 'Base segura.',
+      });
+      expect(out).toBe('Base segura.');
+    });
+
+    it('short-circuits without calling out when message or base is empty', async () => {
+      const ai = withKey('sk-ant-test');
+      const fetchMock = jest.fn();
+      (globalThis as any).fetch = fetchMock;
+      // Empty message → nothing to rephrase → base returned unchanged.
+      expect(await ai.assistGuidance({ message: '', baseGuidance: 'x' })).toBe('x');
+      // Empty base → nothing to return.
+      expect(await ai.assistGuidance({ message: 'x', baseGuidance: '  ' })).toBe('');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the base guidance if the model yields no usable text', async () => {
+      const ai = withKey('sk-ant-test');
+      (globalThis as any).fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [] }),
+        text: async () => '',
+      });
+      const out = await ai.assistGuidance({ message: 'tosse', baseGuidance: 'Orientação base.' });
+      expect(out).toBe('Orientação base.');
+    });
+  });
 });

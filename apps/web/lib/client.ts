@@ -470,6 +470,12 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }) as Promise<{ text: string }>,
+  // Warm the Home assistant's deterministic guidance (parent). 503 in demo mode.
+  aiAssist: (message: string, baseGuidance: string, specialty?: string) =>
+    request('/ai/assist', {
+      method: 'POST',
+      body: JSON.stringify({ message, baseGuidance, specialty }),
+    }) as Promise<{ text: string }>,
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,
