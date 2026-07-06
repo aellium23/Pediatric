@@ -1,13 +1,20 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  // Raise the body limit above the default 100 kB: a chat message can carry up
+  // to 3 client-downscaled clinical photos (≤600 kB each as data URLs), so the
+  // whole request can reach ~2 MB. useBodyParser keeps the Stripe webhook's
+  // rawBody capture working.
+  app.useBodyParser('json', { limit: '6mb' });
+  app.useBodyParser('urlencoded', { limit: '6mb', extended: true });
   const config = app.get(ConfigService);
 
   // ── Security middleware (Secure by Default) ──
