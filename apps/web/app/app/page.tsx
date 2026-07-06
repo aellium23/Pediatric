@@ -49,7 +49,7 @@ import {
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
 import { useTheme, type Theme, type TextSize } from '@/lib/theme';
-import { assess, type AssistResult } from '@/lib/assist';
+import { assess, wantsPediatrician, type AssistResult } from '@/lib/assist';
 
 // LiveKit room is browser-only — load it without SSR.
 const VideoRoom = dynamic(() => import('./VideoRoom'), { ssr: false });
@@ -2451,6 +2451,10 @@ function HomeTab({
   const [busy, setBusy] = useState(false);
   const [spec, setSpec] = useState<string | null>(null);
   const [severity, setSeverity] = useState<'info' | 'caution' | 'emergency' | null>(null);
+  // Parent asked to reach a pediatrician → surface the routing card inline.
+  const [showRoute, setShowRoute] = useState(false);
+  // Generating the AI handover summary right before routing.
+  const [routing, setRouting] = useState(false);
   const askSeq = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -2478,6 +2482,8 @@ function HomeTab({
     setInput('');
     setSpec(nextSpec);
     setSeverity(worse);
+    // If the parent signals they want a pediatrician, surface the routing card.
+    if (wantsPediatrician(t)) setShowRoute(true);
     // Emergencies are handled deterministically — the red card renders from
     // `severity`; never route them through the LLM.
     if (det.severity === 'emergency') return;
@@ -2505,7 +2511,29 @@ function HomeTab({
     setInput('');
     setSpec(null);
     setSeverity(null);
+    setShowRoute(false);
     setBusy(false);
+  }
+
+  // Route to the marketplace (pick pediatrician → message or video). Before
+  // navigating, ask the AI to summarize the conversation as a handover for the
+  // pediatrician; in demo mode (no key) it returns '' and we fall back to the
+  // parent's own words. Either way the triage question arrives pre-filled.
+  async function goToConsult() {
+    if (routing) return;
+    if (!msgs.length) {
+      onGoConsult(spec ?? undefined, undefined);
+      return;
+    }
+    setRouting(true);
+    let handover = prefill;
+    try {
+      const res = await Api.aiAssistSummary(msgs);
+      if (res.text && res.text.trim()) handover = res.text.trim();
+    } catch {
+      /* keep the raw messages */
+    }
+    onGoConsult(spec ?? undefined, handover);
   }
 
   return (
@@ -2594,6 +2622,19 @@ function HomeTab({
               </div>
             </div>
           ) : null}
+
+          {/* Surfaced when the parent asks to reach a pediatrician. */}
+          {showRoute && severity !== 'emergency' ? (
+            <div className="card" style={{ borderColor: 'var(--accent)', margin: 0 }}>
+              <strong>{tr('Vamos falar com um pediatra')}</strong>
+              <p className="muted" style={{ margin: '4px 0 10px', fontSize: 13 }}>
+                {tr('Escolhe o pediatra e inicia por mensagem ou vídeo. Levo um resumo da vossa conversa para o pediatra ter contexto.')}
+              </p>
+              <button type="button" className="btn" onClick={goToConsult} disabled={routing}>
+                {routing ? tr('A preparar resumo…') : tr('Escolher pediatra')}
+              </button>
+            </div>
+          ) : null}
           <div ref={endRef} />
         </div>
       ) : null}
@@ -2634,11 +2675,16 @@ function HomeTab({
 
       {/* Routing + secondary actions. */}
       <div className="row" style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-        <button type="button" className={started ? 'btn' : 'btn secondary'} onClick={() => onGoConsult(spec ?? undefined, prefill)}>
-          {tr('Falar com um pediatra')}
+        <button
+          type="button"
+          className={started ? 'btn' : 'btn secondary'}
+          onClick={goToConsult}
+          disabled={routing}
+        >
+          {routing ? tr('A preparar resumo…') : tr('Falar com um pediatra')}
         </button>
         {started ? (
-          <button type="button" className="btn secondary" onClick={restart}>
+          <button type="button" className="btn secondary" onClick={restart} disabled={routing}>
             {tr('Recomeçar')}
           </button>
         ) : null}

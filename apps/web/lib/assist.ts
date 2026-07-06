@@ -74,6 +74,22 @@ function anyTerm(hay: string, terms: string[]): boolean {
   return terms.some((t) => hay.includes(t));
 }
 
+// The parent signalling they want to reach a pediatrician now (→ surface the
+// "choose a pediatrician / start message or video" action inline).
+const CONTACT_INTENT = [
+  'contactar', 'falar com a pediatra', 'falar com o pediatra', 'falar com um pediatra',
+  'falar com a medica', 'falar com o medico', 'quero falar com', 'marcar consulta',
+  'marcar uma consulta', 'marcar video', 'marcar uma video', 'marcar mensagem',
+  'quero consulta', 'quero uma consulta', 'ver a pediatra', 'ver o pediatra',
+  'ver um pediatra', 'agendar', 'quero marcar', 'iniciar consulta',
+  'contact', 'book', 'appointment', 'talk to a', 'see a pediatric', 'see a doctor',
+  'quiero hablar', 'quiero una consulta', 'contactar a', 'agendar cita', 'ver a un pediatra',
+];
+
+export function wantsPediatrician(textRaw: string): boolean {
+  return anyTerm(norm(textRaw || ''), CONTACT_INTENT);
+}
+
 export function assess(textRaw: string): AssistResult {
   const t = norm(textRaw || '');
   const redFlags = SEVERE.filter((r) => anyTerm(t, r.terms)).map((r) => r.key);

@@ -482,6 +482,12 @@ export const Api = {
       method: 'POST',
       body: JSON.stringify({ messages, specialty }),
     }) as Promise<{ text: string }>,
+  // Summarize the assistant conversation as handover for the pediatrician.
+  aiAssistSummary: (messages: { role: 'user' | 'assistant'; text: string }[]) =>
+    request('/ai/assist-summary', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    }) as Promise<{ text: string }>,
 
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,

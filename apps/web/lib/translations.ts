@@ -10,6 +10,9 @@
  */
 export const TR: Record<'en' | 'es', Record<string, string>> = {
   en: {
+    "Vamos falar com um pediatra": "Let's talk to a paediatrician",
+    "Escolhe o pediatra e inicia por mensagem ou vídeo. Levo um resumo da vossa conversa para o pediatra ter contexto.": "Choose a paediatrician and start by message or video. I'll pass a summary of your conversation so the paediatrician has context.",
+    "A preparar resumo…": "Preparing summary…",
     "A escrever…": "Typing…",
     "Escreve a tua resposta…": "Type your reply…",
     "Recomeçar": "Start over",
@@ -1060,6 +1063,9 @@ export const TR: Record<'en' | 'es', Record<string, string>> = {
     "Ainda sem atividade neste período — o gráfico aparece com as primeiras consultas.": "No activity in this period yet — the chart appears with the first consultations.",
   },
   es: {
+    "Vamos falar com um pediatra": "Vamos a hablar con un pediatra",
+    "Escolhe o pediatra e inicia por mensagem ou vídeo. Levo um resumo da vossa conversa para o pediatra ter contexto.": "Elige el pediatra e inicia por mensaje o vídeo. Llevo un resumen de vuestra conversación para que el pediatra tenga contexto.",
+    "A preparar resumo…": "Preparando resumen…",
     "A escrever…": "Escribiendo…",
     "Escreve a tua resposta…": "Escribe tu respuesta…",
     "Recomeçar": "Empezar de nuevo",

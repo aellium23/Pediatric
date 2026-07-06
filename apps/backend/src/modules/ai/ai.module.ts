@@ -70,6 +70,17 @@ export class AiService {
     'traumatismo importante) diz para procurar ajuda urgente (112 ou SNS 24). ' +
     'Devolve APENAS a tua resposta, sem preâmbulos.';
 
+  // Turn the conversation into a short handover the parent effectively sends to
+  // the pediatrician, so they have context before the consultation.
+  private static readonly SUMMARY_SYSTEM =
+    'És o assistente de triagem de uma app de telepediatria (HOC). Recebes a ' +
+    'conversa entre um pai/mãe e o assistente. Escreve, na mesma língua do pai ' +
+    '(português, inglês ou espanhol), uma mensagem CURTA (2 a 4 frases) na ' +
+    'primeira pessoa do ponto de vista do pai, para enviar ao pediatra como ' +
+    'enquadramento: motivo do contacto, sintomas, desde quando e o que já foi ' +
+    'observado. Sê factual; não diagnostiques nem sugiras tratamento. Devolve ' +
+    'APENAS a mensagem, sem preâmbulos.';
+
   /** Whether a real Anthropic key is configured. */
   get enabled(): boolean {
     return this.apiKey.length > 0;
@@ -129,6 +140,21 @@ export class AiService {
     let system = AiService.ASSIST_CHAT_SYSTEM;
     if (input.specialty) system += ` A especialidade sugerida até agora é: ${input.specialty}.`;
     return this.callRaw(system, msgs, 400);
+  }
+
+  /**
+   * Summarize the assistant conversation into a short first-person handover the
+   * parent sends to the pediatrician. Returns '' in demo mode (no key) so the
+   * client falls back to the parent's raw messages.
+   */
+  async summarizeForHandover(messages: { role: string; text: string }[]): Promise<string> {
+    const raw = Array.isArray(messages) ? messages : [];
+    const turns = raw.filter((m) => m && typeof m.text === 'string' && m.text.trim()).slice(-16);
+    if (!this.enabled || !turns.length) return '';
+    const transcript = turns
+      .map((m) => `${m.role === 'assistant' ? 'Assistente' : 'Pai/Mãe'}: ${m.text.trim().slice(0, 1000)}`)
+      .join('\n');
+    return this.callMessages(AiService.SUMMARY_SYSTEM, transcript, 300);
   }
 
   /** Single-user-turn Messages call. */
@@ -253,6 +279,17 @@ class AiController {
   @Roles(Role.PARENT)
   async assistChat(@Body() dto: AssistChatDto): Promise<{ text: string }> {
     const text = await this.ai.assistChat(dto);
+    return { text };
+  }
+
+  /**
+   * Summarize the conversation as a handover for the pediatrician. Parent-only.
+   * Returns { text: '' } in demo mode so the client uses the raw messages.
+   */
+  @Post('assist-summary')
+  @Roles(Role.PARENT)
+  async assistSummary(@Body() dto: AssistChatDto): Promise<{ text: string }> {
+    const text = await this.ai.summarizeForHandover(dto.messages);
     return { text };
   }
 }

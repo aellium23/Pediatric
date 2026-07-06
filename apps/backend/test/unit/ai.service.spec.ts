@@ -209,4 +209,39 @@ describe('AiService', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  describe('summarizeForHandover', () => {
+    it('summarizes the transcript with the handover prompt when enabled', async () => {
+      const ai = withKey('sk-ant-test');
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [{ type: 'text', text: 'O meu filho caiu há 1 hora, sem bater com a cabeça, está bem e ativo.' }] }),
+        text: async () => '',
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const out = await ai.summarizeForHandover([
+        { role: 'user', text: 'o meu filho caiu' },
+        { role: 'assistant', text: 'Bateu com a cabeça?' },
+        { role: 'user', text: 'não, caiu de pé' },
+      ]);
+      expect(out).toContain('caiu');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.system).toContain('primeira pessoa');
+      // The whole transcript is folded into a single user turn.
+      expect(body.messages).toHaveLength(1);
+      expect(body.messages[0].content).toContain('Pai/Mãe: o meu filho caiu');
+      expect(body.messages[0].content).toContain('Assistente: Bateu com a cabeça?');
+    });
+
+    it('returns empty in demo mode so the client uses the raw messages', async () => {
+      const ai = withKey(undefined);
+      const fetchMock = jest.fn();
+      (globalThis as any).fetch = fetchMock;
+      expect(await ai.summarizeForHandover([{ role: 'user', text: 'febre' }])).toBe('');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });
