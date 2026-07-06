@@ -784,8 +784,10 @@ export default function MultiProfileApp() {
   // Cross-tab deep link: "open this consultation" (from Início, Avisos or a
   // just-created consultation) — consumed by MyConsultsTab/InboxTab on mount.
   const [focusConsult, setFocusConsult] = useState<string | null>(null);
-  // Specialty pre-selected by the Home assistant when routing to "Consultar".
+  // Specialty pre-selected + question pre-filled by the Home assistant when
+  // routing to "Consultar" (so the parent doesn't re-type what they described).
   const [consultSpec, setConsultSpec] = useState<string | undefined>(undefined);
+  const [consultPrefill, setConsultPrefill] = useState<string | undefined>(undefined);
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
   const [unread, setUnread] = useState(0);
@@ -982,8 +984,9 @@ export default function MultiProfileApp() {
               setMsg('');
               setTab(k);
             }}
-            onGoConsult={(spec) => {
+            onGoConsult={(spec, prefill) => {
               setConsultSpec(spec);
+              setConsultPrefill(prefill);
               setMsg('');
               setTab('consult');
             }}
@@ -996,7 +999,11 @@ export default function MultiProfileApp() {
             onMsg={setMsg}
             onOpenConsultation={openConsultation}
             initialSpecialty={consultSpec}
-            onSpecialtyConsumed={() => setConsultSpec(undefined)}
+            initialQuestion={consultPrefill}
+            onSpecialtyConsumed={() => {
+              setConsultSpec(undefined);
+              setConsultPrefill(undefined);
+            }}
           />
         ) : null}
         {tab === 'myconsults' ? (
@@ -2420,7 +2427,7 @@ function HomeTab({
   profile: Profile;
   onMsg: (m: string) => void;
   onGo: (tab: string) => void;
-  onGoConsult: (specialty?: string) => void;
+  onGoConsult: (specialty?: string, prefill?: string) => void;
   onOpenConsultation: (id: string) => void;
 }) {
   const { tr } = useT();
@@ -2572,7 +2579,7 @@ function HomeTab({
               <div className="muted" style={{ fontSize: 12, marginBottom: 2 }}>{tr('Primeira orientação')}</div>
               <p style={{ margin: '0 0 10px' }}>{aiText ?? baseGuidance}</p>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="btn" onClick={() => onGoConsult(result.specialty ?? undefined)}>
+                <button className="btn" onClick={() => onGoConsult(result.specialty ?? undefined, text)}>
                   {result.severity === 'caution' ? tr('Falar com um pediatra hoje') : tr('Falar com um pediatra')}
                 </button>
                 {result.specialty ? (
@@ -3709,12 +3716,15 @@ function ConsultTab({
   onMsg,
   onOpenConsultation,
   initialSpecialty,
+  initialQuestion,
   onSpecialtyConsumed,
 }: {
   onMsg: (m: string) => void;
   onOpenConsultation?: (id: string) => void;
-  // Pre-selected specialty when arriving from the Home assistant's routing.
+  // Pre-selected specialty + pre-filled question when arriving from the Home
+  // assistant's routing (so the parent doesn't re-type what they described).
   initialSpecialty?: string;
+  initialQuestion?: string;
   onSpecialtyConsumed?: () => void;
 }) {
   const { tr } = useT();
@@ -3726,6 +3736,9 @@ function ConsultTab({
   const [detail, setDetail] = useState<PediatricianCard | null>(null);
   const [triageFor, setTriageFor] = useState<PediatricianCard | null>(null);
   const [triageServiceId, setTriageServiceId] = useState('');
+  // Captured once so it survives past the parent clearing the routing intent;
+  // seeds the triage question for whichever pediatrician the parent picks.
+  const [prefillQuestion] = useState(initialQuestion ?? '');
   const [busy, setBusy] = useState(false);
   // filters — specialty is a tap-to-filter chip set (parents don't know
   // specialty names, so we show the ones that actually exist, translated).
@@ -3813,6 +3826,7 @@ function ConsultTab({
         childId={child}
         serviceId={triageServiceId}
         pedId={triageFor.id}
+        initialQuestion={prefillQuestion}
         onCancel={() => setTriageFor(null)}
         onDone={(consultationId) => {
           setTriageFor(null);
@@ -4156,6 +4170,7 @@ function TriageDialog({
   childId,
   serviceId,
   pedId,
+  initialQuestion,
   onCancel,
   onDone,
   onMsg,
@@ -4163,13 +4178,15 @@ function TriageDialog({
   childId: string;
   serviceId: string;
   pedId: string;
+  // Pre-filled from the Home assistant so the parent doesn't re-type.
+  initialQuestion?: string;
   onCancel: () => void;
   onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
 }) {
   const { tr } = useT();
   const [flags, setFlags] = useState<Record<string, boolean>>({});
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(initialQuestion ?? '');
   const [episodes, setEpisodes] = useState<{ id: string; title: string | null; status: string }[]>(
     [],
   );
