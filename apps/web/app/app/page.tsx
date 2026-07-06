@@ -2061,6 +2061,42 @@ function Thread({
 
       {consultation.status !== 'CLOSED' && consultation.status !== 'REFUNDED' ? (
         <div className="card section">
+          {photos.length ? (
+            <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+              {photos.map((p, i) => (
+                <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p}
+                    alt={`${tr('Foto')} ${i + 1}`}
+                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={tr('Remover foto')}
+                    onClick={() => setPhotos((arr) => arr.filter((_, j) => j !== i))}
+                    style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      border: 0,
+                      padding: 0,
+                      background: 'var(--danger)',
+                      color: '#fff',
+                      fontSize: 11,
+                      lineHeight: '20px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <textarea
             placeholder={tr('Escrever mensagem…')}
             value={draft}
@@ -2068,8 +2104,31 @@ function Thread({
             rows={2}
           />
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn" onClick={send} disabled={busy}>
+            <button
+              className="btn"
+              onClick={send}
+              disabled={busy || (!draft.trim() && photos.length === 0)}
+            >
               {tr('Enviar')}
+            </button>
+            {/* No capture attr: iOS then offers both camera and photo library. */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => void pickPhotos(e.target.files)}
+            />
+            <button
+              type="button"
+              className="btn secondary"
+              aria-label={tr('Adicionar fotos')}
+              title={tr('Adicionar fotos')}
+              onClick={() => fileRef.current?.click()}
+              disabled={busy || photos.length >= 3}
+            >
+              📷
             </button>
             {canClose ? (
               <button className="btn secondary" onClick={close} disabled={busy}>
@@ -2082,6 +2141,83 @@ function Thread({
               </button>
             ) : null}
           </div>
+          {canCancel && consultation.type !== 'VIDEO' ? (
+            <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+              {tr('Incluído nesta consulta')}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Episode end: explicit terminal block instead of a silently missing composer. */}
+      {consultation.status === 'CLOSED' ? (
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <div className="muted" style={{ fontSize: 13 }}>
+            — {tr('Consulta encerrada')}
+            {consultation.closedAt
+              ? ` · ${new Date(consultation.closedAt).toLocaleDateString(appLocale(), {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}`
+              : ''}{' '}
+            —
+          </div>
+          {canCancel && onNewConsultation ? (
+            <button className="btn" style={{ marginTop: 10 }} onClick={onNewConsultation}>
+              {tr('Nova consulta')} · {euro(consultation.priceCents)}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Fullscreen photo viewer — native pinch/scroll zoom, ✕ or Escape closes. */}
+      {viewer ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={tr('Imagem em ecrã inteiro')}
+          onClick={() => setViewer(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(8, 10, 18, 0.92)',
+            overflow: 'auto',
+            touchAction: 'pinch-zoom',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <button
+            type="button"
+            aria-label={tr('Fechar imagem')}
+            onClick={() => setViewer(null)}
+            style={{
+              position: 'fixed',
+              top: 12,
+              right: 12,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              border: 0,
+              background: 'rgba(255, 255, 255, 0.18)',
+              color: '#fff',
+              fontSize: 20,
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={viewer}
+            alt={tr('Foto ampliada')}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8 }}
+          />
         </div>
       ) : null}
     </div>
@@ -4075,6 +4211,10 @@ function MyConsultsTab({
   const [rows, setRows] = useState<ConsultationDto[]>([]);
   const [open, setOpen] = useState<ConsultationDto | null>(null);
   const [reviewing, setReviewing] = useState<ConsultationDto | null>(null);
+  // "Nova consulta" from a closed thread: triage for the same doctor + child.
+  const [again, setAgain] = useState<{ childId: string; serviceId: string; pedId: string } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -4098,6 +4238,45 @@ function MyConsultsTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Start a fresh consultation with the same pediatrician (message service). */
+  async function startFollowUp(c: ConsultationDto) {
+    if (!c.pediatricianId || !c.childId) return onMsg(tr('Sem serviço de mensagem.'));
+    try {
+      const d = (await Api.pedDetail(c.pediatricianId)) as PediatricianDetail;
+      const svc = d.services.find((s) => s.type === 'MESSAGE');
+      if (!svc) return onMsg(tr('Sem serviço de mensagem.'));
+      setOpen(null);
+      setAgain({ childId: c.childId, serviceId: svc.id, pedId: c.pediatricianId });
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+
+  if (again)
+    return (
+      <TriageDialog
+        childId={again.childId}
+        serviceId={again.serviceId}
+        pedId={again.pedId}
+        onCancel={() => setAgain(null)}
+        onDone={(consultationId) => {
+          setAgain(null);
+          onMsg(tr('Pergunta enviada! Um pediatra vai responder — já a abrimos para ti.'));
+          void (async () => {
+            try {
+              const list = await Api.myConsultations();
+              setRows(list);
+              const target = consultationId ? list.find((c) => c.id === consultationId) : undefined;
+              if (target) setOpen(target);
+            } catch {
+              /* best-effort refresh */
+            }
+          })();
+        }}
+        onMsg={onMsg}
+      />
+    );
+
   if (open)
     return (
       <Thread
@@ -4110,6 +4289,7 @@ function MyConsultsTab({
         }}
         onBack={() => setOpen(null)}
         onMsg={onMsg}
+        onNewConsultation={() => void startFollowUp(open)}
       />
     );
   if (reviewing)
@@ -4716,6 +4896,18 @@ function InboxTab({
             hour: '2-digit',
             minute: '2-digit',
           })}
+          {/* Aspirational target (message windows) — the SLA stays the guarantee. */}
+          {c.expectedReplyAt ? (
+            <span className="pill" style={{ marginLeft: 6, fontSize: 11 }}>
+              {tr('meta')}:{' '}
+              {new Date(c.expectedReplyAt).toLocaleString(appLocale(), {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {answeredNote ? (
