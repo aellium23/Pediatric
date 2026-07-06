@@ -42,6 +42,8 @@ model User {
   appleSub      String?       @unique
   googleSub     String?       @unique
   mfaEnabled    Boolean       @default(false)
+  photoUrl      String? // small avatar (client-resized data URL or S3 URL)
+  preferredPayment String? // 'card' | 'mbway' | 'apple_pay' | 'google_pay'
   locale        String        @default("pt-PT")
   countryCode   String        @default("PT")
   status        String        @default("active")
@@ -139,6 +141,7 @@ model Child {
   birthDate     DateTime
   sex           String?
   usualDoctor   String?
+  photoUrl      String? // small avatar (client-resized data URL or S3 URL)
   // Clinical-sensitive: AES-256-GCM ciphertext (allergies, meds, conditions)
   healthProfile String?
   createdAt     DateTime  @default(now())

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -84,6 +85,16 @@ export class ChildrenService {
 
   async getOne(userId: string, childId: string) {
     return this.toDto(childId, undefined, userId);
+  }
+
+  /** Sets the child's avatar (parent in the family only). */
+  async setPhoto(userId: string, childId: string, photoUrl: string) {
+    if (!photoUrl.startsWith('data:image/') && !photoUrl.startsWith('https://')) {
+      throw new BadRequestException('Formato de imagem inválido.');
+    }
+    await this.assertOwnership(userId, childId);
+    await this.prisma.child.update({ where: { id: childId }, data: { photoUrl } });
+    return { ok: true };
   }
 
   /** Ownership check: the user must belong to the child's family. */

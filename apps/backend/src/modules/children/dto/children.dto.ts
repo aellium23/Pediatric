@@ -47,3 +47,8 @@ export class CreateChildDto {
   @IsBoolean()
   healthDataConsent!: boolean;
 }
+
+export class SetChildPhotoDto {
+  // Client resizes to ≤256px; data URL or https (S3) accepted.
+  @ApiProperty() @IsString() @MaxLength(300_000) photoUrl!: string;
+}

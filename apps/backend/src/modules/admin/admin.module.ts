@@ -1,4 +1,5 @@
 import {
+  NotFoundException,
   Body,
   Controller,
   Get,
@@ -99,12 +100,67 @@ export class AdminService {
     });
   }
 
-  async listUsers() {
+  async listUsers(q?: string) {
+    const query = q?.trim();
     return this.prisma.user.findMany({
-      select: { id: true, email: true, role: true, status: true, createdAt: true },
+      where: query
+        ? {
+            OR: [
+              { id: query },
+              { email: { contains: query, mode: 'insensitive' } },
+              { name: { contains: query, mode: 'insensitive' } },
+              { phone: { contains: query } },
+            ],
+          }
+        : undefined,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  }
+
+  /**
+   * Support "user 360": the profile plus their consultation timeline (as a
+   * family member and/or as the assigned pediatrician) — so tier-1 can see
+   * the case a caller is asking about without financial or clinical payloads.
+   */
+  async userDetail(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true, phone: true, role: true, status: true, createdAt: true },
+    });
+    if (!user) throw new NotFoundException('Utilizador não encontrado.');
+    const memberships = await this.prisma.familyMember.findMany({ where: { userId: id } });
+    const ped = await this.prisma.pediatrician.findUnique({ where: { userId: id } });
+    const consultations = await this.prisma.consultation.findMany({
+      where: {
+        OR: [
+          ...(memberships.length ? [{ familyId: { in: memberships.map((m) => m.familyId) } }] : []),
+          ...(ped ? [{ pediatricianId: ped.id }] : []),
+        ],
+      },
+      orderBy: { openedAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        openedAt: true,
+        closedAt: true,
+        scheduledAt: true,
+        child: { select: { name: true } },
+        pediatrician: { select: { displayName: true } },
+      },
+    });
+    return { user, consultations };
   }
 
   async changeRole(id: string, role: Role) {
@@ -160,21 +216,27 @@ class AdminController {
   }
 
   @Post('pediatricians/:id/verify')
-  @Roles(Role.PLATFORM_ADMIN)
+  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE)
   verify(@Param('id') id: string) {
     return this.service.verifyPediatrician(id);
   }
 
   @Post('pediatricians/:id/suspend')
-  @Roles(Role.PLATFORM_ADMIN)
+  @Roles(Role.PLATFORM_ADMIN, Role.COMPLIANCE)
   suspend(@Param('id') id: string) {
     return this.service.suspendPediatrician(id);
   }
 
   @Get('users')
   @Roles(Role.PLATFORM_ADMIN, Role.SUPPORT)
-  users() {
-    return this.service.listUsers();
+  users(@Query('q') q?: string) {
+    return this.service.listUsers(q);
+  }
+
+  @Get('users/:id')
+  @Roles(Role.PLATFORM_ADMIN, Role.SUPPORT)
+  userDetail(@Param('id') id: string) {
+    return this.service.userDetail(id);
   }
 
   @Patch('users/:id/role')

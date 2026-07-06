@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
-import { Role } from '@prisma/client';
+import { PaymentStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
@@ -78,13 +78,49 @@ export class ClinicsService {
         where: { pediatricianId: { in: links.map((l) => l.pediatricianId) } },
         orderBy: { openedAt: 'desc' },
         take: 50,
+        select: {
+          id: true,
+          pediatricianId: true,
+          type: true,
+          status: true,
+          priceCents: true,
+          currency: true,
+          openedAt: true,
+          scheduledAt: true,
+        },
       }),
     ]);
     const emailById = Object.fromEntries(memberUsers.map((u) => [u.id, u.email]));
 
+    // Money the clinic actually earned: for each captured split, the clinic's
+    // cut is revenueSharePct of the pediatrician's amount. This is the number
+    // a clinic owner opens the dashboard for — euros, not a bare percentage.
+    const splits = await this.prisma.split.findMany({
+      where: {
+        payment: {
+          status: PaymentStatus.CAPTURED,
+          consultation: { pediatricianId: { in: links.map((l) => l.pediatricianId) } },
+        },
+      },
+      select: {
+        pediatricianAmount: true,
+        payment: { select: { consultation: { select: { pediatricianId: true } } } },
+      },
+    });
+    const pctByPed = Object.fromEntries(links.map((l) => [l.pediatricianId, l.revenueSharePct]));
+    let clinicEarnedCents = 0;
+    let pedsGrossCents = 0;
+    for (const s of splits) {
+      const pedId = s.payment.consultation.pediatricianId;
+      const pct = pctByPed[pedId] ?? 0;
+      pedsGrossCents += s.pediatricianAmount;
+      clinicEarnedCents += Math.round((s.pediatricianAmount * pct) / 100);
+    }
+
     return {
       clinic,
       role: membership.role,
+      finance: { clinicEarnedCents, pedsGrossCents, capturedCount: splits.length },
       members: members.map((m) => ({
         id: m.id,
         userId: m.userId,

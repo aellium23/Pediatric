@@ -15,6 +15,7 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChildrenModule } from './modules/children/children.module';
+import { UsersModule } from './modules/users/users.module';
 import { PediatriciansModule } from './modules/pediatricians/pediatricians.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -44,6 +45,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
     HealthModule,
     AuthModule,
     ChildrenModule,
+    UsersModule,
     PediatriciansModule,
     ConsultationsModule,
     PaymentsModule,
