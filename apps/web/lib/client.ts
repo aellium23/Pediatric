@@ -223,6 +223,21 @@ export interface UserMeDto {
   photoUrl: string | null;
   preferredPayment: string | null;
   locale?: string | null;
+  /** Fiscal number for "fatura com NIF" — null = consumer-final invoices. */
+  nif?: string | null;
+}
+
+/** The caller's family (region/postal feed the market analytics). */
+export interface FamilyMeDto {
+  id: string;
+  name: string;
+  region: string | null;
+  postalCode: string | null;
+}
+
+/** Child detail (GET /children/:id) — the only list-adjacent shape that carries the decrypted SNS number. */
+export interface ChildDetailDto extends ChildDto {
+  snsNumber?: string | null;
 }
 
 export interface ConsultationDto {
@@ -360,11 +375,29 @@ export const Api = {
     request(`/children/${childId}/photo`, { method: 'POST', body: JSON.stringify({ photoUrl }) }),
   setPaymentMethod: (method?: string) =>
     request('/users/me/payment-method', { method: 'POST', body: JSON.stringify({ method }) }),
+  // Billing NIF — null clears it (400 with a human message on a bad checksum).
+  setBilling: (nif?: string | null) =>
+    request('/users/me/billing', { method: 'POST', body: JSON.stringify({ nif: nif ?? null }) }),
 
   // Parent
   children: () => request('/children') as Promise<ChildDto[]>,
   addChild: (data: { name: string; birthDate: string; sex?: string; healthDataConsent: boolean }) =>
     request('/children', { method: 'POST', body: JSON.stringify(data) }),
+  // Detail is the only child read that returns the decrypted SNS number.
+  childDetail: (id: string) => request(`/children/${id}`) as Promise<ChildDetailDto>,
+  // SNS/utente number (digits, ≤12) — encrypted at rest; null clears it.
+  setChildSns: (childId: string, snsNumber?: string | null) =>
+    request(`/children/${childId}/sns`, {
+      method: 'POST',
+      body: JSON.stringify({ snsNumber: snsNumber ?? null }),
+    }),
+  familyMe: () => request('/families/me') as Promise<FamilyMeDto | null>,
+  // Region must match the canonical PT list; postal code is an optional 4-digit prefix.
+  setFamilyRegion: (region: string, postalCode?: string) =>
+    request('/families/me/region', {
+      method: 'POST',
+      body: JSON.stringify({ region, ...(postalCode ? { postalCode } : {}) }),
+    }),
   pediatricians: (filters?: {
     specialty?: string;
     language?: string;
@@ -537,6 +570,9 @@ export const Api = {
   adminMetrics: () => request('/admin/metrics') as Promise<AdminMetrics>,
   adminFinanceSeries: (months = 12) =>
     request(`/admin/finance/series?months=${months}`) as Promise<FinanceSeriesDto>,
+  // Market analytics (PLATFORM_ADMIN / FINANCE): demand vs supply per region,
+  // per specialty, and the monthly consultation/new-family trend.
+  adminMarket: (months = 6) => request(`/admin/market?months=${months}`) as Promise<MarketDto>,
   adminPediatricians: (status?: string) =>
     request(`/admin/pediatricians${status ? `?status=${status}` : ''}`) as Promise<AdminPedRow[]>,
   verifyPediatrician: (id: string) =>
@@ -796,7 +832,14 @@ export interface TimelineEvent {
   refId: string;
 }
 export interface ChildTimeline {
-  child: { id: string; name: string; birthDate: string; sex: string | null };
+  child: {
+    id: string;
+    name: string;
+    birthDate: string;
+    sex: string | null;
+    /** Decrypted SNS number — detail/boletim headers only; lists never carry it. */
+    snsNumber?: string | null;
+  };
   events: TimelineEvent[];
 }
 
@@ -915,6 +958,33 @@ export interface FinanceSeriesMonth {
 export interface FinanceSeriesDto {
   months: FinanceSeriesMonth[];
   currency: string;
+}
+
+// ── GET /admin/market (mirrors the backend row shapes) ──
+export interface MarketRegionRow {
+  region: string; // canonical PT region, or 'Sem região'
+  families: number;
+  children: number;
+  consultations: number;
+  activePediatricians: number;
+  offeredHoursWeek: number;
+}
+export interface MarketSpecialtyRow {
+  specialty: string;
+  consultations: number;
+  activePediatricians: number;
+  avgVideoLeadHours: number | null;
+}
+export interface MarketMonthRow {
+  month: string; // "YYYY-MM"
+  consultations: number;
+  newFamilies: number;
+  byServiceType: Record<string, number>;
+}
+export interface MarketDto {
+  regions: MarketRegionRow[];
+  specialties: MarketSpecialtyRow[];
+  monthly: MarketMonthRow[];
 }
 
 export interface AdminMetrics {

@@ -42,6 +42,9 @@ import {
   type ChildHistory,
   type ChildTimeline,
   type TimelineEvent,
+  type FamilyMeDto,
+  type MarketDto,
+  type MarketMonthRow,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -117,6 +120,31 @@ function isForbidden(e: unknown): boolean {
 function svcLabel(t: string): string {
   return t === 'VIDEO' ? 'Vídeo' : t === 'MESSAGE' ? 'Mensagem' : t;
 }
+// Canonical PT regions (18 districts + 2 autonomous regions) — mirrors the
+// backend PT_REGIONS list the /families/me/region endpoint validates against.
+const PT_REGIONS = [
+  'Aveiro',
+  'Beja',
+  'Braga',
+  'Bragança',
+  'Castelo Branco',
+  'Coimbra',
+  'Évora',
+  'Faro',
+  'Guarda',
+  'Leiria',
+  'Lisboa',
+  'Portalegre',
+  'Porto',
+  'Santarém',
+  'Setúbal',
+  'Viana do Castelo',
+  'Vila Real',
+  'Viseu',
+  'Açores',
+  'Madeira',
+] as const;
+
 const SPECIALTY_PT: Record<string, string> = {
   general: 'Pediatria geral',
   neonatology: 'Neonatologia',
@@ -2584,6 +2612,10 @@ function ChildHealth({
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'main' | 'timeline' | 'boletim'>('main');
   const [photo, setPhoto] = useState<string | null>(child.photoUrl ?? null);
+  // SNS/utente number — comes from the child DETAIL fetch (lists never carry it).
+  const [sns, setSns] = useState<string | null>(null);
+  const [snsEdit, setSnsEdit] = useState(false);
+  const [snsInput, setSnsInput] = useState('');
   // growth form
   const [gDate, setGDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [gH, setGH] = useState('');
@@ -2626,8 +2658,28 @@ function ChildHealth({
   }
   useEffect(() => {
     void load();
+    // Decrypted SNS number lives on the child detail only — older backends
+    // don't have the endpoint, so the row just stays in its "add" state.
+    Api.childDetail(child.id)
+      .then((c) => setSns(c.snsNumber ?? null))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [child.id]);
+
+  async function saveSns(value: string | null) {
+    setBusy(true);
+    try {
+      await Api.setChildSns(child.id, value);
+      setSns(value);
+      setSnsEdit(false);
+      setSnsInput('');
+      onMsg(value ? tr('Número SNS guardado ✓') : tr('Número SNS removido ✓'));
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -2646,7 +2698,7 @@ function ChildHealth({
     return <ChildTimelineView child={child} onBack={() => setView('main')} onMsg={onMsg} />;
   }
   if (view === 'boletim' && d) {
-    return <BoletimView child={child} d={d} onBack={() => setView('main')} />;
+    return <BoletimView child={child} d={d} snsNumber={sns} onBack={() => setView('main')} />;
   }
 
   return (
@@ -2677,6 +2729,62 @@ function ChildHealth({
       </div>
       <p className="muted">
         {new Date(child.birthDate).toLocaleDateString(appLocale())} · {tr('os dados de saúde do teu filho, guardados em segurança 🔒')}
+      </p>
+      <div className="row" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+        <strong style={{ fontSize: 13 }}>{tr('SNS')}</strong>
+        {snsEdit ? (
+          <>
+            <input
+              inputMode="numeric"
+              maxLength={12}
+              placeholder={tr('N.º de utente')}
+              value={snsInput}
+              onChange={(e) => setSnsInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
+              style={{ width: 140 }}
+            />
+            <button
+              className="btn small"
+              disabled={busy || !snsInput}
+              onClick={() => void saveSns(snsInput)}
+            >
+              {tr('Guardar')}
+            </button>
+            <button
+              className="btn small secondary"
+              onClick={() => {
+                setSnsEdit(false);
+                setSnsInput('');
+              }}
+            >
+              {tr('Cancelar')}
+            </button>
+            {sns ? (
+              <button className="btn small danger" disabled={busy} onClick={() => void saveSns(null)}>
+                {tr('Remover')}
+              </button>
+            ) : null}
+          </>
+        ) : sns ? (
+          <>
+            <span>{sns}</span>
+            <button
+              className="btn small secondary"
+              onClick={() => {
+                setSnsInput(sns);
+                setSnsEdit(true);
+              }}
+            >
+              {tr('Editar')}
+            </button>
+          </>
+        ) : (
+          <button className="btn small secondary" onClick={() => setSnsEdit(true)}>
+            {tr('+ Adicionar')}
+          </button>
+        )}
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+        {tr('Número de utente (SNS) — opcional. Facilita a referenciação ao SNS. Guardado cifrado.')}
       </p>
       <div className="row" style={{ marginBottom: 4 }}>
         <button className="btn small secondary" onClick={() => setView('timeline')}>
@@ -3296,10 +3404,13 @@ function ChildTimelineView({
 function BoletimView({
   child,
   d,
+  snsNumber,
   onBack,
 }: {
   child: ChildDto;
   d: HealthOverview;
+  /** Decrypted SNS number from the child detail (ChildHealth passes it down). */
+  snsNumber?: string | null;
   onBack: () => void;
 }) {
   const { tr } = useT();
@@ -3327,7 +3438,8 @@ function BoletimView({
 
       <h2 style={{ marginBottom: 2 }}>{tr('Boletim de saúde')} — {child.name}</h2>
       <p className="muted" style={{ marginTop: 0 }}>
-        {tr('Nascimento:')} {fmt(child.birthDate)} · {tr('Idade:')} {ageLabel} · {tr('Emitido em')}{' '}
+        {tr('Nascimento:')} {fmt(child.birthDate)} · {tr('Idade:')} {ageLabel}
+        {snsNumber ? ` · ${tr('SNS')} ${snsNumber}` : ''} · {tr('Emitido em')}{' '}
         {new Date().toLocaleDateString(appLocale())} · HOC — Healthcare on Call
       </p>
 
@@ -6855,12 +6967,51 @@ const PAYMENT_OPTIONS: { key: string; icon: string; name: string; brand: boolean
 function AccountProfileCards({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [me, setMe] = useState<UserMeDto | null>(null);
+  // Billing card (NIF + family region)
+  const [nifInput, setNifInput] = useState('');
+  const [region, setRegion] = useState('');
+  const [postal, setPostal] = useState('');
+  const [billingBusy, setBillingBusy] = useState(false);
 
   useEffect(() => {
     Api.userMe()
       .then(setMe)
       .catch(() => {}); // older backend — cards degrade gracefully
+    Api.familyMe()
+      .then((f: FamilyMeDto | null) => {
+        if (f) {
+          setRegion(f.region ?? '');
+          setPostal(f.postalCode ?? '');
+        }
+      })
+      .catch(() => {}); // non-parent or older backend — row keeps its defaults
   }, []);
+
+  async function saveNif(value: string | null) {
+    setBillingBusy(true);
+    try {
+      await Api.setBilling(value);
+      setMe((m) => (m ? { ...m, nif: value } : m));
+      setNifInput('');
+      onMsg(value ? tr('NIF guardado ✓') : tr('NIF removido ✓'));
+    } catch (e) {
+      // Surface the backend message as-is (e.g. 400 "NIF inválido.").
+      onMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+  async function saveRegion() {
+    setBillingBusy(true);
+    try {
+      await Api.setFamilyRegion(region, postal || undefined);
+      onMsg(tr('Região guardada ✓'));
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBillingBusy(false);
+    }
+  }
 
   async function savePhoto(dataUrl: string) {
     try {
@@ -6947,6 +7098,81 @@ function AccountProfileCards({ onMsg }: { onMsg: (m: string) => void }) {
         <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
           {tr('O método predefinido será usado nas consultas. A cobrança real é ativada com a ligação ao processador de pagamentos.')}
         </p>
+      </div>
+
+      <div className="card" style={{ marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>{tr('Faturação')}</h3>
+        {/* NIF */}
+        <strong style={{ fontSize: 13 }}>{tr('NIF')}</strong>
+        {me?.nif ? (
+          <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <strong>{me.nif}</strong>
+            <button
+              className="btn small secondary"
+              onClick={() => void saveNif(null)}
+              disabled={billingBusy}
+            >
+              {tr('Remover')}
+            </button>
+          </div>
+        ) : (
+          <p className="muted" style={{ margin: '4px 0' }}>
+            {tr('Sem NIF — as faturas são emitidas como consumidor final.')}
+          </p>
+        )}
+        <div className="row" style={{ marginTop: 6 }}>
+          <input
+            inputMode="numeric"
+            maxLength={9}
+            placeholder={tr('NIF (9 dígitos)')}
+            value={nifInput}
+            onChange={(e) => setNifInput(e.target.value.replace(/\D/g, '').slice(0, 9))}
+            style={{ width: 150 }}
+          />
+          <button
+            className="btn small"
+            disabled={billingBusy || nifInput.length !== 9}
+            onClick={() => void saveNif(nifInput)}
+          >
+            {tr('Guardar')}
+          </button>
+        </div>
+        <p className="muted" style={{ fontSize: 12 }}>
+          {tr('Adiciona o NIF se quiseres faturas com número de contribuinte (dedução no IRS).')}
+        </p>
+
+        {/* Family region (market-coverage signal) */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          <strong style={{ fontSize: 13 }}>{tr('Região')}</strong>
+          <div className="row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
+            <select value={region} onChange={(e) => setRegion(e.target.value)}>
+              <option value="">{tr('— escolher —')}</option>
+              {PT_REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <input
+              inputMode="numeric"
+              maxLength={4}
+              placeholder={tr('Código postal (4 dígitos)')}
+              value={postal}
+              onChange={(e) => setPostal(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              style={{ width: 190 }}
+            />
+            <button
+              className="btn small"
+              disabled={billingBusy || !region || (postal.length > 0 && postal.length !== 4)}
+              onClick={() => void saveRegion()}
+            >
+              {tr('Guardar')}
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            {tr('Ajuda-nos a perceber onde reforçar a rede de pediatras. Não guardamos a tua morada.')}
+          </p>
+        </div>
       </div>
     </>
   );
@@ -7533,6 +7759,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
         </div>
       </div>
       <ContentReviewQueue onMsg={onMsg} />
+      <MarketSection />
       <div className="card section">
         <h3>{tr('Utilizadores por perfil')}</h3>
         {Object.entries(m.usersByRole).map(([k, v]) => (
@@ -7562,6 +7789,270 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
             <strong>{v}</strong>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Admin: Market analytics ─────────────────────────
+// Compact-table cell styles (numbers right-aligned, tabular figures so the
+// columns line up vertically).
+const mktTh = {
+  textAlign: 'left',
+  padding: '4px 12px 4px 0',
+  fontSize: 12,
+  color: 'var(--muted)',
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid var(--border)',
+} as const;
+const mktThNum = { ...mktTh, textAlign: 'right' } as const;
+const mktTd = {
+  padding: '5px 12px 5px 0',
+  fontSize: 13,
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid var(--border)',
+} as const;
+const mktTdNum = { ...mktTd, textAlign: 'right', fontVariantNumeric: 'tabular-nums' } as const;
+
+/**
+ * Monthly market trend: consultations per month as bars + new families as a
+ * 2px line — both are counts, so ONE shared axis. Colors come from the design
+ * system (var(--accent) bars, var(--info) line) and were run through the
+ * dataviz palette validator on both themes: CVD separation ΔE 72.7 (light) /
+ * 61.4 (dark) against a target of 12; the chroma floor sits below target
+ * because the whole HOC ramp is deliberately muted, so series identity is
+ * reinforced by mark FORM (bar vs. line), the legend and the tooltip, and the
+ * light-mode bar-contrast WARN is relieved by the axis ticks, the direct
+ * end-label and the tables beside the chart.
+ */
+function MarketTrendChart({ monthly }: { monthly: MarketMonthRow[] }) {
+  const { tr } = useT();
+  if (monthly.length === 0 || monthly.every((m) => m.consultations === 0 && m.newFamilies === 0)) {
+    return (
+      <p className="muted">
+        {tr('Ainda sem atividade neste período — o gráfico aparece com as primeiras consultas.')}
+      </p>
+    );
+  }
+  const w = 340;
+  const h = 170;
+  const padL = 34;
+  const padR = 8;
+  const padT = 14;
+  const padB = 18;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const baseline = padT + plotH;
+  const maxRaw = Math.max(...monthly.map((m) => Math.max(m.consultations, m.newFamilies)), 1);
+  // Round the axis top up to a clean step (1 / 2 / 2.5 / 5 × 10^k).
+  const pow = Math.pow(10, Math.floor(Math.log10(maxRaw)));
+  const niceMax = [1, 2, 2.5, 5, 10].map((f) => f * pow).find((v) => v >= maxRaw) ?? maxRaw;
+  const x = (i: number) => padL + (plotW / monthly.length) * (i + 0.5);
+  const y = (v: number) => padT + plotH - (v / niceMax) * plotH;
+  const barW = Math.min(18, (plotW / monthly.length) * 0.55);
+  const fmtN = (v: number) =>
+    new Intl.NumberFormat(appLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(v);
+  const monthLabel = (m: string) =>
+    new Date(`${m}-01T00:00:00`).toLocaleDateString(appLocale(), { month: 'short' });
+  // Column with a 4px-rounded data-end and a square baseline.
+  const barPath = (i: number, v: number) => {
+    const top = y(v);
+    const r = Math.min(3.5, barW / 2, baseline - top);
+    const x0 = x(i) - barW / 2;
+    const x1 = x(i) + barW / 2;
+    return `M${x0} ${baseline} L${x0} ${top + r} Q${x0} ${top} ${x0 + r} ${top} L${x1 - r} ${top} Q${x1} ${top} ${x1} ${top + r} L${x1} ${baseline} Z`;
+  };
+  const linePath = monthly
+    .map((m, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(m.newFamilies).toFixed(1)}`)
+    .join(' ');
+  const last = monthly[monthly.length - 1];
+  const totConsults = monthly.reduce((s, m) => s + m.consultations, 0);
+  const totFamilies = monthly.reduce((s, m) => s + m.newFamilies, 0);
+  const ticks = [0, niceMax / 2, niceMax];
+  return (
+    <div>
+      <div className="row" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, marginBottom: 4 }}>
+        <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            aria-hidden="true"
+            style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent)', display: 'inline-block' }}
+          />
+          {tr('Consultas')}
+        </span>
+        <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            aria-hidden="true"
+            style={{ width: 14, borderTop: '2px solid var(--info)', display: 'inline-block' }}
+          />
+          {tr('Novas famílias')}
+        </span>
+      </div>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width="100%"
+        role="img"
+        aria-label={`${tr('Tendência mensal: consultas em barras e novas famílias em linha.')} ${tr('Consultas')} ${totConsults} · ${tr('Novas famílias')} ${totFamilies}`}
+      >
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
+            <text x={padL - 5} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted)">
+              {fmtN(t)}
+            </text>
+          </g>
+        ))}
+        {monthly.map((m, i) => {
+          const byType = Object.entries(m.byServiceType)
+            .map(([k, v]) => `${tr(svcLabel(k))} ${v}`)
+            .join(' · ');
+          return (
+            <g key={m.month}>
+              <title>
+                {`${monthLabel(m.month)} · ${tr('Consultas')} ${m.consultations}${byType ? ` (${byType})` : ''} · ${tr('Novas famílias')} ${m.newFamilies}`}
+              </title>
+              {m.consultations > 0 ? <path d={barPath(i, m.consultations)} fill="var(--accent)" /> : null}
+              <text x={x(i)} y={h - 5} textAnchor="middle" fontSize="9" fill="var(--muted)">
+                {monthLabel(m.month)}
+              </text>
+            </g>
+          );
+        })}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="var(--info)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {monthly.map((m, i) => (
+          <g key={m.month} aria-hidden="true">
+            <circle cx={x(i)} cy={y(m.newFamilies)} r="5.5" fill="var(--surface)" />
+            <circle cx={x(i)} cy={y(m.newFamilies)} r="4" fill="var(--info)" />
+          </g>
+        ))}
+        {last.consultations > 0 ? (
+          <text
+            x={x(monthly.length - 1)}
+            y={y(last.consultations) - 4}
+            textAnchor="middle"
+            fontSize="9"
+            fill="var(--text-2)"
+          >
+            {last.consultations}
+          </text>
+        ) : null}
+      </svg>
+    </div>
+  );
+}
+
+// Demand vs. supply per region/specialty + the monthly trend (PLATFORM_ADMIN).
+function MarketSection() {
+  const { tr } = useT();
+  const [market, setMarket] = useState<MarketDto | null | undefined>(undefined);
+  const [months, setMonths] = useState(6);
+  const [refetching, setRefetching] = useState(false);
+
+  useEffect(() => {
+    setRefetching(true);
+    Api.adminMarket(months)
+      .then(setMarket)
+      .catch(() => setMarket((m) => m ?? null)) // older backend — section degrades
+      .finally(() => setRefetching(false));
+  }, [months]);
+
+  if (market === undefined) return <p className="muted section">{tr('A carregar…')}</p>;
+  if (market === null) {
+    return (
+      <div className="section">
+        <h3>{tr('Mercado')}</h3>
+        <p className="muted">{tr('Não foi possível carregar os dados de mercado.')}</p>
+      </div>
+    );
+  }
+
+  const regions = [...market.regions].sort((a, b) => b.consultations - a.consultations);
+  return (
+    <div className="section">
+      <h3>{tr('Mercado')}</h3>
+      <div className="row" style={{ gap: 6, marginBottom: 8 }}>
+        {[6, 12].map((n) => (
+          <button
+            key={n}
+            className={`btn small ${months === n ? '' : 'secondary'}`}
+            aria-pressed={months === n}
+            onClick={() => setMonths(n)}
+          >
+            {n} {tr('meses')}
+          </button>
+        ))}
+      </div>
+      {/* Hold the previous render at reduced opacity while refetching — no skeleton flash. */}
+      <div style={{ opacity: refetching ? 0.6 : 1 }}>
+        <div className="card" style={{ overflowX: 'auto' }}>
+          <h4 style={{ margin: '0 0 4px' }}>{tr('Por região')}</h4>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={mktTh}>{tr('Região')}</th>
+                <th style={mktThNum}>{tr('Famílias')}</th>
+                <th style={mktThNum}>{tr('Crianças')}</th>
+                <th style={mktThNum}>{tr('Consultas')}</th>
+                <th style={mktThNum}>{tr('Pediatras')}</th>
+                <th style={mktThNum}>{tr('Horas/sem')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {regions.map((r) => (
+                <tr key={r.region}>
+                  <td style={mktTd}>{r.region === 'Sem região' ? tr('Sem região') : r.region}</td>
+                  <td style={mktTdNum}>{r.families}</td>
+                  <td style={mktTdNum}>{r.children}</td>
+                  <td style={mktTdNum}>{r.consultations}</td>
+                  <td style={mktTdNum}>{r.activePediatricians}</td>
+                  <td style={mktTdNum}>{Math.round(r.offeredHoursWeek)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {regions.length === 0 ? <p className="muted">{tr('Sem dados por região ainda.')}</p> : null}
+        </div>
+
+        <div className="card" style={{ overflowX: 'auto', marginTop: 10 }}>
+          <h4 style={{ margin: '0 0 4px' }}>{tr('Por especialidade')}</h4>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={mktTh}>{tr('Especialidade')}</th>
+                <th style={mktThNum}>{tr('Consultas')}</th>
+                <th style={mktThNum}>{tr('Pediatras')}</th>
+                <th style={mktThNum}>{tr('Espera vídeo (h)')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {market.specialties.map((s) => (
+                <tr key={s.specialty}>
+                  <td style={mktTd}>{tr(specLabel(s.specialty))}</td>
+                  <td style={mktTdNum}>{s.consultations}</td>
+                  <td style={mktTdNum}>{s.activePediatricians}</td>
+                  <td style={mktTdNum}>
+                    {s.avgVideoLeadHours != null ? s.avgVideoLeadHours.toFixed(1) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {market.specialties.length === 0 ? (
+            <p className="muted">{tr('Sem dados por especialidade ainda.')}</p>
+          ) : null}
+        </div>
+
+        <div className="card" style={{ marginTop: 10 }}>
+          <h4 style={{ margin: '0 0 6px' }}>{tr('Tendência mensal')}</h4>
+          <MarketTrendChart monthly={market.monthly} />
+        </div>
       </div>
     </div>
   );
