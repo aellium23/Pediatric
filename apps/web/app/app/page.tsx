@@ -607,8 +607,30 @@ function AvatarPicker({
   );
 }
 
-/** Small round child photo with the usual emoji fallback (list rows, chips). */
-function ChildAvatar({ photoUrl, size = 36 }: { photoUrl?: string | null; size?: number }) {
+/** Sex/age-aware emoji fallback for a child without a photo. */
+function childEmoji(sex?: string | null, birthDate?: string | null): string {
+  if (birthDate) {
+    const months = (Date.now() - new Date(birthDate).getTime()) / (30.44 * 86_400_000);
+    if (months < 24) return '👶'; // babies read the same regardless of sex
+  }
+  const s = (sex || '').toUpperCase();
+  if (s === 'M') return '👦';
+  if (s === 'F') return '👧';
+  return '🧒';
+}
+
+/** Small round child photo with a sex/age-aware emoji fallback (rows, chips). */
+function ChildAvatar({
+  photoUrl,
+  size = 36,
+  sex,
+  birthDate,
+}: {
+  photoUrl?: string | null;
+  size?: number;
+  sex?: string | null;
+  birthDate?: string | null;
+}) {
   if (photoUrl) {
     return (
       <img
@@ -627,7 +649,7 @@ function ChildAvatar({ photoUrl, size = 36 }: { photoUrl?: string | null; size?:
   }
   return (
     <span aria-hidden style={{ fontSize: Math.round(size * 0.62), lineHeight: 1 }}>
-      🧒
+      {childEmoji(sex, birthDate)}
     </span>
   );
 }
@@ -2760,7 +2782,7 @@ function HomeTab({
       {children.length > 1 ? (
         <div style={{ maxWidth: 640, margin: '14px auto 0' }}>
           <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>{tr('Sobre qual criança?')}</div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {children.map((c) => (
               <button
                 key={c.id}
@@ -2768,9 +2790,9 @@ function HomeTab({
                 className={`chip${childId === c.id ? ' active' : ''}`}
                 aria-pressed={childId === c.id}
                 onClick={() => setChildId(c.id)}
-                style={{ flex: '0 0 auto', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <ChildAvatar photoUrl={c.photoUrl} size={22} /> {c.name}
+                <ChildAvatar photoUrl={c.photoUrl} size={22} sex={c.sex} birthDate={c.birthDate} /> {c.name}
               </button>
             ))}
           </div>
@@ -2986,7 +3008,7 @@ function ChildrenTab({ onMsg }: { onMsg: (m: string) => void }) {
               style={{ textAlign: 'left', cursor: 'pointer' }}
             >
               <div className="row" style={{ alignItems: 'center', gap: 10, flexWrap: 'nowrap' }}>
-                <ChildAvatar photoUrl={c.photoUrl} size={40} />
+                <ChildAvatar photoUrl={c.photoUrl} size={40} sex={c.sex} birthDate={c.birthDate} />
                 <div style={{ minWidth: 0 }}>
                   <strong>{c.name}</strong>
                   <div className="muted">

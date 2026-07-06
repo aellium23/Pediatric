@@ -212,6 +212,7 @@ export interface ChildDto {
   id: string;
   name: string;
   birthDate: string;
+  sex?: string | null;
   photoUrl?: string | null;
 }
 
