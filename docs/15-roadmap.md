@@ -1,5 +1,14 @@
 # 15 · Roadmap de 12 Meses
 
+> **Precedência — horizonte e sequência substituídos.** Este é o roadmap de
+> execução do MVP de telepediatria (M0–M12) e continua útil como plano do
+> caminho crítico e das dependências legais e fiscais. A **sequência de produto
+> em vigor** é a do relatório do conselho: roadmap de 24 meses e de 5 anos, com
+> o registo e o cofre como cunha de entrada, o Premium como receita e o
+> marketplace a seguir. Ver
+> [`strategy/00-child-health-os-relatorio-conselho.md`](strategy/00-child-health-os-relatorio-conselho.md)
+> §13 e §34, e o [índice de precedência](README.md).
+
 Calendário indicativo assumindo arranque com equipa pequena (ver [doc 16](16-equipa.md)). Datas relativas a **M0 = mês de arranque**.
 
 ## Visão por fases

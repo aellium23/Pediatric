@@ -1,0 +1,75 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['apps/backend/**', '.github/workflows/backend-ci.yml']
+  pull_request:
+    paths: ['apps/backend/**']
+
+defaults:
+  run:
+    working-directory: apps/backend
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pedia
+          POSTGRES_PASSWORD: pedia
+          POSTGRES_DB: pedia
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pedia" --health-interval 5s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://pedia:pedia@localhost:5432/pedia?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # No committed lockfile yet (Increment 1/2 scaffold) -> use npm install.
+      - run: npm install
+      - run: npx prisma generate
+      - run: npm run lint
+      # The schema is built by the committed migrations — the same path
+      # production takes, so a broken migration fails here and not on deploy.
+      - run: npx prisma migrate deploy
+      # And it must still match schema.prisma. Without this gate someone edits
+      # the schema, `db push`es it locally, and the migrations quietly rot.
+      # migrate diff exits 2 when there is a difference.
+      - name: No drift between migrations and schema.prisma
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      # Run the demo seed so a seed bug is caught here (it runs on every boot).
+      - run: npm run seed
+      - run: npm test -- --coverage
+      - run: npm run test:e2e
+      - run: npm run build
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs full history to scan the commit range
+      # Secret detection
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # SAST (advisory in the scaffold; findings surfaced, not yet blocking)
+      - name: Semgrep
+        continue-on-error: true
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/typescript p/owasp-top-ten
+      # Dependency (SCA) scanning
+      - name: npm audit (high+)
+        working-directory: apps/backend
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm audit --audit-level=high || true

@@ -1,0 +1,36 @@
+# Node / NestJS
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# Prisma
+apps/backend/prisma/*.db
+
+# Flutter / Dart
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/build/
+apps/mobile/.packages
+apps/mobile/ios/Pods/
+apps/mobile/**/GeneratedPluginRegistrant.*
+*.g.dart.bak
+
+# Terraform
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

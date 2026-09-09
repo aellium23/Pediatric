@@ -1,0 +1,806 @@
+// Pédia — PostgreSQL schema (MVP). Maps to docs/10-modelo-dados.md.
+// Security: clinical-sensitive fields are AES-256-GCM encrypted at the app layer
+// (EncryptionService) and stored as ciphertext; RLS + ownership checks enforced.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Identity ─────────────────────────────────────────
+enum Role {
+  PARENT
+  PEDIATRICIAN
+  CLINIC_STAFF
+  CLINIC_ADMIN
+  PLATFORM_ADMIN
+  SUPPORT
+  FINANCE
+  COMPLIANCE
+}
+
+enum AuthProvider {
+  PASSWORDLESS
+  APPLE
+  GOOGLE
+  PASSKEY
+}
+
+model User {
+  id               String       @id @default(uuid())
+  role             Role         @default(PARENT)
+  name             String? // display name (e.g. guardian "Marta Silva")
+  email            String?      @unique
+  emailVerified    Boolean      @default(false)
+  phone            String?      @unique
+  phoneVerified    Boolean      @default(false)
+  authProvider     AuthProvider @default(PASSWORDLESS)
+  appleSub         String?      @unique
+  googleSub        String?      @unique
+  mfaEnabled       Boolean      @default(false)
+  photoUrl         String? // small avatar (client-resized data URL or S3 URL)
+  preferredPayment String? // 'card' | 'mbway' | 'apple_pay' | 'google_pay'
+  // Fiscal ID (NIF) — only for consumer invoices with NIF ("fatura com NIF").
+  // Optional and stored in the clear: it is billing data, not health data.
+  nif              String?
+  locale           String       @default("pt-PT")
+  countryCode      String       @default("PT")
+  status           String       @default("active")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  credentials   WebAuthnCredential[]
+  refreshTokens RefreshToken[]
+  familyMembers FamilyMember[]
+  pediatrician  Pediatrician?
+  consents      Consent[]
+  auditLogs     AuditLog[]
+  analytics     AnalyticsEvent[]
+
+  @@index([role])
+}
+
+model WebAuthnCredential {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique // base64url
+  publicKey    Bytes
+  counter      BigInt   @default(0)
+  transports   String[] @default([])
+  deviceLabel  String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ── Consent (versioned, immutable) ───────────────────
+enum ConsentSubject {
+  HEALTH_DATA
+  TELECONSULT
+  TERMS
+  PRIVACY
+  MARKETING
+}
+
+model Consent {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  childId   String?
+  subject   ConsentSubject
+  version   String
+  grantedAt DateTime       @default(now())
+  revokedAt DateTime?
+  evidence  Json?
+
+  @@index([userId, subject])
+}
+
+// ── Family & Children ────────────────────────────────
+model Family {
+  id            String   @id @default(uuid())
+  name          String
+  primaryUserId String
+  countryCode   String   @default("PT")
+  // Analytics granularity only (market supply/demand) — NOT a full address.
+  // region is a canonical district/island from PT_REGIONS; postalCode is the
+  // 4-digit PT postal prefix. Both optional and self-declared.
+  region        String?
+  postalCode    String?
+  createdAt     DateTime @default(now())
+
+  members  FamilyMember[]
+  children Child[]
+}
+
+model FamilyMember {
+  id           String   @id @default(uuid())
+  familyId     String
+  family       Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationship String   @default("guardian")
+  permissions  String[] @default(["read", "write"])
+
+  @@unique([familyId, userId])
+}
+
+model Child {
+  id            String   @id @default(uuid())
+  familyId      String
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name          String
+  birthDate     DateTime
+  sex           String?
+  usualDoctor   String?
+  photoUrl      String? // small avatar (client-resized data URL or S3 URL)
+  // Clinical-sensitive: AES-256-GCM ciphertext (allergies, meds, conditions)
+  healthProfile String?
+  // SNS/utente number — health-adjacent identifier, AES-256-GCM ciphertext, optional.
+  snsNumber     String?
+  createdAt     DateTime @default(now())
+
+  consultations Consultation[]
+  files         FileAsset[]
+  documents     ChildDocument[]
+
+  @@index([familyId])
+}
+
+// ── Pediatricians ────────────────────────────────────
+enum PediatricianStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+model Pediatrician {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber     String             @unique
+  licenseVerifiedAt DateTime?
+  displayName       String? // public name shown in the marketplace (e.g. "Dra. Inês Rocha")
+  bio               String?
+  experienceYears   Int?
+  languages         String[]           @default([])
+  specialties       String[]           @default([])
+  status            PediatricianStatus @default(PENDING)
+  ratingAvg         Float              @default(0)
+  region            String? // service region (e.g. Lisboa, Madeira, Açores) — for coverage
+  // IANA timezone name (e.g. Europe/Lisbon, Atlantic/Azores). Availability
+  // minutes (startMinute/endMinute) are wall-clock times in THIS timezone and
+  // are converted to UTC instants at slot-generation / reply-estimate time.
+  timezone          String             @default("Europe/Lisbon")
+  stripeAccountId   String?
+  createdAt         DateTime           @default(now())
+
+  services          PediatricianService[]
+  consultations     Consultation[]
+  referralsSent     Referral[]             @relation("ReferralsSent")
+  referralsReceived Referral[]             @relation("ReferralsReceived")
+  verificationDocs  VerificationDocument[]
+
+  @@index([status])
+}
+
+// Credential documents (cédula profissional, diploma, …) reviewed by
+// compliance during pediatrician verification. The binary lives in the
+// SSE-KMS bucket (storageKey, uploaded via the files presign); this row
+// carries the review workflow and audit trail.
+model VerificationDocument {
+  id             String       @id @default(uuid())
+  pediatricianId String
+  pediatrician   Pediatrician @relation(fields: [pediatricianId], references: [id], onDelete: Cascade)
+  kind           String // cedula | diploma | id_document | insurance | other
+  fileName       String
+  storageKey     String?
+  status         String       @default("pending") // pending | approved | rejected
+  note           String? // reviewer note
+  createdAt      DateTime     @default(now())
+  reviewedAt     DateTime?
+
+  @@index([pediatricianId])
+}
+
+enum ServiceType {
+  MESSAGE
+  ASYNC
+  VIDEO
+  SECOND_OPINION
+  PRESCRIPTION_RENEWAL
+  FOLLOW_UP
+}
+
+model PediatricianService {
+  id             String       @id @default(uuid())
+  pediatricianId String
+  pediatrician   Pediatrician @relation(fields: [pediatricianId], references: [id], onDelete: Cascade)
+  type           ServiceType
+  priceCents     Int
+  currency       String       @default("EUR")
+  // Refund guarantee ceiling (wall clock). Breach → automatic refund.
+  slaHours       Int          @default(24)
+  // Aspirational reply time counted INSIDE message windows — what the
+  // marketplace advertises ("responde em ~4h em horário de mensagens").
+  targetHours    Int          @default(4)
+  scopeText      String?
+  active         Boolean      @default(true)
+
+  @@index([pediatricianId])
+}
+
+// ── Consultations & Messaging ────────────────────────
+enum ConsultationStatus {
+  OPEN
+  TRIAGE
+  ANSWERED
+  CLOSED
+  ARCHIVED
+  EXPIRED
+  REFUNDED
+  DISPUTED
+}
+
+model Consultation {
+  id                    String             @id @default(uuid())
+  familyId              String
+  childId               String
+  child                 Child              @relation(fields: [childId], references: [id])
+  pediatricianId        String
+  pediatrician          Pediatrician       @relation(fields: [pediatricianId], references: [id])
+  type                  ServiceType
+  status                ConsultationStatus @default(OPEN)
+  scopeSnapshot         String?
+  /// True when the family's subscription allowance paid for this consultation
+  /// instead of the family being charged. The pediatrician is still owed
+  /// priceCents — the platform absorbs it out of subscription revenue.
+  /// How much of `priceCents` the family's plan covers, in cents. Zero means
+  /// the family pays in full. A value below `priceCents` means the plan hit its
+  /// per-consultation cap and the family pays the difference. One field rather
+  /// than a boolean plus an amount, so the two can never disagree.
+  coveredCents          Int                @default(0)
+  priceCents            Int
+  currency              String             @default("EUR")
+  slaDueAt              DateTime? // refund-guarantee ceiling (wall clock)
+  // Honest reply expectation computed from the pediatrician's message
+  // windows at open time — shown to the family, never a refund trigger.
+  expectedReplyAt       DateTime?
+  scheduledAt           DateTime?
+  triage                Json?
+  episodeId             String?
+  summary               String? // pediatrician's post-consultation note (AES-256-GCM)
+  openedAt              DateTime           @default(now())
+  answeredAt            DateTime?
+  closedAt              DateTime?
+
+  messages     Message[]
+  files        FileAsset[]
+  payment      Payment?
+  invoice      Invoice?
+  videoSession VideoSession?
+  referrals    Referral[]
+
+  @@index([pediatricianId, status])
+  @@index([familyId])
+  @@index([episodeId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  senderUserId   String
+  body           String // AES-256-GCM ciphertext
+  // Clinical photos: array of AES-256-GCM-encrypted data-URL strings (≤3).
+  attachments    Json?
+  aiGenerated    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([consultationId])
+}
+
+model FileAsset {
+  id             String        @id @default(uuid())
+  ownerUserId    String
+  childId        String?
+  child          Child?        @relation(fields: [childId], references: [id])
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  type           String
+  storageKey     String
+  mime           String
+  sizeBytes      Int
+  checksum       String?
+  scanStatus     String        @default("pending") // pending|clean|infected
+  createdAt      DateTime      @default(now())
+
+  @@index([childId])
+}
+
+// ── Payments & Invoicing ─────────────────────────────
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  REFUNDED
+  FAILED
+  CHARGED_BACK
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  consultationId String        @unique
+  consultation   Consultation  @relation(fields: [consultationId], references: [id])
+  /// The full value of the act — what the pediatrician's split is computed
+  /// from, regardless of who funded it.
+  amountCents    Int
+  /// The part of `amountCents` the platform funds out of subscription revenue.
+  /// The family is charged `amountCents - subsidyCents`, and that is also all
+  /// they can ever be refunded.
+  subsidyCents   Int           @default(0)
+  currency       String        @default("EUR")
+  method         String        @default("card")
+  psp            String        @default("stripe")
+  pspRef         String?
+  status         PaymentStatus @default(CREATED)
+  createdAt      DateTime      @default(now())
+  capturedAt     DateTime?
+
+  split   Split?
+  refunds Refund[]
+}
+
+model Split {
+  id                 String  @id @default(uuid())
+  paymentId          String  @unique
+  payment            Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  platformFeeCents   Int
+  pediatricianAmount Int
+  feeModel           String  @default("pct")
+}
+
+model Refund {
+  id          String   @id @default(uuid())
+  paymentId   String
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amountCents Int
+  reason      String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model Invoice {
+  id             String       @id @default(uuid())
+  consultationId String       @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  issuer         String // pediatrician | platform
+  amountCents    Int
+  vatCents       Int          @default(0)
+  vatRegime      String       @default("exempt")
+  atcud          String?
+  partnerDocId   String?
+  pdfUrl         String?
+  issuedAt       DateTime     @default(now())
+}
+
+// Platform commission invoiced to the pediatrician (subject to VAT — to validate).
+model CommissionInvoice {
+  id             String   @id @default(uuid())
+  pediatricianId String
+  consultationId String   @unique
+  amountCents    Int
+  vatCents       Int      @default(0)
+  vatRegime      String   @default("standard")
+  atcud          String?
+  partnerDocId   String?
+  pdfUrl         String?
+  issuedAt       DateTime @default(now())
+
+  @@index([pediatricianId])
+}
+
+// Verified review left by a family after a closed consultation.
+model Review {
+  id             String   @id @default(uuid())
+  consultationId String   @unique
+  familyId       String
+  pediatricianId String
+  rating         Int
+  comment        String?
+  verified       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([pediatricianId])
+}
+
+// ── Scheduling & Video ───────────────────────────────
+enum AvailabilityKind {
+  VIDEO // bookable video slots
+  MESSAGES // "message hours": drives the expected-reply estimate, not booking
+}
+
+model Availability {
+  id             String           @id @default(uuid())
+  pediatricianId String
+  kind           AvailabilityKind @default(VIDEO)
+  weekday        Int // 0=Sunday .. 6=Saturday
+  startMinute    Int // minutes from midnight
+  endMinute      Int
+  slotMinutes    Int              @default(20) // ignored for MESSAGES
+  // Concrete calendar date (midnight UTC). Null = weekly recurring template.
+  // On a date with dated blocks (same kind), only those count; the template is the fallback.
+  date           DateTime?
+  // A dated closed row marks the day+kind as unavailable (vacation/férias):
+  // it participates in the dated-override rule (so the weekly template does
+  // NOT apply that day) but contributes no window. Stored inert with
+  // startMinute = endMinute = 0.
+  closed         Boolean          @default(false)
+
+  @@index([pediatricianId, weekday])
+  @@index([pediatricianId, date])
+}
+
+model VideoSession {
+  id             String       @id @default(uuid())
+  consultationId String       @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  provider       String       @default("livekit")
+  roomId         String
+  scheduledAt    DateTime
+  consentId      String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([scheduledAt])
+}
+
+// ── Notifications ────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  channel   String   @default("push")
+  type      String
+  title     String
+  body      String
+  refId     String? // e.g. consultationId — lets the app deep-link on tap
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  platform  String // ios | android | web
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ── Audit (append-only) ──────────────────────────────
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  ip          String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}
+
+// ── Document vault ───────────────────────────────────
+enum DocumentKind {
+  REPORT
+  LAB
+  IMAGING
+  PRESCRIPTION
+  VACCINE
+  OTHER
+}
+
+/// The family's document vault: the reports, results and letters that today
+/// live in WhatsApp, email and paper. `title` and `content` are special-category
+/// health data and are AES-256-GCM encrypted at rest like message bodies.
+///
+/// Pilot storage: the file is kept inline as an encrypted data URL, the same
+/// route the chat photos already take. That caps a document at a few MB and
+/// puts bytes in the database — fine for a pilot, and deliberately not the
+/// production answer (see FilesModule for the signed-URL/S3 path).
+model ChildDocument {
+  id               String       @id @default(uuid())
+  childId          String
+  child            Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  uploadedByUserId String?
+  title            String
+  kind             DocumentKind @default(OTHER)
+  mime             String
+  sizeBytes        Int
+  /// When the document itself is dated (exam date), not when it was uploaded.
+  issuedAt         DateTime?
+  content          String
+  createdAt        DateTime     @default(now())
+
+  @@index([childId, createdAt])
+}
+
+// ── Product instrumentation ──────────────────────────
+// Funnel + habit events for the pilot. Deliberately has NO free-text column:
+// every field is an id, a short fixed name or a number, so clinical content
+// cannot land here even by accident (LAUNCH_READY bloco C).
+model AnalyticsEvent {
+  id             String   @id @default(uuid())
+  name           String
+  role           Role?
+  // Nulled on erasure (PrivacyService.deleteAccount) — the event survives as an
+  // anonymous count, which is what the metric needs.
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  consultationId String?
+  pediatricianId String?
+  specialty      String?
+  value          Int?
+  createdAt      DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// ── Clinics (B2B multi-tenant) ───────────────────────
+model Clinic {
+  id              String   @id @default(uuid())
+  name            String
+  taxId           String?
+  // ERS (Entidade Reguladora da Saúde) registration number of the provider.
+  ersRegistration String?
+  countryCode     String   @default("PT")
+  createdAt       DateTime @default(now())
+
+  members       ClinicMember[]
+  pediatricians ClinicPediatrician[]
+}
+
+model ClinicMember {
+  id        String   @id @default(uuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  @@unique([clinicId, userId])
+  @@index([userId])
+}
+
+model ClinicPediatrician {
+  id              String   @id @default(uuid())
+  clinicId        String
+  clinic          Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  pediatricianId  String
+  revenueSharePct Int      @default(20)
+  createdAt       DateTime @default(now())
+
+  @@unique([clinicId, pediatricianId])
+  @@index([pediatricianId])
+}
+
+// ── Rich health profile + clinical episodes (Phase C) ─
+model GrowthMeasurement {
+  id         String   @id @default(uuid())
+  childId    String
+  measuredAt DateTime
+  heightCm   Float?
+  weightKg   Float?
+  headCm     Float?
+  createdAt  DateTime @default(now())
+
+  @@index([childId])
+}
+
+// Point-in-time vital signs (home monitoring or during a consultation).
+// Numeric/clear so they can drive trends and alerts; no free-text PII.
+model Allergy {
+  id        String   @id @default(uuid())
+  childId   String
+  code      String? // catalog allergen code (clear, for drug-conflict matching)
+  label     String // encrypted display label
+  category  String? // farmaco | alimento | ambiental (clear)
+  createdAt DateTime @default(now())
+
+  @@index([childId])
+}
+
+model Vital {
+  id             String   @id @default(uuid())
+  childId        String
+  measuredAt     DateTime
+  temperatureC   Float?
+  heartRateBpm   Int?
+  respRateBpm    Int?
+  spo2Pct        Int?
+  systolicMmHg   Int?
+  diastolicMmHg  Int?
+  consultationId String?
+  createdAt      DateTime @default(now())
+
+  @@index([childId])
+}
+
+model Vaccination {
+  id        String   @id @default(uuid())
+  childId   String
+  name      String // encrypted
+  date      DateTime
+  notes     String? // encrypted
+  pnvAbbr   String? // PNV short code (clear, for schedule tracking)
+  cvx       String? // CDC CVX code (clear)
+  createdAt DateTime @default(now())
+
+  @@index([childId])
+}
+
+model Medication {
+  id           String    @id @default(uuid())
+  childId      String
+  name         String // encrypted
+  dose         String? // encrypted
+  atcCode      String? // WHO ATC code (clear, for coded entry)
+  route        String? // oral, tópica, inalada, etc.
+  frequency    String? // e.g. "8/8h"
+  durationDays Int?
+  active       Boolean   @default(true)
+  startedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([childId])
+}
+
+model Episode {
+  id        String    @id @default(uuid())
+  childId   String
+  title     String // encrypted
+  summary   String? // encrypted
+  icpc2Code String? // ICPC-2 code (clear, for problem list / analytics)
+  icd10Code String? // mapped ICD-10 (clear)
+  status    String    @default("OPEN")
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+
+  @@index([childId])
+}
+
+/// A developmental milestone the FAMILY says the child has reached. One row per
+/// milestone actually observed — the absence of a row means "not ticked", which
+/// is not the same as "not reached", and nothing in the product treats it as
+/// such. `code` is a key into the static catalogue
+/// (`src/common/development/milestones.ts`), kept clear like the other coded
+/// clinical fields (ICD-10, ATC, CVX); only the parent's own note is encrypted.
+model DevelopmentMilestone {
+  id         String   @id @default(uuid())
+  childId    String
+  code       String
+  achievedAt DateTime
+  note       String? // encrypted
+  createdAt  DateTime @default(now())
+
+  @@unique([childId, code])
+  @@index([childId])
+}
+
+// ── Subscriptions (Phase D) ──────────────────────────
+enum SubscriptionPlan {
+  FAMILY
+  PED_PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model Subscription {
+  id          String             @id @default(uuid())
+  userId      String
+  plan        SubscriptionPlan
+  status      SubscriptionStatus @default(ACTIVE)
+  priceCents  Int
+  startedAt   DateTime           @default(now())
+  cancelledAt DateTime?
+
+  @@index([userId])
+}
+
+// ── Favorites (Phase G) ──────────────────────────────
+model Favorite {
+  id             String   @id @default(uuid())
+  userId         String
+  pediatricianId String
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, pediatricianId])
+  @@index([userId])
+}
+
+// ── Content library (Phase J) ────────────────────────
+enum ArticleStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+model Article {
+  id           String        @id @default(uuid())
+  slug         String        @unique
+  title        String
+  category     String        @default("geral")
+  body         String
+  authorUserId String?
+  // `published` remains the public-listing flag; `status` drives the
+  // editorial workflow (pediatrician submits → clinical/platform admin reviews).
+  published    Boolean       @default(false)
+  status       ArticleStatus @default(DRAFT)
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([published])
+  @@index([status])
+}
+
+// ── Doctor-to-doctor second opinion (referrals) ──────
+enum ReferralStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+}
+
+model Referral {
+  id                 String         @id @default(uuid())
+  consultationId     String
+  consultation       Consultation   @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  fromPediatricianId String
+  fromPediatrician   Pediatrician   @relation("ReferralsSent", fields: [fromPediatricianId], references: [id])
+  toPediatricianId   String
+  toPediatrician     Pediatrician   @relation("ReferralsReceived", fields: [toPediatricianId], references: [id])
+  status             ReferralStatus @default(PENDING)
+  reason             String // clinical context, AES-256-GCM
+  opinion            String? // colleague's opinion, AES-256-GCM
+  createdAt          DateTime       @default(now())
+  respondedAt        DateTime?
+  completedAt        DateTime?
+
+  @@index([toPediatricianId, status])
+  @@index([fromPediatricianId])
+  @@index([consultationId])
+}

@@ -1,0 +1,1615 @@
+:root {
+  /* Brand — HOC navy primary, gold accent (the ECG-through-the-O identity). */
+  --brand: #1b2b4b;
+  --brand-press: #14213b;
+  --brand-tint: #eef1f7;
+  --brand-2: #2f5e8f;
+  --accent: #b89460;
+  --accent-press: #a37f4c;
+  --accent-tint: #f6efe2;
+
+  /* Text */
+  --text: #131a26;
+  --text-2: #46536b;
+  --muted: #6b788c;
+  --on-brand: #ffffff;
+
+  /* Surfaces */
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f3f7;
+  --fill: #eef1f5;
+  --border: #e2e6ee;
+  --border-strong: #cfd5e1;
+  --scrim: rgba(16, 26, 45, 0.42);
+  --chrome: rgba(255, 255, 255, 0.72);
+
+  /* Semantic */
+  --ok: #1f8b5a;
+  --ok-bg: #e6f4ec;
+  --warn: #9a6b12;
+  --warn-bg: #fbefd6;
+  --info: #2a5fa0;
+  --info-bg: #e7effb;
+  --danger: #c8102e;
+  --danger-bg: #fbe8ea;
+
+  /* Radius family */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-full: 999px;
+  --radius: var(--r-md);
+  --radius-sm: var(--r-sm);
+
+  /* Elevation (navy-tinted, layered) */
+  --shadow-xs: 0 1px 2px rgba(16, 26, 45, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 26, 45, 0.07), 0 1px 2px rgba(16, 26, 45, 0.04);
+  --shadow-md: 0 6px 16px -4px rgba(16, 26, 45, 0.1), 0 2px 6px -2px rgba(16, 26, 45, 0.06);
+  --shadow-lg: 0 16px 40px -12px rgba(16, 26, 45, 0.16);
+  --shadow: var(--shadow-sm);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur: 160ms;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --brand: #33507f;
+  --brand-press: #2a4068;
+  --brand-tint: #18233b;
+  --brand-2: #5f83b3;
+  --accent: #c9a877;
+  --accent-press: #b4915f;
+  --accent-tint: #2a2416;
+
+  --text: #e8ecf3;
+  --text-2: #aab4c6;
+  --muted: #8591a6;
+  --on-brand: #ffffff;
+
+  --bg: #0c111c;
+  --surface: #131a2a;
+  --surface-2: #1a2436;
+  --fill: #1c2740;
+  --border: #263248;
+  --border-strong: #33425e;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --chrome: rgba(19, 26, 42, 0.72);
+
+  --ok: #4fbd88;
+  --ok-bg: #10261c;
+  --warn: #d9ad57;
+  --warn-bg: #2a2210;
+  --info: #7aa6e0;
+  --info-bg: #14233b;
+  --danger: #f0788a;
+  --danger-bg: #2c1418;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+:root[data-text="large"] body {
+  font-size: 18px;
+}
+
+:root[data-theme="dark"] .hero {
+  background: linear-gradient(160deg, #18233b 0%, var(--bg) 72%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  font-family:
+    var(--font-ui, -apple-system), -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 18px 96px;
+}
+
+@media (max-width: 540px) {
+  main {
+    padding: 18px 14px 96px;
+  }
+  .hero h1 {
+    font-size: 30px;
+  }
+}
+
+img,
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
+/* Accessibility: visible focus + respect reduced motion. */
+/* Text that only assistive technology reads (WCAG 1.3.1 / 2.4.6) — used for
+   field labels where the visual design carries the meaning some other way. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: 21px;
+  margin: 0 0 4px;
+}
+h3 {
+  font-size: 17px;
+}
+
+.hero {
+  background: linear-gradient(160deg, var(--brand-tint) 0%, var(--bg) 70%);
+  border-radius: 28px;
+  padding: 32px 24px;
+  margin-top: 8px;
+}
+.hero h1 {
+  font-size: 36px;
+  line-height: 1.1;
+  margin: 14px 0 10px;
+  letter-spacing: -0.03em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 15px 26px;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
+  background: var(--brand);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 650;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.cta:active {
+  transform: scale(0.97);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+textarea,
+input,
+select {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1.5px solid transparent;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+  margin: 6px 0;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+textarea:focus,
+input:focus,
+select:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--brand);
+}
+/* WCAG 2.4.7 (Focus Visible) / 2.4.11 (Focus Appearance): the rule above is
+   more specific than the global :focus-visible, so without this a keyboard user
+   would only get a 1px border tint as focus indicator. Re-assert the ring for
+   keyboard focus only (pointer focus keeps the quieter look). */
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+textarea {
+  line-height: 1.5;
+}
+/* Native dropdown list + options must follow the theme (avoid white-on-white). */
+option,
+optgroup {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Native date/time controls: keep the typed value AND the empty placeholder
+   readable on the dark fill (iOS/WebKit renders these via pseudo-elements that
+   don't inherit colour reliably), and make the calendar icon visible in dark. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  color: var(--text);
+}
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="time"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  color: var(--text);
+}
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.85;
+}
+
+/* ─── App shell (bottom tab bar) — always fixed & visible ─── */
+.appbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-around;
+  gap: 2px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--chrome);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 24px rgba(16, 26, 45, 0.08);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+/* Icon + short label; the active item carries a gold indicator dot. */
+.appbar button {
+  flex: 1 1 0;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 0 5px;
+  cursor: pointer;
+  margin: 0;
+  position: relative;
+}
+.appbar button .ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  transition: transform var(--dur) var(--ease);
+}
+.appbar button .lbl {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appbar button.active {
+  color: var(--text);
+}
+.appbar button.active::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.appbar button:active .ico {
+  transform: scale(0.88);
+}
+.apphead {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--chrome);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 2px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--info);
+  letter-spacing: 0.01em;
+}
+.pill.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.pill.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.pill.muted {
+  background: var(--fill);
+  color: var(--muted);
+}
+.pill.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.card.accent {
+  border-left: 4px solid var(--accent);
+}
+button.card {
+  width: 100%;
+  display: block;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+button.card:active {
+  transform: scale(0.985);
+  background: var(--fill);
+}
+
+/* Instagram-style list rows (continuous, hairline-divided). */
+.list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 16px;
+}
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+}
+.lrow:last-child {
+  border-bottom: none;
+}
+.lrow:active {
+  background: var(--fill);
+}
+.lrow-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.lrow-main strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.lrow-main .muted {
+  font-size: 13px;
+}
+.chev {
+  color: var(--border-strong);
+  font-size: 24px;
+  line-height: 1;
+  flex: none;
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.avatar.sm {
+  width: 34px;
+  height: 34px;
+}
+.avatar.sm svg {
+  width: 18px;
+  height: 18px;
+}
+
+.iconbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Always-present emergency access (SOS) + bottom sheet. */
+.fab-sos {
+  position: fixed;
+  right: 16px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  z-index: 40;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+.fab-sos:active {
+  transform: scale(0.92);
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--scrim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+/* The click-away area behind a sheet or overlay. A real <button> rather than a
+   div with onClick, so it is reachable and operable by keyboard and announced
+   as "Fechar" instead of being an invisible mouse-only affordance. */
+.scrim-btn {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+.sheet {
+  width: 100%;
+  max-width: 720px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 12px 18px calc(20px + env(safe-area-inset-bottom));
+  animation: sheet-up 0.22s ease;
+}
+.sheet-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 0 auto 10px;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.iconbtn:active {
+  transform: scale(0.92);
+}
+
+/* Skeleton loaders + empty states. */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--fill) 25%,
+    rgba(128, 128, 128, 0.14) 37%,
+    var(--fill) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+.skel-line {
+  height: 12px;
+  margin: 9px 0;
+}
+.w40 {
+  width: 40%;
+}
+.w55 {
+  width: 55%;
+}
+.w70 {
+  width: 70%;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+.empty {
+  text-align: center;
+  padding: 44px 16px;
+  color: var(--muted);
+}
+.empty-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px dashed var(--border);
+  margin: 0 auto 12px;
+}
+.empty strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* Search field. */
+.search {
+  background: var(--fill);
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 8px 0 4px;
+}
+
+/* Filter chips (segment selectors). */
+.chip {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.chip.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+/* Chat bubbles. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0;
+}
+.bubble {
+  max-width: 80%;
+  padding: 10px 13px;
+  border-radius: 18px;
+  font-size: 14.5px;
+  line-height: 1.4;
+  position: relative;
+  word-break: break-word;
+}
+.bubble.them {
+  align-self: flex-start;
+  background: var(--fill);
+  color: var(--text);
+  border-bottom-left-radius: 5px;
+}
+.bubble.me {
+  align-self: flex-end;
+  background: var(--brand);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.bubble-time {
+  display: block;
+  font-size: 10.5px;
+  opacity: 0.6;
+  margin-top: 3px;
+  text-align: right;
+}
+
+/* Segmented control (settings). */
+.seg {
+  display: flex;
+  background: var(--fill);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg button {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 9px 6px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--brand);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.section {
+  margin-top: 22px;
+}
+
+.btn {
+  cursor: pointer;
+  padding: 12px 20px;
+  min-height: 44px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 650;
+  font-size: 15px;
+  margin-top: 8px;
+  box-shadow: none;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.btn:active {
+  transform: scale(0.97);
+  background: var(--brand-press);
+}
+
+.btn.secondary {
+  background: var(--fill);
+  color: var(--text);
+  border: none;
+  box-shadow: none;
+}
+.btn.secondary:active {
+  background: var(--border);
+}
+
+.btn.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: none;
+  box-shadow: none;
+}
+
+.btn.small {
+  padding: 9px 16px;
+  min-height: 38px;
+  font-size: 13.5px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.notice {
+  background: var(--info-bg);
+  border: 1px solid var(--border);
+  color: var(--info);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.notice.warn {
+  background: var(--warn-bg);
+  border-color: var(--border);
+  color: var(--warn);
+}
+
+/* ─────────────  Visual tour  ───────────── */
+.tourwrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 16px 90px;
+}
+.tourhero {
+  text-align: center;
+  padding: 28px 8px 8px;
+}
+.tourhero h1 {
+  font-size: 30px;
+  margin: 0 0 8px;
+}
+.tourhero p {
+  color: var(--muted);
+  margin: 0 auto;
+  max-width: 520px;
+}
+.toursec {
+  font-size: 22px;
+  margin: 48px 0 4px;
+  text-align: center;
+}
+.toursec-sub {
+  text-align: center;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.tourstep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: 30px 0;
+}
+.tourcap {
+  max-width: 340px;
+  text-align: center;
+}
+.tourcap .n {
+  display: inline-block;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tourcap h3 {
+  margin: 10px 0 4px;
+}
+.tourcap p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Phone frame */
+.phone {
+  width: 300px;
+  height: 620px;
+  background: #fff;
+  border-radius: 44px;
+  border: 11px solid #0c111c;
+  box-shadow: 0 22px 55px rgba(16, 26, 45, 0.25);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.phone .notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 124px;
+  height: 26px;
+  background: #0c111c;
+  border-radius: 0 0 16px 16px;
+  z-index: 5;
+}
+.scr {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+.scr.dark {
+  background: linear-gradient(160deg, #18233b, #0c111c);
+  color: #eaf0f6;
+}
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 18px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+}
+.scr-top {
+  padding: 6px 16px 8px;
+}
+.scr-top h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+.scr-top .sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+.scr-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px 14px 8px;
+}
+.scr-tab {
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 6px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+}
+.scr-tab b {
+  color: var(--brand);
+}
+.scr-tab span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Screen widgets */
+.tcard {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 8px 0;
+  background: #fff;
+  font-size: 13px;
+}
+.tcard.surface {
+  background: var(--surface);
+}
+.trow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.tavatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.tpill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.tpill.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.tpill.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.tpill.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.tpill.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.tbtn {
+  display: block;
+  text-align: center;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 999px;
+  padding: 11px;
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 8px;
+}
+.tbtn.alt {
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+}
+.tbtn.dark {
+  background: #fff;
+  color: #0c111c;
+}
+.tinput {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 6px 0;
+}
+.tbubble {
+  max-width: 78%;
+  padding: 9px 11px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  margin: 6px 0;
+  line-height: 1.35;
+}
+.tbubble.me {
+  background: var(--brand);
+  color: #fff;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+.tbubble.them {
+  background: var(--surface);
+  border-bottom-left-radius: 4px;
+}
+.tsafety {
+  font-size: 11px;
+  color: var(--danger);
+  text-align: center;
+  padding: 6px 0 2px;
+}
+.tlabel {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 8px 0 2px;
+}
+.tprice {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.tgrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tchip {
+  border: 1px solid var(--brand);
+  color: var(--brand);
+  border-radius: 999px;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ─── Print (Boletim de saúde → Guardar como PDF) ─── */
+@media print {
+  .appbar,
+  .apphead,
+  .fab-sos,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #111;
+  }
+  main {
+    padding: 0;
+    max-width: none;
+  }
+  .card,
+  .section {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .print-report h2,
+  .print-report h3 {
+    color: #0f2a4a;
+  }
+  .print-report table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .print-report th,
+  .print-report td {
+    border: 1px solid #ccc;
+    padding: 4px 6px;
+    text-align: left;
+  }
+}
+.print-report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 6px 0 14px;
+}
+.print-report th,
+.print-report td {
+  border: 1px solid var(--border);
+  padding: 5px 7px;
+  text-align: left;
+}
+
+/* ─── Child timeline ─── */
+.tl {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  position: relative;
+}
+.tl::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--border);
+}
+.tl li {
+  position: relative;
+  padding: 0 0 14px 42px;
+}
+.tl .tl-dot {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.tl .tl-month {
+  padding: 2px 0 10px 0;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.tl .tl-month::before {
+  display: none;
+}
+
+/* ─── Collapsed "+ Registar" forms (child health profile) ─── */
+.regform {
+  margin: 10px 0 4px;
+}
+.regform summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 9px 16px;
+  min-height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 13.5px;
+  user-select: none;
+}
+.regform summary::-webkit-details-marker {
+  display: none;
+}
+.regform[open] summary {
+  background: var(--brand-tint);
+  color: var(--brand);
+}
+
+/* Red "new content" dot on the header bell. */
+.dot-badge {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--surface);
+}
+
+/* Theme-aware brand artwork: exactly one variant visible per theme. */
+.logo-light,
+.logo-dark {
+  display: block;
+}
+.logo-dark {
+  display: none;
+}
+:root[data-theme="dark"] .logo-light {
+  display: none;
+}
+:root[data-theme="dark"] .logo-dark {
+  display: block;
+}
+
+/* ─── Child health profile: one bounded card per clinical section ─── */
+.hsec {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px 16px;
+  margin-top: 16px;
+}
+.hsec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.hsec-head h3 {
+  margin: 0;
+  flex: 1;
+}
+.hsec-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--brand-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex: none;
+}
+/* Inner cards sit on the section surface: tonal, not double-bordered. */
+.hsec .card {
+  background: var(--surface-2);
+  border-color: transparent;
+  box-shadow: none;
+}
+.hsec .regform summary {
+  background: var(--surface-2);
+}
+
+/* ── Agenda availability calendar (.agcal-): month / week / day views ── */
+.agcal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.agcal-period {
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.agcal-month {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.agcal-mwd {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.agcal-mday {
+  min-height: 62px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  text-align: left;
+  cursor: pointer;
+}
+.agcal-mday:hover,
+.agcal-mday:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+.agcal-mday.out {
+  opacity: 0.4;
+}
+.agcal-mday.past {
+  opacity: 0.55;
+}
+.agcal-mday .num {
+  font-size: 12px;
+  color: var(--text-2);
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 50%;
+}
+.agcal-mday.today .num {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+.agcal-mbar {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  margin-top: 2px;
+  background: var(--accent);
+}
+.agcal-mbar.msg {
+  background: var(--info);
+}
+/* Week header: mirrors the grid layout (axis spacer + 7 equal columns). */
+.agcal-head {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+}
+.agcal-axislbl {
+  flex: 0 0 40px;
+}
+@media (max-width: 540px) {
+  .agcal-axislbl {
+    flex-basis: 34px;
+  }
+}
+.agcal-daylbl {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 0 2px;
+  /* It's a button now: tapping a day jumps to the Day view. */
+  border: 0;
+  background: transparent;
+  min-height: 40px;
+  cursor: pointer;
+  border-radius: var(--r-xs);
+}
+.agcal-daylbl:hover,
+.agcal-daylbl:focus-visible {
+  background: var(--brand-tint);
+}
+/* Color-dot legend inside the kind-filter seg. */
+.agseg-v::before,
+.agseg-m::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  background: var(--accent);
+}
+.agseg-m::before {
+  background: var(--info);
+}
+.agcal-grid {
+  display: flex;
+  gap: 2px;
+  height: 450px;
+}
+.agcal-axis {
+  flex: 0 0 40px;
+  position: relative;
+}
+@media (max-width: 540px) {
+  .agcal-axis {
+    flex-basis: 34px;
+  }
+}
+.agcal-axis span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+}
+.agcal-col {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  overflow: hidden;
+}
+.agcal-cell {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+.agcal-cell:first-child {
+  border-top: 0;
+}
+.agcal-cell:hover,
+.agcal-cell:focus-visible {
+  background: var(--brand-tint);
+}
+.agcal-block {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border: 0;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 2px 3px;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  /* Pin labels to the top (buttons center content by default). */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+/* Dated exception = the thing to spot when scanning the week. */
+.agcal-block.dated {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.agcal-block.msg {
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+}
+.agcal-block.msg.dated {
+  box-shadow: inset 0 0 0 2px var(--info);
+}
+.agcal-block.msg.selected {
+  background: var(--info);
+  color: var(--surface);
+}
+.agcal-daylbl.today {
+  color: var(--accent);
+  font-weight: 700;
+}
+.agcal-col.today {
+  border-color: var(--accent);
+}
+.agcal-col.past {
+  opacity: 0.75;
+}
+.agcal-daycard {
+  text-align: left;
+  cursor: pointer;
+  border-color: var(--accent);
+}
+.agcal-daycard.tmpl {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+.agcal-daycard.selected {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+.agcal-daycard.msg {
+  border-color: var(--info);
+}
+.agcal-daycard.msg.selected {
+  background: var(--info-bg);
+  border-color: var(--info);
+}
+
+.agcal-tmplsec {
+  margin-top: 14px;
+}
+.agcal-tmplsec summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.agcal-block.selected {
+  background: var(--accent);
+  border-color: var(--accent-press);
+  color: var(--brand);
+  font-weight: 600;
+}
+.agcal-block:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 1px;
+}
+.agcal-freelist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.agcal-freerow {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 15px;
+  cursor: pointer;
+}
+.agcal-freerow:hover,
+.agcal-freerow:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-tint);
+}
+/* Booked consultation chip (week view): solid, above availability fills. */
+.agcal-bk {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 2;
+  min-height: 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.1;
+  padding: 1px 3px;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agcal-bk.selected,
+.agcal-bk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Booked consultation card (day view). */
+.agcal-bkcard {
+  text-align: left;
+  cursor: pointer;
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.agcal-bkcard .muted {
+  color: rgba(255, 255, 255, 0.75);
+}
+.agcal-bkcard.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Month cell: booked-consultations count (top-right) + vacation marker. */
+.agcal-mday {
+  position: relative;
+}
+.agcal-mcount {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-2);
+}
+.agcal-mvac {
+  font-size: 14px;
+  line-height: 1;
+  margin-top: 2px;
+}
+/* Vacation day (week view): light hatched overlay over the whole column. */
+.agcal-col.closed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--text-2) 14%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+/* Desktop drag-to-create: translucent selection rectangle while dragging. */
+.agcal-dragsel {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}

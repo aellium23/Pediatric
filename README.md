@@ -19,7 +19,39 @@ A proposta assenta em quatro pilares:
 
 ---
 
-## Índice de entregáveis
+## Por onde começar
+
+> **A tese em vigor é o [Child Health OS](docs/strategy/00-child-health-os-relatorio-conselho.md)**
+> — o registo de saúde da criança, com a telepediatria como *um serviço* dentro
+> dele. O blueprint indexado abaixo foi escrito antes dessa decisão e mantém-se
+> como referência de execução, mas está substituído em quatro pontos
+> (posicionamento, âncora de receita, métrica norte e horizonte do roadmap).
+> O [`docs/README.md`](docs/README.md) diz exatamente quais e onde.
+
+| Se és… | Lê primeiro |
+|---|---|
+| Investidor / conselho | [Relatório do conselho](docs/strategy/00-child-health-os-relatorio-conselho.md) · [Revisão de mercado e roadmap](docs/strategy/03-revisao-mercado-roadmap.md) |
+| Programador a entrar | [Estado factual do produto](CURRENT_PRODUCT_STATUS.md) · [Arquitetura](docs/09-arquitetura-tecnica.md) · [Testes](TESTING.md) |
+| A preparar o piloto | [Checklist de lançamento](LAUNCH_READY.md) · [Decisões de âmbito](PRODUCT_DECISIONS.md) |
+| Segurança | [SECURITY.md](SECURITY.md) · [camada enterprise](enterprise/02-security-architecture.md) |
+| Jurista / conformidade | [Qualificação regulatória (rascunho)](docs/compliance/01-qualificacao-regulatoria.md) · [Riscos legais](docs/13-riscos-legais.md) |
+
+---
+
+## Estratégia (camada atual)
+
+| Doc | Tema |
+|-----|------|
+| [S00](docs/strategy/00-child-health-os-relatorio-conselho.md) | Relatório do conselho — tese, modelo de negócio, roadmap 24 meses / 5 anos |
+| [S01](docs/strategy/01-simulacoes-financeiras.md) | Simulações financeiras |
+| [S02](docs/strategy/02-resumo-projeto-contexto.md) | Resumo do projeto e contexto |
+| [S03](docs/strategy/03-revisao-mercado-roadmap.md) | Revisão de mercado (set. 2026) vs. roadmap vs. código |
+
+---
+
+## Índice de entregáveis (blueprint do MVP)
+
+> Escrito antes do reposicionamento. Ver [precedência](docs/README.md).
 
 | # | Documento | Conteúdo |
 |---|-----------|----------|
@@ -45,6 +77,75 @@ A proposta assenta em quatro pilares:
 | 20 | [Recomendações Finais para o MVP](docs/20-recomendacoes-finais.md) | Como lançar em Portugal |
 
 ---
+
+## Camada Enterprise (segurança, compliance, escala, investimento)
+
+Para além do blueprint de produto acima, existe uma **camada estratégica enterprise** que desenha a plataforma para suportar crescimento europeu, proteção de dados de saúde de menores ao mais alto nível e requisitos de investidores institucionais. Ver pasta [`enterprise/`](enterprise/00-strategic-overview.md).
+
+| Doc | Tema |
+|-----|------|
+| [E00](enterprise/00-strategic-overview.md) | Visão estratégica enterprise (investidores/board) |
+| [E01](enterprise/01-app-stores.md) | App Store & Google Play: compliance e ciclo de vida |
+| [E02](enterprise/02-security-architecture.md) | Arquitetura de segurança & modelo de ameaças (Zero Trust, Defense in Depth) |
+| [E03](enterprise/03-iam-authentication.md) | IAM, OAuth 2.1/OIDC, RBAC/ABAC, MFA, Passkeys, Device Trust |
+| [E04](enterprise/04-data-protection.md) | Proteção de dados, AES-256/TLS 1.3, KMS, dados de menores |
+| [E05](enterprise/05-app-api-file-video-security.md) | Segurança de app móvel, API, ficheiros e vídeo |
+| [E06](enterprise/06-ai-security.md) | Segurança de IA (tenant isolation, prompt injection, DLP) |
+| [E07](enterprise/07-compliance.md) | RGPD + saúde PT + UE (EHDS, NIS2, DORA, ePrivacy, AI Act) |
+| [E08](enterprise/08-secops-bcdr.md) | SecOps, SIEM/SOC, resposta a incidentes, backup & DR (RPO<15m/RTO<1h) |
+| [E09](enterprise/09-devsecops-pentest-certs.md) | DevSecOps, pentest, roadmap de certificações (ASVS→ISO 27001→SOC 2) |
+| [E10](enterprise/10-scalability.md) | Escalabilidade (1M famílias, 50k consultas/dia, 10k vídeos) |
+| [E11](enterprise/11-investment-readiness.md) | Prontidão para investimento, moats, valuation |
+
+## Implementação (código)
+
+O build incremental do produto vive em código no monorepo. Ver [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+
+- **Backend** (NestJS/TypeScript/Prisma): [`apps/backend/`](apps/backend/) — auth (OAuth2.1/Passkeys/Apple/Google), family/children, consultations, Stripe Connect, S3 files, segurança (RBAC, JWT, encriptação de campo, auditoria).
+- **Mobile** (Flutter/Riverpod): [`apps/mobile/`](apps/mobile/)
+- **Infra** (Terraform/AWS): [`infra/terraform/`](infra/terraform/) — VPC, RDS, S3+KMS, ECR
+- **CI/CD**: [`.github/workflows/`](.github/workflows/) — lint, testes, SAST/SCA/secret scan, build
+- **Increment 1** = fundação MVP. Roadmap de increments em [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
+- **Testar a app localmente**: guia passo-a-passo em [`TESTING.md`](TESTING.md) (inclui dev-login sem Apple/Google).
+
+## Arquitetura de Solução (C4, diagramas, stack)
+
+Arquitetura técnica completa produzida por equipa de CPO/CTO/Solution Architect/Mobile Architect/Compliance/Security, com **diagramas C4 (Context/Container/Component)**, data flow diagrams, security diagrams e justificação de cada escolha tecnológica. Ver pasta [`architecture/`](architecture/README.md).
+
+| Doc | Tema |
+|-----|------|
+| [00](architecture/00-overview.md) | Overview + **C4 L1 (Context)** |
+| [01](architecture/01-system-architecture.md) | System architecture + **C4 L2 (Container)** |
+| [02](architecture/02-frontend-architecture.md) | Frontend (Flutter + Next.js) |
+| [03](architecture/03-backend-architecture.md) | Backend + **C4 L3 (Component)** |
+| [04](architecture/04-database-architecture.md) | Database (Postgres, RLS, particionamento, encriptação) |
+| [05](architecture/05-cloud-architecture.md) | Cloud (rede, regiões UE, serviços geridos) |
+| [06](architecture/06-ai-architecture.md) | AI (isolamento, prompt injection, DLP, human-in-loop) |
+| [07](architecture/07-payments-architecture.md) | Payments + **DFDs** (split, faturação, reembolsos) |
+| [08](architecture/08-compliance-architecture.md) | Healthcare compliance (consentimento, DSR, EHDS) |
+| [09](architecture/09-security-architecture.md) | Security (**security diagrams**, Zero Trust, ameaças) |
+| [10](architecture/10-deployment-architecture.md) | Deployment (ambientes, release, DR) |
+| [11](architecture/11-devsecops-architecture.md) | DevSecOps (pipeline, gates, certificações) |
+| [12](architecture/12-scalability-architecture.md) | Scalability (alvos enterprise) |
+| [13](architecture/13-technology-stack.md) | **Stack + justificação de cada escolha** |
+| [14](architecture/14-data-flow-diagrams.md) | **Data flow diagrams** ponta-a-ponta |
+
+## UX/UI Design System & Ecrãs (mobile-first, WCAG AA)
+
+Design completo de UX/UI (perspetiva de Senior Product Designer Apple): IA, navegação, jornadas, design system (cor/tipografia/componentes), responsividade e **wireframes de todos os ecrãs** para Pai, Pediatra, Clínica e Administrador. Ver pasta [`design/`](design/README.md).
+
+| Doc | Tema |
+|-----|------|
+| [01](design/01-information-architecture.md) | Information Architecture |
+| [02](design/02-navigation.md) | Navigation structure |
+| [03](design/03-user-journeys.md) | User journeys (UX, emocionais) |
+| [04](design/04-design-system-foundations.md) | Design System: **cor + tipografia** + espaço/movimento |
+| [05](design/05-component-library.md) | Component library (adaptive iOS/Android) |
+| [06](design/06-responsive-behavior.md) | Responsive behavior |
+| [07](design/07-wireframes-parent.md) | Wireframes + screens — **Pai** (P01–P27) |
+| [08](design/08-wireframes-pediatrician.md) | Wireframes + screens — **Pediatra** (D01–D14) |
+| [09](design/09-wireframes-clinic.md) | Wireframes + screens — **Clínica** (C01–C08) |
+| [10](design/10-wireframes-admin.md) | Wireframes + screens — **Administrador** (A01–A10) |
 
 ## Princípios de design transversais
 

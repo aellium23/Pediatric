@@ -1,5 +1,17 @@
 # 17 · KPIs
 
+> **Precedência — Métrica Norte substituída.** A métrica norte definida abaixo
+> ("consultas pagas concluídas por mês") passou a ser **uma métrica de negócio
+> entre outras**. A estrela-polar em vigor é o **engagement semanal**: o pai
+> abrir a app quando ninguém está doente — registar um sintoma, ver um
+> percentil, guardar um relatório. Ver
+> [`strategy/00-child-health-os-relatorio-conselho.md`](strategy/00-child-health-os-relatorio-conselho.md)
+> §2, e o [índice de precedência](README.md).
+>
+> Isto é medível desde 2026-09-09: ver o bloco C do
+> [`LAUNCH_READY.md`](../LAUNCH_READY.md) e a secção "Hábito e funil" no perfil
+> Admin. As restantes secções de KPIs mantêm-se.
+
 ## Métrica Norte (North Star)
 **Consultas pagas concluídas com sucesso por mês** (resposta dentro do SLA + sem reembolso por falha) — captura valor para pais, pediatras e plataforma simultaneamente.
 

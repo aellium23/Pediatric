@@ -1,0 +1,30 @@
+name: Infra CI
+
+on:
+  pull_request:
+    paths: ['infra/terraform/**', '.github/workflows/infra-ci.yml']
+  push:
+    branches: [main]
+    paths: ['infra/terraform/**']
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      # Format applied (non-blocking) until a pre-commit terraform fmt hook lands.
+      - run: terraform fmt -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
+      # IaC misconfiguration scanning
+      # Advisory on the IaC skeleton; hardening (logging, private subnets, SG
+      # rule descriptions) lands with the ECS/ALB/WAF module in Increment 2.
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: infra/terraform
+          soft_fail: true

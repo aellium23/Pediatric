@@ -1,0 +1,71 @@
+# Render Blueprint — deploys the Pédia backend (NestJS) + a managed PostgreSQL.
+# Use: Render Dashboard → New → Blueprint → connect this repo + branch.
+# After it's live, set NEXT_PUBLIC_API_BASE on Vercel to https://<service>.onrender.com/api
+services:
+  - type: web
+    name: pedia-backend
+    runtime: node
+    rootDir: apps/backend
+    plan: free
+    branch: claude/telepediatria-platform-design-pq1y1v
+    # --include=dev forces devDependencies even with NODE_ENV=production
+    # (nest CLI, prisma CLI, ts-node) so the build and seed work on Render.
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    # Versioned migrations on boot, then the idempotent seed, then the API.
+    # db-migrate.js baselines a database built by the old `db push` the first
+    # time it runs, so this switch is safe on the already-deployed instance.
+    # It exits non-zero on failure ON PURPOSE: with clinical documents in the
+    # vault, refusing to start beats serving against a schema we disagree with.
+    # Start from dist/main.js, falling back to dist/src/main.js in case the
+    # compiler preserved the src/ folder (robust to either tsc layout).
+    startCommand: node scripts/db-migrate.js && (npm run seed || true) && (if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi)
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      # Test sign-in without Apple/Google (this is a demo environment).
+      - key: ENABLE_DEV_LOGIN
+        value: "true"
+      # Database is provided automatically by the Render-managed Postgres below.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pedia-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+      # Allow the Vercel web app's origin (set after you know the URL). Optional.
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional — set to exercise payments (Stripe test mode).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Optional — AI clinical-note assistant (Anthropic). Without a key the
+      # "Estruturar com IA" action degrades to a clear 503.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      # Optional — real LiveKit video (see docs/21-integracoes.md). Without
+      # these, video tokens are issued in demo mode.
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+
+# Render-managed PostgreSQL (free) — auto-wired into DATABASE_URL above.
+# (You can later switch to Supabase by replacing DATABASE_URL with its URI.)
+databases:
+  - name: pedia-db
+    plan: free
+    databaseName: pedia
+    user: pedia

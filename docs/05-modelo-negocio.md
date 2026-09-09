@@ -1,5 +1,15 @@
 # 05 · Modelo de Negócio
 
+> **Precedência — âncora de receita substituída.** O modelo abaixo põe a
+> **comissão** de marketplace como núcleo e a subscrição como complemento. O
+> relatório do conselho inverteu isso: a receita é ancorada na **subscrição
+> Family Premium**, com a comissão, o SaaS de clínicas e o B2B a compor por
+> cima. Ver [`strategy/00-child-health-os-relatorio-conselho.md`](strategy/00-child-health-os-relatorio-conselho.md)
+> §3 e §22, e o [índice de precedência](README.md).
+>
+> Tudo o resto aqui — tipos de consulta, matriz de pricing, unit economics,
+> benchmark de comissões, riscos do modelo — continua a ser a referência.
+
 ## Visão geral
 
 Marketplace de dois lados (pais ↔ pediatras) com monetização **transacional** (comissão) + **recorrente** (subscrições) + **B2B** (clínicas/seguradoras).

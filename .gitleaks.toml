@@ -1,0 +1,12 @@
+# Gitleaks config — extends the default ruleset.
+# Allowlists documented, non-functional dev/example placeholders that are not
+# real secrets (e.g. .env.example, local docker-compose dev credentials).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented dev/example placeholders (no real secrets)"
+paths = [
+  '''apps/backend/\.env\.example''',
+  '''docker-compose\.yml''',
+]

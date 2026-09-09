@@ -1,0 +1,136 @@
+import { Body, Controller, Get, Module, Param, Post, Query } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from 'throttler';
+import { Role } from '@prisma/client';
+import { ConsultationsService } from './consultations.service';
+import { ConsultationsGateway } from './consultations.gateway';
+import { SlaScheduler } from './sla.scheduler';
+import { StartConsultationDto, SendMessageDto, SummaryTextDto } from './dto/consultations.dto';
+import { CurrentUser, Roles } from '../../common/security/decorators';
+import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { PaymentsModule } from '../payments/payments.module';
+import { AiModule } from '../ai/ai.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+
+@ApiTags('consultations')
+@ApiBearerAuth()
+@Controller('consultations')
+class ConsultationsController {
+  constructor(private readonly service: ConsultationsService) {}
+
+  @Post()
+  @Roles(Role.PARENT)
+  start(@CurrentUser() user: AuthenticatedUser, @Body() dto: StartConsultationDto) {
+    return this.service.start(user.userId, dto);
+  }
+
+  @Get()
+  @Roles(Role.PARENT)
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listForParent(user.userId);
+  }
+
+  @Get('inbox')
+  @Roles(Role.PEDIATRICIAN)
+  inbox(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listForPediatrician(user.userId);
+  }
+
+  @Get('history')
+  @Roles(Role.PEDIATRICIAN)
+  history(@CurrentUser() user: AuthenticatedUser, @Query('take') take?: string) {
+    return this.service.recentForPediatrician(user.userId, take ? Number(take) : 50);
+  }
+
+  @Get('patients')
+  @Roles(Role.PEDIATRICIAN)
+  patients(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.patientsForPediatrician(user.userId);
+  }
+
+  @Get('child/:childId/history')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  childHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+  ) {
+    return this.service.historyForChild(user, childId);
+  }
+
+  @Get('all')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  all(@Query('skip') skip?: string, @Query('take') take?: string) {
+    return this.service.listAll(skip ? Number(skip) : 0, take ? Number(take) : 50);
+  }
+
+  @Get(':id/messages')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  messages(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.getMessages(user.userId, id);
+  }
+
+  @Post(':id/messages')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  send(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SendMessageDto,
+  ) {
+    return this.service.sendMessage(user.userId, id, dto);
+  }
+
+  @Get(':id/summary')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  getSummary(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.getSummary(user.userId, id);
+  }
+
+  @Post(':id/summary')
+  @Roles(Role.PEDIATRICIAN)
+  setSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SummaryTextDto,
+  ) {
+    return this.service.setSummary(user.userId, id, dto.text ?? '');
+  }
+
+  // Calls Anthropic (paid) — keep it out of the generic 100 req/min bucket.
+  @Post(':id/summary/structure')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Roles(Role.PEDIATRICIAN)
+  structureSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SummaryTextDto,
+  ) {
+    return this.service.structureSummary(user.userId, id, dto.text ?? '');
+  }
+
+  @Post(':id/close')
+  @Roles(Role.PEDIATRICIAN)
+  close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.close(user.userId, id);
+  }
+
+  @Post(':id/cancel')
+  @Roles(Role.PARENT)
+  cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.service.cancel(user.userId, id);
+  }
+
+  @Post(':id/refund')
+  @Roles(Role.PLATFORM_ADMIN, Role.FINANCE)
+  refund(@Param('id') id: string, @Body('reason') reason?: string) {
+    return this.service.refundByAdmin(id, reason);
+  }
+}
+
+@Module({
+  imports: [PaymentsModule, AiModule, SubscriptionsModule, JwtModule.register({})],
+  controllers: [ConsultationsController],
+  providers: [ConsultationsService, ConsultationsGateway, SlaScheduler],
+  exports: [ConsultationsService],
+})
+export class ConsultationsModule {}
