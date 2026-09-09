@@ -81,9 +81,21 @@ Esconder o ruído sem apagar código:
 - [ ] Frontend a apontar ao backend (`NEXT_PUBLIC_API_BASE`).
 - [ ] Segredos **novos** gerados no ambiente (JWT, `FIELD_ENCRYPTION_KEY`) — nunca reutilizar.
 - [ ] `CORS_ORIGINS` restrito à origem do frontend do piloto.
-- [ ] Decisão explícita sobre `ENABLE_DEV_LOGIN`:
-  - [ ] Se o piloto usa contas reais → **desligar** dev-login e usar Apple/Google (exige client IDs) **ou**
-  - [ ] Se o piloto é fechado/controlado → manter dev-login mas documentar que é ambiente demo.
+- [ ] **`ENABLE_DEV_LOGIN` — o portão nº 1.** Hoje o `render.yaml` tem
+      `NODE_ENV=production` **e** `ENABLE_DEV_LOGIN=true`. Verificado por HTTP
+      numa réplica local: qualquer pessoa que saiba o URL pede um token com o
+      papel que quiser e lê o painel de administração (métricas + lista
+      completa de utilizadores). Hoje os dados são sintéticos, por isso o
+      impacto está contido — mas isto tem de mudar **antes da primeira família
+      real**. Decisão a tomar:
+  - [ ] Piloto com pessoas reais → **desligar** dev-login e usar Apple/Google
+        (exige client IDs) **ou** pôr a app atrás de proteção de acesso da
+        plataforma (ex.: password protection da Vercel).
+  - [ ] Demo comercial com dados sintéticos → manter, sabendo que é público.
+  - Já mitigado no código (não substitui a decisão acima): o dev-login está
+    limitado a 10 pedidos/min e, com `NODE_ENV=production`, deixou de criar
+    contas novas — só emite tokens para personas que já existem, pelo que
+    ninguém pode poluir a base de utilizadores.
 - [ ] Seed corrido: contas e dados de demonstração presentes.
 - [ ] Plano de **cold-start** confirmado (Render free dorme; keep-alive do cliente mitiga, mas testar a 1ª chamada da manhã).
 
@@ -103,7 +115,19 @@ de pagamentos, isto **não** é negociável:
       faturas legais no piloto).
 - [ ] **Backup manual da BD** definido (mesmo que só `pg_dump` agendado à
       mão) — a partir do momento em que há dados clínicos reais, mesmo de
-      piloto, não podem depender só do seed.
+      piloto, não podem depender só do seed. Passos concretos:
+  - [ ] Ativar backups do plano pago do Postgres no Render (o plano gratuito
+        não os tem) **ou** agendar `pg_dump` diário para armazenamento fora
+        do Render.
+  - [ ] **Testar um restauro** — um backup que nunca foi restaurado não é um
+        backup.
+  - [ ] Guardar o `FIELD_ENCRYPTION_KEY` num cofre à parte: sem essa chave, um
+        dump restaurado tem os dados clínicos ilegíveis.
+- [ ] **Migrations em vez de `prisma db push`** antes de existirem dados a
+      preservar. Enquanto o arranque correr `db push`, uma alteração de schema
+      pode destruir colunas sem aviso. Passo: `npx prisma migrate dev --name
+      init` a partir do schema atual, e trocar o comando de arranque para
+      `prisma migrate deploy`.
 
 > Nota honesta: backups automáticos, migrations versionadas, APM, scan de
 > malware e faturação certificada ficam para **antes de produção comercial**
@@ -142,17 +166,48 @@ Sem isto, o piloto gera anedotas em vez de decisão. Propostas (editar):
 
 ---
 
+## H. Custo da IA (antes de activar a chave)
+
+As camadas de IA (assistente da Home, resumo de handover, estruturação SOAP)
+chamam uma API paga. Sem chave, degradam em silêncio e não custam nada.
+
+- [x] Limite dedicado nos endpoints de IA — 20 pedidos/min, separado do balde
+      genérico de 100/min que protege leituras baratas. Verificado por HTTP.
+- [ ] Confirmar saldo/limites de gasto na conta Anthropic antes do piloto (o
+      erro "credit balance too low" já apareceu uma vez).
+- [ ] Definir um tecto de gasto mensal aceitável e como o vigiar.
+
+---
+
 ## Estado geral
 
 | Bloco | Estado | Nota |
 |---|---|---|
-| A. Caminho crítico funciona | [~] | construído; falta validar em ambiente novo do piloto |
+| A. Caminho crítico funciona | [~] | 44 testes E2E verdes contra Postgres real; falta validar no ambiente do piloto |
 | B. Simplificação `PILOT_MODE` | [ ] | por implementar |
 | C. Instrumentação | [ ] | por implementar (exceção autorizada ao freeze) |
-| D. Ambiente/operação | [~] | Render/Vercel prontos; decidir dev-login vs contas reais |
-| E. Confiança/conformidade | [~] | cifra e RGPD prontos; falta backup manual + textos de piloto |
+| D. Ambiente/operação | [~] | Render/Vercel prontos; **decisão do dev-login é o portão nº 1** |
+| E. Confiança/conformidade | [~] | cifra verificada (ciphertext em repouso); falta backup + migrations + textos |
 | F. Recrutamento | [ ] | o verdadeiro gargalo — pessoas, não código |
 | G. Critérios de sucesso | [ ] | definir e fixar antes de arrancar |
+| H. Custo da IA | [~] | limites aplicados; falta tecto de gasto |
+
+### Verificado nesta análise E2E (setembro 2026)
+
+Executado contra Postgres real e servidor a correr, não por leitura de código:
+
+- 345 testes unitários + 44 E2E verdes; typecheck e build (web e backend) verdes.
+- Fotos no chat: 3 anexos / 1,26 MB aceites, **cifrados em repouso** e
+  decifrados na leitura; acima do limite devolve 413 legível (era 500).
+- Detector de sinais de alarme: **corrigido** — falhava 5 de 20 frases reais de
+  emergência (incluindo "não está a respirar"); agora 20/20, sem falsos alarmes
+  em 14 frases-armadilha, e protegido por 52 testes no CI do frontend.
+- RBAC dos endpoints de IA correto (403 para pediatra, 401 anónimo).
+
+**Dívida conhecida, não resolvida:** o backend não tem `package-lock.json`
+versionado (o frontend tem), pelo que o CI resolve versões novas a cada build.
+Fixá-las é desejável, mas deve ser feito conferindo primeiro o que a produção
+tem instalado — para o próximo deploy não trocar dependências sem querer.
 
 ---
 

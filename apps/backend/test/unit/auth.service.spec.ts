@@ -137,6 +137,46 @@ describe('AuthService', () => {
       expect(tokens.issue).toHaveBeenCalledWith('dev', Role.CLINIC_ADMIN);
     });
 
+    // A deployed demo keeps dev-login on so the profile picker works. Without
+    // this guard any caller could mint accounts of any role into the real user
+    // table just by naming a new email.
+    it('refuses to auto-create an unknown account in production', async () => {
+      const create = jest.fn();
+      const { service, tokens } = build({
+        prisma: { user: { findUnique: jest.fn().mockResolvedValue(null), create } },
+      });
+      const prev = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        await expect(service.devLogin('desconhecido@exemplo.com', Role.PLATFORM_ADMIN)).rejects.toThrow(
+          /desconhecida/i,
+        );
+      } finally {
+        process.env.NODE_ENV = prev;
+      }
+      expect(create).not.toHaveBeenCalled();
+      expect(tokens.issue).not.toHaveBeenCalled();
+    });
+
+    it('still signs in a KNOWN account in production (demo personas keep working)', async () => {
+      const { service, tokens } = build({
+        prisma: {
+          user: {
+            findUnique: jest.fn().mockResolvedValue({ id: 'seeded', role: Role.PARENT }),
+            create: jest.fn(),
+          },
+        },
+      });
+      const prev = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        await service.devLogin('marta@demo.pedia');
+      } finally {
+        process.env.NODE_ENV = prev;
+      }
+      expect(tokens.issue).toHaveBeenCalledWith('seeded', Role.PARENT);
+    });
+
     it('reuses an existing user without recreating', async () => {
       const create = jest.fn();
       const { service } = build({

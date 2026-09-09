@@ -9,8 +9,17 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Throttle } from 'throttler';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/security/decorators';
+
+/**
+ * These routes spend real money on every call (Anthropic), so they must NOT sit
+ * in the generic 100 req/min bucket that protects cheap reads. 20/min still
+ * covers the most talkative parent — an assistant conversation is a handful of
+ * turns — while capping what a runaway client or a stolen token can burn.
+ */
+const AI_RATE_LIMIT = { default: { limit: 20, ttl: 60_000 } };
 
 /**
  * Anthropic Claude helper. Two uses, both server-side only (the API key never
@@ -271,6 +280,7 @@ class AssistChatDto {
 @ApiTags('ai')
 @ApiBearerAuth()
 @Controller('ai')
+@Throttle(AI_RATE_LIMIT)
 class AiController {
   constructor(private readonly ai: AiService) {}
 

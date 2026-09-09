@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Module, Param, Post, Query } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from 'throttler';
 import { Role } from '@prisma/client';
 import { ConsultationsService } from './consultations.service';
 import { ConsultationsGateway } from './consultations.gateway';
@@ -94,7 +95,9 @@ class ConsultationsController {
     return this.service.setSummary(user.userId, id, dto.text ?? '');
   }
 
+  // Calls Anthropic (paid) — keep it out of the generic 100 req/min bucket.
   @Post(':id/summary/structure')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Roles(Role.PEDIATRICIAN)
   structureSummary(
     @CurrentUser() user: AuthenticatedUser,

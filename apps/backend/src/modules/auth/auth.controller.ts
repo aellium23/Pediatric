@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from 'throttler';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { PasskeyService } from './passkey.service';
@@ -33,9 +34,16 @@ export class AuthController {
     private readonly config: ConfigService,
   ) {}
 
-  /** DEV/TEST ONLY — disabled in production. Lets you sign in without Apple/Google. */
+  /**
+   * DEV/TEST ONLY — disabled unless ENABLE_DEV_LOGIN is set. Lets you sign in
+   * without Apple/Google, which is what powers the demo's profile picker.
+   *
+   * Throttled well below the generic bucket: this endpoint mints credentials,
+   * so it should never be a comfortable place to hammer.
+   */
   @Public()
   @Post('dev-login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   devLogin(@Body() dto: DevLoginDto): Promise<TokenResponseDto> {
     if (!this.config.get<boolean>('enableDevLogin')) {
       throw new NotFoundException();

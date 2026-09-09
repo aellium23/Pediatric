@@ -37,9 +37,18 @@ export class AuthService {
    *  Guarded at the controller so it never runs in production. */
   async devLogin(email: string, role: Role = Role.PARENT): Promise<TokenResponseDto> {
     let user = await this.prisma.user.findUnique({ where: { email } });
-    user ??= await this.prisma.user.create({
-      data: { email, emailVerified: true, role },
-    });
+    if (!user) {
+      // Auto-provisioning is a local/test convenience (e2e signs in as fresh
+      // random addresses). On a deployed demo it lets any caller pollute the
+      // real user table with accounts of their choosing, so there we only ever
+      // hand out tokens for personas that already exist (the seeded demo ones).
+      if (process.env.NODE_ENV === 'production') {
+        throw new ForbiddenException('Conta de demonstração desconhecida.');
+      }
+      user = await this.prisma.user.create({
+        data: { email, emailVerified: true, role },
+      });
+    }
     this.assertActive(user);
     return this.tokens.issue(user.id, user.role);
   }
