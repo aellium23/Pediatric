@@ -91,21 +91,21 @@
 > marcos de desenvolvimento, que **ainda não foi validada por ninguém com
 > formação clínica**. Não a ponho à frente de uma família sem isso.
 >
-> **[Parceiro]:** quero-te a construir isto comigo, não a olhar de fora. Marca
-> comigo duas horas esta semana e falamos a sério — do que cada um traz, de
-> quem decide o quê, e dos números.
->
-> ⚠️ **Fica por aqui na reunião conjunta.** A conversa de sociedade é a dois —
-> ver a secção seguinte, e o porquê.
+> **[Parceiro]:** quero-te a construir isto comigo, não a olhar de fora. Do
+> que cada um traz, de quem decide o quê, e dos números — falamos a seguir.
 
 ---
 
 ## A conversa a dois — sociedade 50/50
 
-> Isto **não** se faz à frente da pediatra. Ela vem para um piloto clínico; se
-> assistir a uma negociação de capital, passa a ler tudo o que ouviu antes como
-> argumento de venda, e fica a saber sobre a estrutura da empresa o que não
-> precisa de saber. Na reunião conjunta, o fecho é o convite. O resto é depois.
+> **Contexto:** a pediatra é cunhada, o sócio é irmão. Não há problema em falar
+> disto na mesma sala, e a secção anterior já não avisa o contrário.
+>
+> Mas há um efeito de sinal contrário que vale a pena saber: **entre família, o
+> risco não é a confidencialidade — é saltar o papel.** Os seis pontos abaixo
+> são os que se escrevem quando ninguém acha que vão ser precisos, e são
+> exatamente os que salvam a relação se um dia forem. Não os escrever é
+> proteger o jantar de domingo à custa da empresa e, mais tarde, do jantar.
 >
 > As notas abaixo são para preparar a conversa, não são aconselhamento
 > jurídico. Cada ponto marcado 📎 tem de passar por advogado antes de assinar
