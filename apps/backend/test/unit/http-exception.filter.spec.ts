@@ -45,4 +45,32 @@ describe('AllExceptionsFilter', () => {
     const { status } = ctxFor(new BadRequestException('bad'));
     expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
   });
+
+  // An oversized chat upload is rejected by body-parser before any handler
+  // runs; the parent must get an actionable 413, not a generic 500.
+  it('maps body-parser entity.too.large to 413 with an actionable message', () => {
+    const err = Object.assign(new Error('request entity too large'), {
+      type: 'entity.too.large',
+      status: 413,
+    });
+    const { status, body } = ctxFor(err);
+    expect(status).toHaveBeenCalledWith(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(body().error).toMatch(/demasiado grande/i);
+  });
+
+  it('maps malformed JSON to 400', () => {
+    const err = Object.assign(new Error('Unexpected token'), {
+      type: 'entity.parse.failed',
+      status: 400,
+    });
+    const { status } = ctxFor(err);
+    expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+  });
+
+  it('never downgrades a 5xx-flavoured error via the body-parser path', () => {
+    const err = Object.assign(new Error('boom'), { type: 'entity.too.large', status: 500 });
+    const { status, body } = ctxFor(err);
+    expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(body().error).toBe('Internal server error');
+  });
 });

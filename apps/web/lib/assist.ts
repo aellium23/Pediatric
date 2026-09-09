@@ -33,16 +33,76 @@ export function norm(s: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/**
+ * A rule matches when ANY of its contiguous `terms` appears, OR when every
+ * group in `all` contributes at least one term (co-occurrence, order-free).
+ *
+ * The co-occurrence form exists because parents don't write textbook phrases:
+ * "o meu filho NÃO ESTÁ A RESPIRAR" never contains the literal "nao respira".
+ * Matching ["respir"] together with a negation/difficulty word catches the
+ * real phrasings without needing to enumerate every sentence shape.
+ */
+interface Rule {
+  key: string;
+  terms?: string[];
+  all?: string[][];
+  /** Vetoes the match — e.g. a "roxo" that is plainly a bruise, not cyanosis. */
+  not?: string[];
+}
+
+// Words that turn a body-function mention into an alarm ("não respira",
+// "dificuldade em respirar", "not breathing").
+const NEG = ['nao ', 'nao,', 'nao.', 'sem ', 'dificuldade', 'dificil', 'custa', 'falta', 'mal ',
+  'not ', "n't", 'cant', 'trouble', 'hard ', 'without', 'no ', 'dificultad', 'apenas consegue'];
+
 // Severe red flags → immediate emergency. Keys mirror the triage RED_FLAGS
 // where they overlap so downstream code can reuse the same labels.
-const SEVERE: { key: string; terms: string[] }[] = [
-  { key: 'breathing', terms: ['nao respira', 'dificuldade a respirar', 'dificuldade respirar', 'falta de ar', 'nao consegue respirar', 'respiracao muito rapida', 'asfixia', 'engasg', 'sufoc', "can't breathe", 'cant breathe', 'trouble breathing', 'no respira', 'dificultad para respirar', 'ahog'] },
-  { key: 'seizure', terms: ['convuls', 'ataque epilep', 'seizure', 'convulsion'] },
-  { key: 'bluish', terms: ['labios roxos', 'labios azuis', 'labios azulados', 'pele azulada', 'roxo', 'azulad', 'blue lips', 'bluish', 'labios morados', 'morado'] },
-  { key: 'unresponsive', terms: ['nao acorda', 'nao responde', 'prostrad', 'desmai', 'inconsciente', 'sem reacao', 'muito molinho', 'unconscious', 'unresponsive', 'wont wake', "won't wake", 'no despierta', 'no responde', 'desmayo'] },
-  { key: 'anaphylaxis', terms: ['anafila', 'inchaco na garganta', 'garganta a fechar', 'lingua inchada', 'reacao alergica grave', 'swelling throat', 'throat closing', 'anaphyla', 'hinchazon garganta'] },
-  { key: 'bleeding', terms: ['hemorragia', 'sangra muito', 'sangue abundante', 'nao para de sangrar', 'heavy bleeding', 'wont stop bleeding', 'hemorragia', 'sangra mucho'] },
-  { key: 'headtrauma', terms: ['traumatismo craniano', 'bateu com a cabeca', 'queda da cabeca', 'pancada na cabeca com', 'head injury', 'head trauma', 'golpe en la cabeza'] },
+const SEVERE: Rule[] = [
+  {
+    key: 'breathing',
+    terms: ['falta de ar', 'asfixia', 'engasg', 'sufoc', 'respiracao muito rapida',
+      "can't breathe", 'cant breathe', 'trouble breathing', 'ahog', 'adejo nasal'],
+    all: [['respir', 'breath'], NEG],
+  },
+  { key: 'seizure', terms: ['convuls', 'ataque epilep', 'seizure'] },
+  {
+    key: 'bluish',
+    terms: ['pele azulada', 'blue lips', 'bluish', 'cianos', 'arroxead'],
+    // Localized cyanosis. Only lips/mouth/nails/face — a blue mark elsewhere on
+    // the skin is a bruise. "azu" (not "azul") also covers the plural "azuis".
+    all: [['labio', 'lips', 'boca', 'mouth', 'unhas', 'cara', 'face'],
+      ['azu', 'roxo', 'roxa', 'morad', 'blue', 'purple']],
+  },
+  {
+    key: 'bluish',
+    // Generalized cyanosis: "ficou roxo", "está todo azul". Vetoed when the
+    // sentence is plainly describing a bruise.
+    all: [['roxo', 'roxa', 'morad', 'azu'],
+      ['ficou', 'ficar', 'fica ', 'todo', 'toda', 'turned', 'se puso', 'esta ']],
+    not: ['nodoa', 'marca', 'mancha', 'hematoma', 'pisadura', 'bruise', 'moreton'],
+  },
+  {
+    key: 'unresponsive',
+    terms: ['prostrad', 'desmai', 'inconsciente', 'sem reacao', 'muito molinho',
+      'unconscious', 'unresponsive', 'desmayo', 'letargic'],
+    all: [['acorda', 'acordar', 'reage', 'reagir', 'responde', 'wake', 'respond', 'despierta'], NEG],
+  },
+  {
+    key: 'anaphylaxis',
+    terms: ['anafila', 'anaphyla', 'reacao alergica grave', 'choque alergico'],
+    all: [['garganta', 'lingua', 'throat', 'tongue', 'cara', 'face', 'labios'],
+      ['inch', 'incha', 'swell', 'fecha', 'fechar', 'hinchaz', 'closing']],
+  },
+  {
+    key: 'bleeding',
+    terms: ['hemorragia', 'sangue abundante', 'heavy bleeding'],
+    all: [['sangra', 'sangue', 'bleed', 'sangr'], ['muito', 'nao para', 'wont stop', "won't stop", 'abundante', 'mucho', 'jorra']],
+  },
+  {
+    key: 'headtrauma',
+    terms: ['traumatismo craniano', 'head injury', 'head trauma', 'golpe en la cabeza'],
+    all: [['cabeca', 'head', 'craniano', 'cranio'], ['bateu', 'pancada', 'queda', 'caiu', 'embate', 'hit', 'struck', 'golpe']],
+  },
 ];
 
 // Non-severe cautions → "see a paediatrician soon".
@@ -74,6 +134,13 @@ function anyTerm(hay: string, terms: string[]): boolean {
   return terms.some((t) => hay.includes(t));
 }
 
+/** A rule fires on a contiguous phrase OR on all of its co-occurrence groups. */
+function ruleMatches(hay: string, rule: Rule): boolean {
+  if (rule.not && anyTerm(hay, rule.not)) return false;
+  if (rule.terms && anyTerm(hay, rule.terms)) return true;
+  return !!rule.all && rule.all.every((group) => anyTerm(hay, group));
+}
+
 // The parent signalling they want to reach a pediatrician now (→ surface the
 // "choose a pediatrician / start message or video" action inline).
 const CONTACT_INTENT = [
@@ -92,7 +159,9 @@ export function wantsPediatrician(textRaw: string): boolean {
 
 export function assess(textRaw: string): AssistResult {
   const t = norm(textRaw || '');
-  const redFlags = SEVERE.filter((r) => anyTerm(t, r.terms)).map((r) => r.key);
+  // A flag can be expressed by more than one rule (e.g. localized vs
+  // generalized cyanosis) — report each key once.
+  const redFlags = [...new Set(SEVERE.filter((r) => ruleMatches(t, r)).map((r) => r.key))];
   const cautions = CAUTION.filter((c) => anyTerm(t, c.terms)).map((c) => c.key);
 
   let specialty: string | null = null;

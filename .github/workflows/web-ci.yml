@@ -19,5 +19,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      # Guards the Home assistant's red-flag detection (the 112 / SNS 24
+      # escalation). A silent regression there is a patient-safety issue.
+      - run: npm test
       # next build runs the TypeScript type-checker as part of the build.
       - run: npm run build
