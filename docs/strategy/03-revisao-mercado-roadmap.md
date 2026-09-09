@@ -81,6 +81,15 @@ artigo 50.º pede a segunda.
 
 **Custo de resolver: horas.** É a correção com melhor rácio deste documento.
 
+> **Resolvido em 2026-09-09.** O assistente passou a declarar-se, antes da
+> primeira pergunta e também no topo da conversa já iniciada: *"Falas com um
+> assistente automático (inteligência artificial), não com um pediatra."* O
+> leitor de ecrã anuncia cada resposta como "Assistente de IA". E o resumo de
+> handover, quando é a IA que o escreve, chega à triagem com a autoria à vista
+> — o pai está prestes a enviá-lo a um pediatra como se fossem as suas palavras.
+> Falta a marcação de conteúdo sintético do art. 50.º(2), cujo prazo para
+> sistemas já no mercado é **2 de dezembro de 2026**.
+
 ### 3.2 A regra "a IA nunca faz triagem" já não descreve o produto
 
 A decisão nº 4 do conselho é ficar deliberadamente fora do MDR, e a estratégia
@@ -180,7 +189,7 @@ registo, ler um artigo).
 
 | # | Proposta | Porquê agora | Esforço |
 |---|---|---|---|
-| 1 | **Divulgar que o assistente é IA** (AI Act art. 50.º) | Obrigação já em vigor desde 2 ago 2026 | Horas |
+| 1 | ~~**Divulgar que o assistente é IA** (AI Act art. 50.º)~~ · **feito** | Obrigação já em vigor desde 2 ago 2026 | Horas |
 | 2 | **Instrumentação de hábito** (bloco C, elevado a bloqueante) | Sem isto o piloto não testa a tese | Dias |
 | 3 | **Ficheiro de qualificação regulatória** (finalidade prevista, MDR) | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | **Resolver a contradição entre os dois roadmaps** | Evita que alguém construa o produto errado | Meia hora |

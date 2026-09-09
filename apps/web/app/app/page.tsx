@@ -815,6 +815,9 @@ export default function MultiProfileApp() {
   // routing to "Consultar" (so the parent doesn't re-type what they described).
   const [consultSpec, setConsultSpec] = useState<string | undefined>(undefined);
   const [consultPrefill, setConsultPrefill] = useState<string | undefined>(undefined);
+  // Whether that pre-filled question was drafted by the AI (so the triage can
+  // say so — the parent is about to send it to a pediatrician as their words).
+  const [consultPrefillAi, setConsultPrefillAi] = useState(false);
   const [consultChild, setConsultChild] = useState<string | undefined>(undefined);
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
@@ -1012,9 +1015,10 @@ export default function MultiProfileApp() {
               setMsg('');
               setTab(k);
             }}
-            onGoConsult={(spec, prefill, cid) => {
+            onGoConsult={(spec, prefill, cid, aiDrafted) => {
               setConsultSpec(spec);
               setConsultPrefill(prefill);
+              setConsultPrefillAi(!!aiDrafted);
               setConsultChild(cid);
               setMsg('');
               setTab('consult');
@@ -1037,10 +1041,12 @@ export default function MultiProfileApp() {
             onOpenConsultation={openConsultation}
             initialSpecialty={consultSpec}
             initialQuestion={consultPrefill}
+            initialQuestionFromAi={consultPrefillAi}
             initialChildId={consultChild}
             onSpecialtyConsumed={() => {
               setConsultSpec(undefined);
               setConsultPrefill(undefined);
+              setConsultPrefillAi(false);
               setConsultChild(undefined);
             }}
           />
@@ -2490,7 +2496,7 @@ function HomeTab({
   profile: Profile;
   onMsg: (m: string) => void;
   onGo: (tab: string) => void;
-  onGoConsult: (specialty?: string, prefill?: string, childId?: string) => void;
+  onGoConsult: (specialty?: string, prefill?: string, childId?: string, aiDrafted?: boolean) => void;
   onOpenConsultation: (id: string) => void;
 }) {
   const { tr } = useT();
@@ -2670,13 +2676,19 @@ function HomeTab({
     }
     setRouting(true);
     let handover = prefill;
+    // Only true when the AI really produced the text — on the fallback path the
+    // question is the parent's own words and needs no authorship note.
+    let aiDrafted = false;
     try {
       const res = await Api.aiAssistSummary(msgs, childCtx);
-      if (res.text && res.text.trim()) handover = res.text.trim();
+      if (res.text && res.text.trim()) {
+        handover = res.text.trim();
+        aiDrafted = true;
+      }
     } catch {
       /* keep the raw messages */
     }
-    onGoConsult(spec ?? undefined, handover, childId || undefined);
+    onGoConsult(spec ?? undefined, handover, childId || undefined, aiDrafted);
   }
 
   return (
@@ -2724,8 +2736,13 @@ function HomeTab({
             {firstName ? `${tr('Olá')}, ${firstName}. ` : ''}
             {tr('Em que posso ajudar?')}
           </h1>
-          <p className="muted" style={{ margin: '0 auto 16px', maxWidth: 460 }}>
+          <p className="muted" style={{ margin: '0 auto 10px', maxWidth: 460 }}>
             {tr('Descreve o que se passa com o teu filho. Dou-te uma primeira orientação e encaminho-te para o pediatra certo.')}
+          </p>
+          {/* AI Act, art. 50.º: quem fala com um sistema de IA tem de saber
+              disso no início da interação e em linguagem simples. */}
+          <p className="muted" style={{ margin: '0 auto 16px', maxWidth: 460, fontSize: 12 }}>
+            {tr('Falas com um assistente automático (inteligência artificial), não com um pediatra.')}
           </p>
         </div>
       ) : null}
@@ -2733,6 +2750,12 @@ function HomeTab({
       {/* Conversation thread. */}
       {started ? (
         <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* The empty state carries the same disclosure, but it is gone once
+              the conversation starts — and art. 50.º asks for it at the start
+              of the interaction, whichever way the parent got here. */}
+          <p className="muted" style={{ margin: '0 0 2px', fontSize: 12, textAlign: 'center' }}>
+            {tr('Assistente automático (IA) — não é um pediatra.')}
+          </p>
           {/* WCAG 4.1.3 (Status Messages): the assistant's reply arrives without
               a focus change, so a screen-reader user would never hear it. A log
               region announces each new turn politely, without stealing focus. */}
@@ -2765,7 +2788,7 @@ function HomeTab({
                 className="card"
                 style={{ alignSelf: 'flex-start', maxWidth: '90%', borderRadius: '14px 14px 14px 4px', margin: 0 }}
               >
-                <span className="sr-only">{tr('Assistente')}: </span>
+                <span className="sr-only">{tr('Assistente de IA')}: </span>
                 {m.text}
               </div>
             ),
@@ -4156,6 +4179,7 @@ function ConsultTab({
   onOpenConsultation,
   initialSpecialty,
   initialQuestion,
+  initialQuestionFromAi,
   initialChildId,
   onSpecialtyConsumed,
 }: {
@@ -4165,6 +4189,7 @@ function ConsultTab({
   // Home assistant's routing (so the parent doesn't re-type what they described).
   initialSpecialty?: string;
   initialQuestion?: string;
+  initialQuestionFromAi?: boolean;
   initialChildId?: string;
   onSpecialtyConsumed?: () => void;
 }) {
@@ -4180,6 +4205,7 @@ function ConsultTab({
   // Captured once so it survives past the parent clearing the routing intent;
   // seeds the triage question for whichever pediatrician the parent picks.
   const [prefillQuestion] = useState(initialQuestion ?? '');
+  const [prefillFromAi] = useState(!!initialQuestionFromAi);
   const [busy, setBusy] = useState(false);
   // filters — specialty is a tap-to-filter chip set (parents don't know
   // specialty names, so we show the ones that actually exist, translated).
@@ -4268,6 +4294,7 @@ function ConsultTab({
         serviceId={triageServiceId}
         pedId={triageFor.id}
         initialQuestion={prefillQuestion}
+        questionFromAi={prefillFromAi}
         onCancel={() => setTriageFor(null)}
         onDone={(consultationId) => {
           setTriageFor(null);
@@ -4612,6 +4639,7 @@ function TriageDialog({
   serviceId,
   pedId,
   initialQuestion,
+  questionFromAi,
   onCancel,
   onDone,
   onMsg,
@@ -4621,6 +4649,7 @@ function TriageDialog({
   pedId: string;
   // Pre-filled from the Home assistant so the parent doesn't re-type.
   initialQuestion?: string;
+  questionFromAi?: boolean;
   onCancel: () => void;
   onDone: (consultationId?: string) => void;
   onMsg: (m: string) => void;
@@ -4734,8 +4763,16 @@ function TriageDialog({
       ) : null}
 
       <div className="card section">
-        <h3>{tr('A tua questão')}</h3>
+        <h3 id="triage-question-label">{tr('A tua questão')}</h3>
+        {questionFromAi ? (
+          // The parent is about to send this to a pediatrician as their own
+          // words, so they should know a machine drafted it — and check it.
+          <p className="muted" style={{ margin: '0 0 8px', fontSize: 12 }}>
+            {tr('Resumo escrito por IA a partir da vossa conversa. Lê e corrige antes de enviar.')}
+          </p>
+        ) : null}
         <textarea
+          aria-labelledby="triage-question-label"
           placeholder={tr('Descreve a dúvida…')}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
