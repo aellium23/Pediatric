@@ -6,8 +6,15 @@
 > DaVinci.
 >
 > O prompt carrega os **factos verificados do produto** e as **restrições**, para
-> o storyboard não inventar promessas. Se alterares preços ou funcionalidades,
-> atualiza o bloco de factos antes de o voltar a usar.
+> o storyboard não inventar promessas. Se alterares funcionalidades, atualiza o
+> bloco de factos antes de o voltar a usar.
+>
+> **Preços ficam de fora dos vídeos**, por decisão — estão em revisão, e um
+> vídeo com números fica desatualizado no dia em que mudam. O prompt proíbe-os
+> explicitamente, no áudio e no ecrã. Duas afirmações sobrevivem porque são
+> sobre controlo e posicionamento, não sobre preço: *"o pediatra define os seus
+> preços"* e *"a ficha da criança é gratuita"*. Se quiseres a segunda também
+> fora, é uma linha a menos no bloco.
 >
 > Cadeia: **Runway** (planos), **ElevenLabs** (voz PT-PT), **DaVinci Resolve**
 > (montagem, legendas, masters).
@@ -56,12 +63,12 @@ O que existe e funciona:
 - Sinais de alarme graves: a app manda ligar 112 / SNS 24. Lista fixa, igual
   para toda a gente, não decidida por IA.
 
-Números (não arredondar nem embelezar):
-- Plano Família: 9,90 €/mês. Inclui 1 consulta por mensagem por mês, até
-  20 € de valor. Acima disso a família paga só a diferença.
-- Comissão da plataforma ao pediatra: 20%. Plano Pediatra Pro 19 €/mês baixa
-  para 15%, e compensa a partir de 380 €/mês faturados.
-- O pediatra define os seus preços e horários.
+PREÇOS ESTÃO FORA DE ÂMBITO. Não menciones nem mostres valores, mensalidades,
+percentagens de comissão, nomes de planos, descontos ou "a partir de X". Estão
+em revisão e um vídeo com números fica desatualizado no dia em que mudam.
+O que PODE ser dito, porque é sobre controlo e não sobre preço:
+- O pediatra define os seus próprios preços e horários.
+- A ficha da criança é gratuita e ilimitada.
 
 ═══════════════════════════════════════════════
 O QUE NÃO PODE APARECER — regra absoluta
@@ -81,6 +88,9 @@ Isto é saúde infantil. Uma promessa a mais destrói a confiança toda.
   prémios ou logótipos de imprensa.
 - NÃO afirmar que os pagamentos estão ativos: o produto está em piloto, com
   pagamentos simulados e sem faturação certificada.
+- NÃO dizer preços, mensalidades, comissões nem nomes de planos. Nem no áudio,
+  nem no texto de ecrã, nem no cartão final. Se um plano só funcionar com um
+  número, reescreve o plano.
 - NÃO comparar com o SNS nem com concorrentes.
 
 ═══════════════════════════════════════════════
@@ -99,8 +109,8 @@ planos. Portanto:
   um telemóvel na escuridão da cozinha, um armário de casa de banho aberto).
   É melhor eticamente e evita o efeito estranho do rosto gerado.
 - Locução em português europeu. Escreve o texto para ser DITO, não lido:
-  frases curtas, sem parênteses, números por extenso quando ajuda a dicção
-  ("nove euros e noventa" em vez de "9,90 €").
+  frases curtas, sem parênteses, e números por extenso quando ajuda a dicção
+  ("cento e doze" em vez de "112", "SNS vinte e quatro" em vez de "SNS 24").
 
 ═══════════════════════════════════════════════
 O QUE CADA VÍDEO TEM DE FAZER
@@ -118,7 +128,8 @@ Bater nestes pontos, por esta ordem:
    por ele; sem resposta, o pai é reembolsado e ele não deve nada.
 3. A diferença que interessa: abre a criança e a ficha já lá está. Os cinco
    minutos de "conte-me a história" já estão feitos.
-4. Ele define os preços. Sem trabalho administrativo.
+4. Ele define os preços e os horários — sem dizer quais. Sem trabalho
+   administrativo do lado dele.
 5. Não prende os doentes dele: a família leva a ficha em formato aberto.
 6. Fecho: convite para 20 minutos.
 
@@ -134,7 +145,8 @@ Bater nestes pontos:
 4. Da próxima vez que perguntarem "conte-me a história dele", a resposta está
    no telemóvel.
 5. Fecho: a ficha é gratuita. Começa por aí.
-O plano paga-se depois — mencionar no máximo uma vez, sem insistir.
+NÃO mencionar o plano nem quanto custa uma consulta. O objetivo do vídeo é a
+ficha, e a ficha não se paga.
 
 ═══════════════════════════════════════════════
 FORMATO DA RESPOSTA
