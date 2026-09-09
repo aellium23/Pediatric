@@ -109,6 +109,19 @@ piloto que o mede. Sem isto o piloto responde "gostaram?" em vez de "voltam?".
         (exige client IDs) **ou** pôr a app atrás de proteção de acesso da
         plataforma (ex.: password protection da Vercel).
   - [ ] Demo comercial com dados sintéticos → manter, sabendo que é público.
+  - ⚠️ **Desligar sozinho tranca toda a gente fora, incluindo quem desligou.**
+    Verificado a 2026-09-09: o `dev-login` é hoje a única porta de entrada em
+    produção. `APPLE_CLIENT_ID` e `GOOGLE_CLIENT_ID` não estão sequer
+    declarados no `render.yaml`, e **as passkeys não conseguem arrancar um
+    primeiro login** — `POST /auth/passkey/registration/options` exige uma
+    sessão autenticada, por isso servem para o segundo acesso e nunca para o
+    primeiro. Essa é a saída que parece óbvia e é um beco sem saída. Ou seja:
+    o "ou" acima não é uma preferência, é uma condição. Pôr
+    `ENABLE_DEV_LOGIN=false` sem uma das duas alternativas prontas deixa a app
+    sem forma de entrar.
+  - A mais rápida das duas é a **proteção por password da Vercel** (Settings →
+    Deployment Protection): fecha o acesso a quem descobrir o URL, mantém a app
+    utilizável para a demo, não precisa de código nem de contas de developer.
   - Já mitigado no código (não substitui a decisão acima): o dev-login está
     limitado a 10 pedidos/min e, com `NODE_ENV=production`, deixou de criar
     contas novas — só emite tokens para personas que já existem, pelo que
