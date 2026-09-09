@@ -45,6 +45,9 @@ import {
   type FamilyMeDto,
   type MarketDto,
   type MarketMonthRow,
+  track,
+  trackSession,
+  type AnalyticsSummaryDto,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -833,6 +836,12 @@ export default function MultiProfileApp() {
       .then((rows) => setUnread(rows.filter((n) => !n.read).length))
       .catch(() => {});
   }, [profile, tab]);
+
+  // The unit of the weekly-habit metric: one `app_open` per browser session,
+  // once there is a signed-in profile to attribute it to.
+  useEffect(() => {
+    if (profile) trackSession();
+  }, [profile]);
 
   function openConsultation(id: string) {
     setFocusConsult(id);
@@ -3205,6 +3214,9 @@ function ChildHealth({
     }
   }
   useEffect(() => {
+    // Opening a child's record is the clearest "came back with nobody ill"
+    // signal there is — it is the habit metric, not a funnel step.
+    track('record_view');
     void load();
     // Decrypted SNS number lives on the child detail only — older backends
     // don't have the endpoint, so the row just stays in its "add" state.
@@ -3477,6 +3489,7 @@ function ChildHealth({
                       heightCm: gH ? Number(gH) : undefined,
                       weightKg: gW ? Number(gW) : undefined,
                     }).then(() => {
+                      track('growth_add');
                       setGDate('');
                       setGH('');
                       setGW('');
@@ -4247,7 +4260,16 @@ function ConsultTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // One `search` per search, not one per keystroke: fire once the parent has
+  // stopped typing for a moment.
+  useEffect(() => {
+    if (!search.trim()) return;
+    const t = setTimeout(() => track('search'), 900);
+    return () => clearTimeout(t);
+  }, [search]);
+
   function pickSpec(code: string) {
+    track('search', { specialty: code || undefined });
     setFSpec(code);
     void load(code);
   }
@@ -4458,7 +4480,10 @@ function ConsultTab({
                 ) : null}
                 <button
                   className="btn small secondary"
-                  onClick={() => setDetail(p)}
+                  onClick={() => {
+                    track('open_profile', { pediatricianId: p.id });
+                    setDetail(p);
+                  }}
                   style={{ marginTop: 6 }}
                 >
                   {tr('Ver perfil e avaliações')}
@@ -8347,6 +8372,150 @@ function NotifTab({
 }
 
 // ───────────────────────── Admin: Overview (metrics) ─────────────────────────
+
+/**
+ * The pilot's instrumentation, read side. Answers two different questions and
+ * says which is which: the funnel says whether the transaction works, the habit
+ * table says whether families come back when nobody is ill — and only the
+ * second one tests the Child Health OS thesis.
+ */
+function HabitSection({ onMsg }: { onMsg: (m: string) => void }) {
+  const { tr } = useT();
+  const [s, setS] = useState<AnalyticsSummaryDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    Api.analyticsSummary(42)
+      .then(setS)
+      .catch(() => {
+        /* older backend without the endpoint — just hide the section */
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function exportCsv() {
+    try {
+      const { csv } = await Api.analyticsExport(90);
+      await navigator.clipboard.writeText(csv);
+      onMsg(tr('CSV dos últimos 90 dias copiado para a área de transferência.'));
+    } catch (e) {
+      onMsg(`Erro: ${String(e)}`);
+    }
+  }
+
+  if (loading) return null;
+  if (!s) return null;
+
+  const weeks = [...s.habit].reverse().slice(0, 8);
+  const funnelMax = Math.max(1, ...s.funnel.map((f) => f.count));
+
+  return (
+    <div className="card section">
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h3 style={{ margin: 0 }}>{tr('Hábito e funil')}</h3>
+        <button type="button" className="btn secondary small" onClick={exportCsv}>
+          {tr('Exportar CSV')}
+        </button>
+      </div>
+      <p className="muted" style={{ fontSize: 13, margin: '6px 0 12px' }}>
+        {tr('Últimas 6 semanas. O funil diz se a transação funciona; o hábito diz se as famílias voltam quando ninguém está doente — e é esse o sinal que decide a tese.')}
+      </p>
+
+      <div className="grid">
+        <div className="card">
+          <div className="muted">{tr('Pais que voltaram')}</div>
+          <strong style={{ fontSize: 22 }}>{s.returningParents}</strong>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {tr('abriram a app em 2+ semanas diferentes')}
+          </div>
+        </div>
+        <div className="card">
+          <div className="muted">{tr('Eventos registados')}</div>
+          <strong style={{ fontSize: 22 }}>{s.totalEvents}</strong>
+          <div className="muted" style={{ fontSize: 12 }}>{tr('no período')}</div>
+        </div>
+      </div>
+
+      <h4 style={{ margin: '14px 0 4px' }}>{tr('Hábito, semana a semana')}</h4>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        {tr('"Ações fora de consulta" são registar uma medição, abrir a ficha da criança ou ler um artigo — usar a app sem ser para pedir ajuda.')}
+      </p>
+      {weeks.length === 0 ? (
+        <p className="muted">{tr('Ainda sem eventos. Aparecem aqui assim que houver utilização.')}</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '6px 8px' }}>{tr('Semana de')}</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px' }}>{tr('Pais ativos')}</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px' }}>{tr('Sessões')}</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px' }}>
+                  {tr('Ações fora de consulta')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((w) => (
+                <tr key={w.weekStart}>
+                  <td style={{ padding: '6px 8px' }}>{w.weekStart}</td>
+                  <td style={{ textAlign: 'right', padding: '6px 8px' }}>{w.activeParents}</td>
+                  <td style={{ textAlign: 'right', padding: '6px 8px' }}>{w.sessions}</td>
+                  <td style={{ textAlign: 'right', padding: '6px 8px' }}>{w.nonConsultActions}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h4 style={{ margin: '16px 0 4px' }}>{tr('Funil')}</h4>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        {tr('Da procura até à avaliação. Uma queda grande entre dois passos seguidos é onde o produto está a perder gente.')}
+      </p>
+      {s.funnel.map((f) => (
+        <div key={f.name} className="row" style={{ justifyContent: 'space-between', gap: 10 }}>
+          <span className="muted" style={{ minWidth: 130 }}>{tr(funnelLabel(f.name))}</span>
+          <span
+            aria-hidden="true"
+            style={{
+              flex: 1,
+              height: 8,
+              borderRadius: 4,
+              background: 'var(--border)',
+              overflow: 'hidden',
+            }}
+          >
+            <span
+              style={{
+                display: 'block',
+                height: '100%',
+                width: `${(f.count / funnelMax) * 100}%`,
+                background: 'var(--accent)',
+              }}
+            />
+          </span>
+          <strong style={{ minWidth: 40, textAlign: 'right' }}>{f.count}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function funnelLabel(name: string): string {
+  const m: Record<string, string> = {
+    search: 'Pesquisa',
+    open_profile: 'Abriu perfil',
+    triage_start: 'Iniciou triagem',
+    message_sent: 'Mensagem enviada',
+    video_booked: 'Vídeo marcado',
+    answered: 'Respondida',
+    closed: 'Fechada',
+    rated: 'Avaliada',
+    refund_auto: 'Reembolso automático',
+  };
+  return m[name] ?? name;
+}
+
 function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
   const { tr } = useT();
   const [m, setM] = useState<AdminMetrics | null>(null);
@@ -8384,6 +8553,7 @@ function OverviewTab({ onMsg }: { onMsg: (m: string) => void }) {
         </div>
       </div>
       <ContentReviewQueue onMsg={onMsg} />
+      <HabitSection onMsg={onMsg} />
       <MarketSection />
       <div className="card section">
         <h3>{tr('Utilizadores por perfil')}</h3>
@@ -10509,7 +10679,10 @@ function ContentTab({ onMsg }: { onMsg: (m: string) => void }) {
       <button
         key={a.id}
         className="card"
-        onClick={() => setOpen(a)}
+        onClick={() => {
+          track('article_read');
+          setOpen(a);
+        }}
         style={{
           textAlign: 'left',
           cursor: 'pointer',

@@ -31,27 +31,27 @@ enum AuthProvider {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  role          Role          @default(PARENT)
-  name          String? // display name (e.g. guardian "Marta Silva")
-  email         String?       @unique
-  emailVerified Boolean       @default(false)
-  phone         String?       @unique
-  phoneVerified Boolean       @default(false)
-  authProvider  AuthProvider  @default(PASSWORDLESS)
-  appleSub      String?       @unique
-  googleSub     String?       @unique
-  mfaEnabled    Boolean       @default(false)
-  photoUrl      String? // small avatar (client-resized data URL or S3 URL)
+  id               String       @id @default(uuid())
+  role             Role         @default(PARENT)
+  name             String? // display name (e.g. guardian "Marta Silva")
+  email            String?      @unique
+  emailVerified    Boolean      @default(false)
+  phone            String?      @unique
+  phoneVerified    Boolean      @default(false)
+  authProvider     AuthProvider @default(PASSWORDLESS)
+  appleSub         String?      @unique
+  googleSub        String?      @unique
+  mfaEnabled       Boolean      @default(false)
+  photoUrl         String? // small avatar (client-resized data URL or S3 URL)
   preferredPayment String? // 'card' | 'mbway' | 'apple_pay' | 'google_pay'
   // Fiscal ID (NIF) — only for consumer invoices with NIF ("fatura com NIF").
   // Optional and stored in the clear: it is billing data, not health data.
-  nif           String?
-  locale        String        @default("pt-PT")
-  countryCode   String        @default("PT")
-  status        String        @default("active")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  nif              String?
+  locale           String       @default("pt-PT")
+  countryCode      String       @default("PT")
+  status           String       @default("active")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   credentials   WebAuthnCredential[]
   refreshTokens RefreshToken[]
@@ -59,20 +59,21 @@ model User {
   pediatrician  Pediatrician?
   consents      Consent[]
   auditLogs     AuditLog[]
+  analytics     AnalyticsEvent[]
 
   @@index([role])
 }
 
 model WebAuthnCredential {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credentialId  String   @unique // base64url
-  publicKey     Bytes
-  counter       BigInt   @default(0)
-  transports    String[] @default([])
-  deviceLabel   String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique // base64url
+  publicKey    Bytes
+  counter      BigInt   @default(0)
+  transports   String[] @default([])
+  deviceLabel  String?
+  createdAt    DateTime @default(now())
 
   @@index([userId])
 }
@@ -114,16 +115,16 @@ model Consent {
 
 // ── Family & Children ────────────────────────────────
 model Family {
-  id            String         @id @default(uuid())
+  id            String   @id @default(uuid())
   name          String
   primaryUserId String
-  countryCode   String         @default("PT")
+  countryCode   String   @default("PT")
   // Analytics granularity only (market supply/demand) — NOT a full address.
   // region is a canonical district/island from PT_REGIONS; postalCode is the
   // 4-digit PT postal prefix. Both optional and self-declared.
   region        String?
   postalCode    String?
-  createdAt     DateTime       @default(now())
+  createdAt     DateTime @default(now())
 
   members  FamilyMember[]
   children Child[]
@@ -142,9 +143,9 @@ model FamilyMember {
 }
 
 model Child {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   familyId      String
-  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
   name          String
   birthDate     DateTime
   sex           String?
@@ -154,7 +155,7 @@ model Child {
   healthProfile String?
   // SNS/utente number — health-adjacent identifier, AES-256-GCM ciphertext, optional.
   snsNumber     String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
   consultations Consultation[]
   files         FileAsset[]
@@ -170,30 +171,30 @@ enum PediatricianStatus {
 }
 
 model Pediatrician {
-  id               String               @id @default(uuid())
-  userId           String               @unique
-  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  licenseNumber    String               @unique
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber     String             @unique
   licenseVerifiedAt DateTime?
-  displayName      String? // public name shown in the marketplace (e.g. "Dra. Inês Rocha")
-  bio              String?
-  experienceYears  Int?
-  languages        String[]             @default([])
-  specialties      String[]             @default([])
-  status           PediatricianStatus   @default(PENDING)
-  ratingAvg        Float                @default(0)
-  region           String? // service region (e.g. Lisboa, Madeira, Açores) — for coverage
+  displayName       String? // public name shown in the marketplace (e.g. "Dra. Inês Rocha")
+  bio               String?
+  experienceYears   Int?
+  languages         String[]           @default([])
+  specialties       String[]           @default([])
+  status            PediatricianStatus @default(PENDING)
+  ratingAvg         Float              @default(0)
+  region            String? // service region (e.g. Lisboa, Madeira, Açores) — for coverage
   // IANA timezone name (e.g. Europe/Lisbon, Atlantic/Azores). Availability
   // minutes (startMinute/endMinute) are wall-clock times in THIS timezone and
   // are converted to UTC instants at slot-generation / reply-estimate time.
-  timezone         String               @default("Europe/Lisbon")
-  stripeAccountId  String?
-  createdAt        DateTime             @default(now())
+  timezone          String             @default("Europe/Lisbon")
+  stripeAccountId   String?
+  createdAt         DateTime           @default(now())
 
-  services      PediatricianService[]
-  consultations Consultation[]
-  referralsSent     Referral[] @relation("ReferralsSent")
-  referralsReceived Referral[] @relation("ReferralsReceived")
+  services          PediatricianService[]
+  consultations     Consultation[]
+  referralsSent     Referral[]             @relation("ReferralsSent")
+  referralsReceived Referral[]             @relation("ReferralsReceived")
   verificationDocs  VerificationDocument[]
 
   @@index([status])
@@ -207,11 +208,11 @@ model VerificationDocument {
   id             String       @id @default(uuid())
   pediatricianId String
   pediatrician   Pediatrician @relation(fields: [pediatricianId], references: [id], onDelete: Cascade)
-  kind           String       // cedula | diploma | id_document | insurance | other
+  kind           String // cedula | diploma | id_document | insurance | other
   fileName       String
   storageKey     String?
   status         String       @default("pending") // pending | approved | rejected
-  note           String?      // reviewer note
+  note           String? // reviewer note
   createdAt      DateTime     @default(now())
   reviewedAt     DateTime?
 
@@ -258,28 +259,28 @@ enum ConsultationStatus {
 }
 
 model Consultation {
-  id             String             @id @default(uuid())
-  familyId       String
-  childId        String
-  child          Child              @relation(fields: [childId], references: [id])
-  pediatricianId String
-  pediatrician   Pediatrician       @relation(fields: [pediatricianId], references: [id])
-  type           ServiceType
-  status         ConsultationStatus @default(OPEN)
-  scopeSnapshot  String?
-  priceCents     Int
-  currency       String             @default("EUR")
-  slaDueAt       DateTime? // refund-guarantee ceiling (wall clock)
+  id              String             @id @default(uuid())
+  familyId        String
+  childId         String
+  child           Child              @relation(fields: [childId], references: [id])
+  pediatricianId  String
+  pediatrician    Pediatrician       @relation(fields: [pediatricianId], references: [id])
+  type            ServiceType
+  status          ConsultationStatus @default(OPEN)
+  scopeSnapshot   String?
+  priceCents      Int
+  currency        String             @default("EUR")
+  slaDueAt        DateTime? // refund-guarantee ceiling (wall clock)
   // Honest reply expectation computed from the pediatrician's message
   // windows at open time — shown to the family, never a refund trigger.
   expectedReplyAt DateTime?
-  scheduledAt    DateTime?
-  triage         Json?
-  episodeId      String?
-  summary        String? // pediatrician's post-consultation note (AES-256-GCM)
-  openedAt       DateTime           @default(now())
-  answeredAt     DateTime?
-  closedAt       DateTime?
+  scheduledAt     DateTime?
+  triage          Json?
+  episodeId       String?
+  summary         String? // pediatrician's post-consultation note (AES-256-GCM)
+  openedAt        DateTime           @default(now())
+  answeredAt      DateTime?
+  closedAt        DateTime?
 
   messages     Message[]
   files        FileAsset[]
@@ -298,7 +299,7 @@ model Message {
   consultationId String
   consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   senderUserId   String
-  body           String       // AES-256-GCM ciphertext
+  body           String // AES-256-GCM ciphertext
   // Clinical photos: array of AES-256-GCM-encrypted data-URL strings (≤3).
   attachments    Json?
   aiGenerated    Boolean      @default(false)
@@ -348,34 +349,34 @@ model Payment {
   createdAt      DateTime      @default(now())
   capturedAt     DateTime?
 
-  split  Split?
+  split   Split?
   refunds Refund[]
 }
 
 model Split {
-  id                  String  @id @default(uuid())
-  paymentId           String  @unique
-  payment             Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  platformFeeCents    Int
-  pediatricianAmount  Int
-  feeModel            String  @default("pct")
+  id                 String  @id @default(uuid())
+  paymentId          String  @unique
+  payment            Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  platformFeeCents   Int
+  pediatricianAmount Int
+  feeModel           String  @default("pct")
 }
 
 model Refund {
-  id        String   @id @default(uuid())
-  paymentId String
-  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  paymentId   String
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   amountCents Int
-  reason    String?
-  status    String   @default("pending")
-  createdAt DateTime @default(now())
+  reason      String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
 }
 
 model Invoice {
   id             String       @id @default(uuid())
   consultationId String       @unique
   consultation   Consultation @relation(fields: [consultationId], references: [id])
-  issuer         String       // pediatrician | platform
+  issuer         String // pediatrician | platform
   amountCents    Int
   vatCents       Int          @default(0)
   vatRegime      String       @default("exempt")
@@ -417,7 +418,7 @@ model Review {
 
 // ── Scheduling & Video ───────────────────────────────
 enum AvailabilityKind {
-  VIDEO    // bookable video slots
+  VIDEO // bookable video slots
   MESSAGES // "message hours": drives the expected-reply estimate, not booking
 }
 
@@ -425,8 +426,8 @@ model Availability {
   id             String           @id @default(uuid())
   pediatricianId String
   kind           AvailabilityKind @default(VIDEO)
-  weekday        Int              // 0=Sunday .. 6=Saturday
-  startMinute    Int              // minutes from midnight
+  weekday        Int // 0=Sunday .. 6=Saturday
+  startMinute    Int // minutes from midnight
   endMinute      Int
   slotMinutes    Int              @default(20) // ignored for MESSAGES
   // Concrete calendar date (midnight UTC). Null = weekly recurring template.
@@ -475,7 +476,7 @@ model Notification {
 model DeviceToken {
   id        String   @id @default(uuid())
   userId    String
-  platform  String   // ios | android | web
+  platform  String // ios | android | web
   token     String   @unique
   createdAt DateTime @default(now())
 
@@ -499,15 +500,38 @@ model AuditLog {
   @@index([actorUserId])
 }
 
+// ── Product instrumentation ──────────────────────────
+// Funnel + habit events for the pilot. Deliberately has NO free-text column:
+// every field is an id, a short fixed name or a number, so clinical content
+// cannot land here even by accident (LAUNCH_READY bloco C).
+model AnalyticsEvent {
+  id             String   @id @default(uuid())
+  name           String
+  role           Role?
+  // Nulled on erasure (PrivacyService.deleteAccount) — the event survives as an
+  // anonymous count, which is what the metric needs.
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  consultationId String?
+  pediatricianId String?
+  specialty      String?
+  value          Int?
+  createdAt      DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
 // ── Clinics (B2B multi-tenant) ───────────────────────
 model Clinic {
-  id          String   @id @default(uuid())
-  name        String
-  taxId       String?
+  id              String   @id @default(uuid())
+  name            String
+  taxId           String?
   // ERS (Entidade Reguladora da Saúde) registration number of the provider.
   ersRegistration String?
-  countryCode String   @default("PT")
-  createdAt   DateTime @default(now())
+  countryCode     String   @default("PT")
+  createdAt       DateTime @default(now())
 
   members       ClinicMember[]
   pediatricians ClinicPediatrician[]
@@ -702,8 +726,8 @@ model Referral {
   toPediatricianId   String
   toPediatrician     Pediatrician   @relation("ReferralsReceived", fields: [toPediatricianId], references: [id])
   status             ReferralStatus @default(PENDING)
-  reason             String         // clinical context, AES-256-GCM
-  opinion            String?        // colleague's opinion, AES-256-GCM
+  reason             String // clinical context, AES-256-GCM
+  opinion            String? // colleague's opinion, AES-256-GCM
   createdAt          DateTime       @default(now())
   respondedAt        DateTime?
   completedAt        DateTime?

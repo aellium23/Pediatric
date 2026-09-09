@@ -19,6 +19,8 @@ import {
   ConsultationExpiredEvent,
   MessageCreatedEvent,
   PaymentCapturedEvent,
+  ConsultationStartedEvent,
+  ConsultationAnsweredEvent,
 } from './events';
 
 @Injectable()
@@ -115,6 +117,19 @@ export class ConsultationsService {
         episodeId: dto.episodeId,
       },
     });
+
+    // Instrumentation only — the listener writes the funnel event and swallows
+    // its own errors, so nothing here can fail the consultation.
+    this.events.emit(
+      'consultation.started',
+      new ConsultationStartedEvent(
+        consultation.id,
+        userId,
+        service.pediatricianId,
+        service.type,
+        service.priceCents,
+      ),
+    );
 
     if (dto.question) {
       await this.persistMessage(consultation.id, userId, dto.question);
@@ -411,6 +426,10 @@ export class ConsultationsService {
         where: { id: consultationId },
         data: { status: ConsultationStatus.ANSWERED, answeredAt: new Date() },
       });
+      this.events.emit(
+        'consultation.answered',
+        new ConsultationAnsweredEvent(consultationId, consultation.pediatricianId),
+      );
     }
     return { id: message.id, createdAt: message.createdAt };
   }

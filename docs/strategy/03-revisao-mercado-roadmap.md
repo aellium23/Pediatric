@@ -183,6 +183,16 @@ aos eventos do funil dois contadores de hábito: **sessões por família por
 semana** e **ações fora de consulta** (registar peso, ver percentil, abrir o
 registo, ler um artigo).
 
+> **Resolvido em 2026-09-09.** Existe uma tabela `AnalyticsEvent` sem nenhuma
+> coluna de texto livre — só ids, nomes de uma lista fechada e números — pelo
+> que conteúdo clínico não lá pode entrar por acidente. Os nove eventos do
+> funil e quatro de hábito (`app_open`, `record_view`, `growth_add`,
+> `article_read`) alimentam uma secção nova no perfil Admin, com exportação
+> CSV. Os resultados do lado do servidor são recolhidos por escuta de eventos
+> de domínio, não por chamadas dentro do fluxo clínico: uma falha de
+> instrumentação não pode fazer falhar uma consulta. No apagar-conta os
+> eventos perdem o `userId` — as contagens ficam, a ligação à pessoa não.
+
 ---
 
 ## 6. Melhorias propostas, por ordem de execução
@@ -190,7 +200,7 @@ registo, ler um artigo).
 | # | Proposta | Porquê agora | Esforço |
 |---|---|---|---|
 | 1 | ~~**Divulgar que o assistente é IA** (AI Act art. 50.º)~~ · **feito** | Obrigação já em vigor desde 2 ago 2026 | Horas |
-| 2 | **Instrumentação de hábito** (bloco C, elevado a bloqueante) | Sem isto o piloto não testa a tese | Dias |
+| 2 | ~~**Instrumentação de hábito** (bloco C, elevado a bloqueante)~~ · **feito** | Sem isto o piloto não testa a tese | Dias |
 | 3 | **Ficheiro de qualificação regulatória** (finalidade prevista, MDR) | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | **Resolver a contradição entre os dois roadmaps** | Evita que alguém construa o produto errado | Meia hora |
 | 5 | **Cofre de documentos da criança + extração por IA** | É o que cria o hábito semanal e sustenta o Premium | Semanas — é a próxima grande peça |

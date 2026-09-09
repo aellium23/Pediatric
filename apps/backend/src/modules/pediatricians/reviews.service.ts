@@ -4,13 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConsultationStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ConsultationRatedEvent } from '../consultations/events';
 import { CreateReviewDto } from './dto/pediatricians.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   /** Parent leaves a verified review after a closed consultation. */
   async create(userId: string, dto: CreateReviewDto) {
@@ -44,6 +49,10 @@ export class ReviewsService {
     });
 
     await this.recomputeRating(consultation.pediatricianId);
+    this.events.emit(
+      'consultation.rated',
+      new ConsultationRatedEvent(consultation.id, userId, consultation.pediatricianId, dto.rating),
+    );
     return review;
   }
 

@@ -32,6 +32,7 @@ import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ContentModule } from './modules/content/content.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
     ContentModule,
     ReferralsModule,
     CatalogModule,
+    AnalyticsModule,
   ],
   providers: [
     // Zero Trust: every route authenticated unless @Public; RBAC where @Roles.

@@ -20,14 +20,21 @@ function build(consultationOverrides: Record<string, any> = {}, memberFound = tr
     },
     pediatrician: { update: jest.fn().mockResolvedValue({}) },
   };
-  return { service: new ReviewsService(prisma), prisma };
+  const events = { emit: jest.fn() } as any;
+  return { service: new ReviewsService(prisma, events), prisma, events };
 }
 
 describe('ReviewsService', () => {
   it('creates a verified review and recomputes the pediatrician rating', async () => {
-    const { service, prisma } = build();
+    const { service, prisma, events } = build();
     const review = await service.create('user-1', { consultationId: 'c1', rating: 5 });
     expect(review.id).toBe('r1');
+    // Instrumentation listens for this instead of being called inline, so a
+    // failing analytics write can never fail a review.
+    expect(events.emit).toHaveBeenCalledWith(
+      'consultation.rated',
+      expect.objectContaining({ consultationId: 'c1', rating: 5 }),
+    );
     expect(prisma.review.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ verified: true, rating: 5 }) }),
     );

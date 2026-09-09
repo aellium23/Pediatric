@@ -494,6 +494,22 @@ export const Api = {
       body: JSON.stringify({ messages, child }),
     }) as Promise<{ text: string }>,
 
+  // Instrumentation (LAUNCH_READY bloco C) — see `track()` below for the
+  // batching wrapper the app actually calls.
+  analyticsTrack: (events: ClientEvent[]) =>
+    request('/analytics/events', { method: 'POST', body: JSON.stringify({ events }) }) as Promise<{
+      accepted: number;
+    }>,
+  analyticsSummary: (days = 42) =>
+    request(`/analytics/summary?days=${days}`) as Promise<AnalyticsSummaryDto>,
+  analyticsEvents: (skip = 0, take = 50) =>
+    request(`/analytics/events?skip=${skip}&take=${take}`) as Promise<{
+      items: AnalyticsEventRow[];
+      total: number;
+    }>,
+  analyticsExport: (days = 90) =>
+    request(`/analytics/export?days=${days}`) as Promise<{ csv: string }>,
+
   // Pediatrician
   inbox: () => request('/consultations/inbox') as Promise<ConsultationDto[]>,
   // Patient chart (caseload grouped by family + per-child consultation history)
@@ -1069,4 +1085,78 @@ export interface AuditRow {
   entityId: string | null;
   createdAt: string;
   actor?: { email: string | null; role: string } | null;
+}
+
+
+// ── Product instrumentation ───────────────────────────────────────────────
+// The pilot has to answer "do parents come back when nobody is ill?", and only
+// events can answer it. Deliberately narrow: a fixed set of names, no free
+// text, and never anything clinical.
+
+export type ClientEventName =
+  | 'app_open'
+  | 'search'
+  | 'open_profile'
+  | 'record_view'
+  | 'growth_add'
+  | 'article_read';
+
+export interface ClientEvent {
+  name: ClientEventName;
+  pediatricianId?: string;
+  specialty?: string;
+  value?: number;
+}
+
+export interface AnalyticsEventRow {
+  id: string;
+  name: string;
+  role: string | null;
+  userId: string | null;
+  consultationId: string | null;
+  pediatricianId: string | null;
+  specialty: string | null;
+  value: number | null;
+  createdAt: string;
+}
+
+export interface AnalyticsSummaryDto {
+  from: string;
+  funnel: { name: string; count: number }[];
+  habit: { weekStart: string; activeParents: number; nonConsultActions: number; sessions: number }[];
+  returningParents: number;
+  totalEvents: number;
+}
+
+// Buffered so a burst of taps is one request, and so a failure is silent: an
+// analytics outage must never surface to a parent looking for help.
+let queue: ClientEvent[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flush(): void {
+  flushTimer = null;
+  const batch = queue.splice(0, 20);
+  if (!batch.length || !getToken()) return;
+  Api.analyticsTrack(batch).catch(() => {
+    /* dropped on purpose — never retry into a loop, never alert the user */
+  });
+}
+
+export function track(name: ClientEventName, props: Omit<ClientEvent, 'name'> = {}): void {
+  if (typeof window === 'undefined' || !hasApi) return;
+  queue.push({ name, ...props });
+  if (queue.length >= 20) return flush();
+  if (!flushTimer) flushTimer = setTimeout(flush, 4000);
+}
+
+/** One `app_open` per browser session — the unit of the weekly-habit metric. */
+export function trackSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (sessionStorage.getItem('pedia_session_tracked')) return;
+    sessionStorage.setItem('pedia_session_tracked', '1');
+  } catch {
+    /* private mode: count it once per load rather than not at all */
+  }
+  track('app_open');
 }

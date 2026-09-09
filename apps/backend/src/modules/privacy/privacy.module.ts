@@ -104,6 +104,12 @@ export class PrivacyService {
             }),
           ]
         : []),
+      // Instrumentation: keep the counts, drop the link to the person. The
+      // pilot's funnel stays intact and the events stop being personal data.
+      this.prisma.analyticsEvent.updateMany({
+        where: { userId },
+        data: { userId: null },
+      }),
       this.prisma.user.update({
         where: { id: userId },
         data: {

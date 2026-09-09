@@ -61,17 +61,34 @@ Esconder o ruído sem apagar código:
 
 ---
 
-## C. Instrumentação mínima (Importante — a única feature nova no freeze)
+## C. Instrumentação mínima (**Bloqueante** — a única feature nova no freeze)
 
-- [ ] Registar eventos do funil: `search`, `open_profile`, `triage_start`,
+Subiu de *Importante* a **Bloqueante**: a estrela-polar do plano é o
+*engagement semanal*, não o volume de consultas, e isto é a única coisa no
+piloto que o mede. Sem isto o piloto responde "gostaram?" em vez de "voltam?".
+
+- [x] Registar eventos do funil: `search`, `open_profile`, `triage_start`,
       `message_sent`, `video_booked`, `answered`, `closed`, `rated`,
       `refund_auto`.
-- [ ] Cada evento com: papel, timestamp, id de consulta/pediatra (sem PII clínica).
-- [ ] Um sítio simples para ler os eventos (tabela admin ou export) — não
-      precisa de dashboard bonito, precisa de ser legível.
+- [x] Contadores de **hábito**: `app_open` (uma sessão por sessão de browser),
+      `record_view`, `growth_add`, `article_read` — usar a app sem ser para
+      pedir ajuda.
+- [x] Cada evento com: papel, timestamp, id de consulta/pediatra (sem PII
+      clínica). A tabela `AnalyticsEvent` **não tem coluna de texto livre**, e
+      os nomes vêm de uma lista fechada — conteúdo clínico não entra por
+      acidente. Verificado por HTTP: um nome fora da lista devolve 400.
+- [x] Sítio para ler: secção "Hábito e funil" no perfil Admin (semana a semana
+      + funil + pais que voltaram) e **exportação CSV** de 90 dias.
+- [ ] Fixar a leitura de referência na **semana 1 do piloto**, para as semanas
+      seguintes terem com que comparar.
 
 > Porquê: sem isto o piloto dá opinião, não dados. É o que alimenta as
 > simplificações de Home/dashboard **depois** (não antes — ver #8 das decisões).
+>
+> Nota de desenho: os eventos do lado do servidor são recolhidos por **escuta**
+> dos eventos de domínio, não por chamadas dentro do fluxo clínico — uma falha
+> de instrumentação não pode fazer falhar uma consulta. E no apagar-conta os
+> eventos perdem o `userId`: as contagens ficam, a ligação à pessoa não.
 
 ---
 
@@ -212,7 +229,7 @@ digitais ao consumidor como este — a barra é a **EN 301 549 / WCAG 2.2 AA**.
 |---|---|---|
 | A. Caminho crítico funciona | [~] | 44 testes E2E verdes contra Postgres real; falta validar no ambiente do piloto |
 | B. Simplificação `PILOT_MODE` | [ ] | por implementar |
-| C. Instrumentação | [ ] | por implementar (exceção autorizada ao freeze) |
+| C. Instrumentação | [x] | funil + hábito a registar; falta fixar a leitura de referência |
 | D. Ambiente/operação | [~] | Render/Vercel prontos; **decisão do dev-login é o portão nº 1** |
 | E. Confiança/conformidade | [~] | cifra verificada (ciphertext em repouso); falta backup + migrations + textos |
 | F. Recrutamento | [ ] | o verdadeiro gargalo — pessoas, não código |

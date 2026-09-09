@@ -20,6 +20,7 @@ function build() {
       updateMany: jest.fn().mockReturnValue({ op: 'consent.updateMany' }),
     },
     refreshToken: { updateMany: jest.fn().mockReturnValue({ op: 'refreshToken.updateMany' }) },
+    analyticsEvent: { updateMany: jest.fn().mockReturnValue({ op: 'analyticsEvent.updateMany' }) },
     subscription: { findMany: jest.fn().mockResolvedValue([]) },
     favorite: { findMany: jest.fn().mockResolvedValue([]) },
     notification: { findMany: jest.fn().mockResolvedValue([]) },
@@ -65,6 +66,12 @@ describe('PrivacyService (GDPR)', () => {
           data: expect.objectContaining({ email: null, phone: null, status: 'deleted' }),
         }),
       );
+      // Instrumentation events survive as anonymous counts: the funnel stays
+      // usable, but the events stop pointing at a person.
+      expect(prisma.analyticsEvent.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1' },
+        data: { userId: null },
+      });
       // Active consents are revoked as part of the same transaction.
       expect(prisma.consent.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),

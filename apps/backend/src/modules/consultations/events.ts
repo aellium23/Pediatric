@@ -31,3 +31,34 @@ export class MessageCreatedEvent {
     public readonly senderUserId: string,
   ) {}
 }
+
+/** A family started a paid consultation (message or video). Carries only the
+ *  routing facts — no triage text, no clinical content. */
+export class ConsultationStartedEvent {
+  constructor(
+    public readonly consultationId: string,
+    public readonly userId: string,
+    public readonly pediatricianId: string,
+    public readonly type: string,
+    public readonly priceCents: number,
+    public readonly specialty?: string,
+  ) {}
+}
+
+/** The pediatrician's first reply moved the consultation to ANSWERED. */
+export class ConsultationAnsweredEvent {
+  constructor(
+    public readonly consultationId: string,
+    public readonly pediatricianId?: string,
+  ) {}
+}
+
+/** The family rated a closed consultation. */
+export class ConsultationRatedEvent {
+  constructor(
+    public readonly consultationId: string,
+    public readonly userId: string,
+    public readonly pediatricianId: string,
+    public readonly rating: number,
+  ) {}
+}
