@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, useCallback} from 'react';
 import dynamic from 'next/dynamic';
 import {
   Api,
@@ -48,6 +48,8 @@ import {
   track,
   trackSession,
   type AnalyticsSummaryDto,
+  type ChildDocumentDto,
+  type DocumentKind,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -3139,6 +3141,237 @@ function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: 
 
 /** Collapsed "+ Registar" form — the health profile reads first, writes on
  *  demand (no wall of six open forms for a parent). */
+
+const VAULT_KINDS: { code: DocumentKind; label: string; icon: string }[] = [
+  { code: 'REPORT', label: 'Relatório / consulta', icon: '📄' },
+  { code: 'LAB', label: 'Análises', icon: '🧪' },
+  { code: 'IMAGING', label: 'Imagiologia', icon: '🩻' },
+  { code: 'PRESCRIPTION', label: 'Receita', icon: '💊' },
+  { code: 'VACCINE', label: 'Vacinas', icon: '💉' },
+  { code: 'OTHER', label: 'Outro', icon: '🗂️' },
+];
+
+function vaultKind(code: string) {
+  return VAULT_KINDS.find((k) => k.code === code) ?? VAULT_KINDS[VAULT_KINDS.length - 1];
+}
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Read a file as a data URL; photos are downscaled, PDFs go through as-is. */
+async function fileToDataUrl(file: File): Promise<string> {
+  if (file.type.startsWith('image/')) return downscaleClinicalPhoto(file);
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('read-failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+/**
+ * The family's document vault: the reports, results and letters that otherwise
+ * live in WhatsApp, email and a drawer. Read-only for the treating
+ * pediatrician, who sees it inside the same record.
+ */
+function DocumentVault({
+  childId,
+  canEdit,
+  onMsg,
+}: {
+  childId: string;
+  canEdit?: boolean;
+  onMsg: (m: string) => void;
+}) {
+  const { tr } = useT();
+  const [docs, setDocs] = useState<ChildDocumentDto[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState('');
+  const [kind, setKind] = useState<DocumentKind>('REPORT');
+  const [issuedAt, setIssuedAt] = useState('');
+  const [pending, setPending] = useState<{ name: string; content: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const load = useCallback(() => {
+    Api.documents(childId)
+      .then(setDocs)
+      .catch(() => setDocs([]));
+  }, [childId]);
+  useEffect(load, [load]);
+
+  async function pickFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      const content = await fileToDataUrl(file);
+      setPending({ name: file.name, content });
+      // A filename is usually the best title the parent already has.
+      if (!title) setTitle(file.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 140));
+    } catch {
+      onMsg(tr('Não foi possível ler o ficheiro.'));
+    }
+  }
+
+  async function save() {
+    if (!pending || !title.trim() || busy) return;
+    setBusy(true);
+    try {
+      await Api.addDocument(childId, {
+        title: title.trim(),
+        kind,
+        content: pending.content,
+        issuedAt: issuedAt || undefined,
+      });
+      track('document_add');
+      setPending(null);
+      setTitle('');
+      setIssuedAt('');
+      if (fileRef.current) fileRef.current.value = '';
+      onMsg(tr('Documento guardado ✓'));
+      load();
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function open(doc: ChildDocumentDto) {
+    try {
+      const full = await Api.document(childId, doc.id);
+      // Render in a new tab from a blob so the data URL never sits in history.
+      const res = await fetch(full.content);
+      const url = URL.createObjectURL(await res.blob());
+      const win = window.open(url, '_blank', 'noopener');
+      if (!win) onMsg(tr('O browser bloqueou a janela. Permite pop-ups para abrir documentos.'));
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    }
+  }
+
+  async function remove(doc: ChildDocumentDto) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await Api.removeDocument(childId, doc.id);
+      onMsg(tr('Documento apagado.'));
+      load();
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="hsec">
+      <div className="hsec-head">
+        <span className="hsec-ico" aria-hidden>🗂️</span>
+        <h3>{tr('Documentos')}</h3>
+        <span className="pill muted">{docs?.length ?? 0}</span>
+      </div>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        {tr('Relatórios, análises e receitas num sítio só. O pediatra que te acompanha vê-os na consulta.')}
+      </p>
+
+      {docs === null ? (
+        <p className="muted">{tr('A carregar…')}</p>
+      ) : docs.length === 0 ? (
+        <p className="muted">{tr('Ainda sem documentos guardados.')}</p>
+      ) : (
+        docs.map((doc) => {
+          const k = vaultKind(doc.kind);
+          return (
+            <div key={doc.id} className="card" style={{ marginBottom: 8 }}>
+              <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ display: 'block', wordBreak: 'break-word' }}>
+                    <span aria-hidden="true">{k.icon}</span> {doc.title}
+                  </strong>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {tr(k.label)} · {humanSize(doc.sizeBytes)}
+                    {doc.issuedAt ? ` · ${new Date(doc.issuedAt).toLocaleDateString(appLocale())}` : ''}
+                  </span>
+                </div>
+                <div className="row" style={{ gap: 6, flex: 'none' }}>
+                  <button type="button" className="btn small secondary" onClick={() => open(doc)}>
+                    {tr('Abrir')}
+                  </button>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="btn small secondary"
+                      disabled={busy}
+                      onClick={() => remove(doc)}
+                      aria-label={`${tr('Apagar')} ${doc.title}`}
+                    >
+                      {tr('Apagar')}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {canEdit ? (
+        <Reg label={tr('+ Guardar documento')}>
+          <label className="muted" style={{ display: 'block', marginBottom: 8 }}>
+            {tr('Ficheiro (PDF ou foto, até ~3 MB)')}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf,image/*"
+              onChange={(e) => void pickFile(e.target.files?.[0])}
+              style={{ display: 'block', marginTop: 4 }}
+            />
+          </label>
+          {pending ? (
+            <p className="muted" style={{ fontSize: 12 }}>
+              {tr('Selecionado')}: {pending.name}
+            </p>
+          ) : null}
+          <label className="muted" style={{ display: 'block', marginBottom: 8 }}>
+            {tr('Nome')}
+            <input
+              value={title}
+              maxLength={140}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={tr('Ex.: Análises de sangue, março')}
+            />
+          </label>
+          <label className="muted" style={{ display: 'block', marginBottom: 8 }}>
+            {tr('Tipo')}
+            <select value={kind} onChange={(e) => setKind(e.target.value as DocumentKind)}>
+              {VAULT_KINDS.map((k) => (
+                <option key={k.code} value={k.code}>
+                  {tr(k.label)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="muted" style={{ display: 'block', marginBottom: 8 }}>
+            {tr('Data do documento (opcional)')}
+            <input type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            className="btn small"
+            disabled={busy || !pending || !title.trim()}
+            onClick={save}
+          >
+            {busy ? tr('A guardar…') : tr('Guardar documento')}
+          </button>
+        </Reg>
+      ) : null}
+    </section>
+  );
+}
+
 function Reg({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <details className="regform">
@@ -3564,6 +3797,9 @@ function ChildHealth({
             </button>
           </Reg>
           </section>
+
+          {/* Document vault */}
+          <DocumentVault childId={child.id} canEdit onMsg={onMsg} />
 
           {/* Vaccines */}
           <section className="hsec">
@@ -6019,6 +6255,10 @@ function ChildChart({
         <Skeleton rows={3} />
       ) : (
         <>
+          {/* The family's vault, read-only: the reports a pediatrician would
+              otherwise have to ask for over chat. */}
+          <DocumentVault childId={childId} onMsg={onMsg} />
+
           {overdueVax.length > 0 ? (
             <div className="card" style={{ borderColor: 'var(--warn, #b26a00)' }}>
               <strong>{tr('⚠️ Vacinas possivelmente em atraso')}</strong>

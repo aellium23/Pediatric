@@ -165,6 +165,33 @@ uma mensalidade por uma app que abre três vezes por ano.
 resto: sem cofre não há hábito, sem hábito não há Premium, sem Premium a receita
 volta a ser a comissão — ou seja, volta-se ao roadmap antigo por omissão.
 
+> **Cofre construído em 2026-09-09.** `ChildDocument` com título e ficheiro
+> cifrados em repouso (AES-256-GCM, provado por E2E contra Postgres real),
+> tipos PDF/imagem, ~3 MB por documento, listagem sem transportar os bytes.
+> Regra de acesso partilhada com o resto da ficha clínica —
+> `ChildAccessService`, uma só cópia, porque duas cópias de uma regra de
+> autorização é como se publica um IDOR. A família escreve e apaga; **o
+> pediatra que a acompanha lê**, dentro do registo que já consulta, e não pode
+> apagar. Cada upload conta como ação de hábito (`document_add`).
+>
+> **O que fica por fazer, de propósito:** a *extração por IA* (OCR → alergias,
+> vacinas, medicação para o registo estruturado) — a metade que a estratégia
+> liga ao Family Premium. É uma peça própria, com revisão humana obrigatória
+> antes de qualquer coisa entrar no registo clínico, e não devia ser enfiada na
+> mesma entrega que o armazenamento.
+>
+> **Armazenamento:** no piloto o ficheiro fica em linha na base de dados, como
+> data URL cifrada — o mesmo caminho que as fotos do chat já tomam. Isso limita
+> um documento a alguns MB e põe bytes na base. É adequado a um piloto e
+> deliberadamente não é a resposta de produção: o `FilesModule` já tem o
+> caminho de URL assinado para S3, e é para lá que isto deve migrar antes de
+> escalar.
+>
+> **Nota de âmbito:** o `PRODUCT_DECISIONS.md` fixa um congelamento de
+> funcionalidades com a instrumentação como única exceção. O cofre é uma
+> segunda exceção — pedida explicitamente, e é a peça de que depende a tese.
+> Fica registada aqui para o congelamento continuar a significar alguma coisa.
+
 ---
 
 ## 5. O piloto não consegue medir aquilo que decide o negócio
@@ -203,7 +230,7 @@ registo, ler um artigo).
 | 2 | ~~**Instrumentação de hábito** (bloco C, elevado a bloqueante)~~ · **feito** | Sem isto o piloto não testa a tese | Dias |
 | 3 | **Ficheiro de qualificação regulatória** (finalidade prevista, MDR) | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | **Resolver a contradição entre os dois roadmaps** | Evita que alguém construa o produto errado | Meia hora |
-| 5 | **Cofre de documentos da criança + extração por IA** | É o que cria o hábito semanal e sustenta o Premium | Semanas — é a próxima grande peça |
+| 5 | **Cofre de documentos** ✓ · *extração por IA ainda não* | É o que cria o hábito semanal e sustenta o Premium | Cofre feito; extração por construir |
 | 6 | **Export do registo em formato aberto/FHIR-compatível** | Preparação EHDS enquanto ainda não há dados reais | Dias |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
 | 8 | **Módulo de desenvolvimento/saúde mental** | Maior crescimento do segmento; densidade de subscrição | A2 |

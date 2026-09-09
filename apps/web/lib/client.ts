@@ -668,6 +668,23 @@ export const Api = {
     request(`/health-records/${childId}`) as Promise<HealthOverview>,
   childTimeline: (childId: string) =>
     request(`/health-records/${childId}/timeline`) as Promise<ChildTimeline>,
+  // Document vault — the family's reports, results and letters.
+  documents: (childId: string) =>
+    request(`/documents/${childId}`) as Promise<ChildDocumentDto[]>,
+  document: (childId: string, id: string) =>
+    request(`/documents/${childId}/${id}`) as Promise<ChildDocumentDto & { content: string }>,
+  addDocument: (
+    childId: string,
+    data: { title: string; kind?: DocumentKind; content: string; issuedAt?: string },
+  ) =>
+    request(`/documents/${childId}`, { method: 'POST', body: JSON.stringify(data) }) as Promise<{
+      id: string;
+      mime: string;
+      sizeBytes: number;
+    }>,
+  removeDocument: (childId: string, id: string) =>
+    request(`/documents/${childId}/${id}/remove`, { method: 'POST' }),
+
   addGrowth: (
     childId: string,
     data: { measuredAt: string; heightCm?: number; weightKg?: number; headCm?: number },
@@ -1099,7 +1116,8 @@ export type ClientEventName =
   | 'open_profile'
   | 'record_view'
   | 'growth_add'
-  | 'article_read';
+  | 'article_read'
+  | 'document_add';
 
 export interface ClientEvent {
   name: ClientEventName;
@@ -1159,4 +1177,17 @@ export function trackSession(): void {
     /* private mode: count it once per load rather than not at all */
   }
   track('app_open');
+}
+
+
+export type DocumentKind = 'REPORT' | 'LAB' | 'IMAGING' | 'PRESCRIPTION' | 'VACCINE' | 'OTHER';
+
+export interface ChildDocumentDto {
+  id: string;
+  title: string;
+  kind: DocumentKind;
+  mime: string;
+  sizeBytes: number;
+  issuedAt: string | null;
+  createdAt: string;
 }

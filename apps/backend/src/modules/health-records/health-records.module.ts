@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Injectable,
   Module,
@@ -20,6 +19,7 @@ import {
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { EncryptionService } from '../../common/crypto/encryption.service';
+import { ChildAccessService } from '../../common/security/child-access.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { evaluate, evaluateBmi, centileBands, sexCode } from '../../common/growth/who-growth';
@@ -75,31 +75,14 @@ export class HealthRecordsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: EncryptionService,
+    private readonly access: ChildAccessService,
   ) {}
 
   /** Parent must own the child; pediatrician must share a consultation with them.
-   *  Returns the child so callers can use its birthDate/sex (e.g. WHO percentiles). */
-  private async assertAccess(user: AuthenticatedUser, childId: string) {
-    const child = await this.prisma.child.findUnique({ where: { id: childId } });
-    if (!child) throw new ForbiddenException('Criança não encontrada.');
-    if (user.role === Role.PARENT) {
-      const member = await this.prisma.familyMember.findFirst({
-        where: { userId: user.userId, familyId: child.familyId },
-      });
-      if (!member) throw new ForbiddenException('Sem autorização para esta criança.');
-      return child;
-    }
-    if (user.role === Role.PEDIATRICIAN) {
-      const ped = await this.prisma.pediatrician.findUnique({ where: { userId: user.userId } });
-      const link = ped
-        ? await this.prisma.consultation.findFirst({
-            where: { childId, pediatricianId: ped.id },
-          })
-        : null;
-      if (!link) throw new ForbiddenException('Não existe consulta com esta criança.');
-      return child;
-    }
-    throw new ForbiddenException('Sem autorização.');
+   *  The rule itself lives in ChildAccessService so the document vault enforces
+   *  exactly the same one. Returns the child (birthDate/sex feed the WHO curves). */
+  private assertAccess(user: AuthenticatedUser, childId: string) {
+    return this.access.assertAccess(user, childId);
   }
 
   async overview(user: AuthenticatedUser, childId: string) {

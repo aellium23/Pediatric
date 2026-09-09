@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { HealthRecordsService } from '../../src/modules/health-records/health-records.module';
+import { ChildAccessService } from '../../src/common/security/child-access.service';
 
 function build(over: Record<string, any> = {}) {
   const prisma: any = {
@@ -10,7 +11,8 @@ function build(over: Record<string, any> = {}) {
     ...over,
   };
   const crypto = { encrypt: (s: string) => s, decrypt: (s: string) => s };
-  return { service: new HealthRecordsService(prisma as any, crypto as any), prisma };
+  const access = new ChildAccessService(prisma as any);
+  return { service: new HealthRecordsService(prisma as any, crypto as any, access), prisma };
 }
 
 const parent = { userId: 'u1', role: Role.PARENT } as any;

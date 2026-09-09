@@ -43,6 +43,7 @@ export const HABIT_EVENTS = [
   'record_view',
   'growth_add',
   'article_read',
+  'document_add',
 ] as const;
 
 /** Events a client may report. Server-owned outcomes are not in this list. */
@@ -211,6 +212,11 @@ export class AnalyticsService {
   @OnEvent('consultation.expired')
   onExpired(e: ConsultationExpiredEvent): void {
     this.track({ name: 'refund_auto', consultationId: e.consultationId });
+  }
+
+  @OnEvent('child.document.added')
+  onDocumentAdded(e: { userId?: string }): void {
+    this.track({ name: 'document_add', role: Role.PARENT, userId: e.userId });
   }
 
   @OnEvent('consultation.rated')

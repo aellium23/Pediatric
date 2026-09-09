@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { HealthRecordsService } from '../../src/modules/health-records/health-records.module';
 import { AuthenticatedUser } from '../../src/common/security/jwt.strategy';
+import { ChildAccessService } from '../../src/common/security/child-access.service';
 
 /** identity crypto: decrypt/encrypt are pass-through so assertions read plainly. */
 const crypto: any = {
@@ -31,7 +32,10 @@ function build(prismaOverrides: Record<string, any> = {}) {
     allergy: { findMany: jest.fn().mockResolvedValue([]) },
     ...prismaOverrides,
   };
-  return { service: new HealthRecordsService(prisma, crypto), prisma };
+  // The real access rule, on the same mocked prisma — so these tests still
+  // exercise the shared authorization logic rather than a stub of it.
+  const access = new ChildAccessService(prisma);
+  return { service: new HealthRecordsService(prisma, crypto, access), prisma };
 }
 
 const parent: AuthenticatedUser = { userId: 'u-parent', role: Role.PARENT };

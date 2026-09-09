@@ -159,6 +159,7 @@ model Child {
 
   consultations Consultation[]
   files         FileAsset[]
+  documents     ChildDocument[]
 
   @@index([familyId])
 }
@@ -498,6 +499,41 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorUserId])
+}
+
+// ── Document vault ───────────────────────────────────
+enum DocumentKind {
+  REPORT
+  LAB
+  IMAGING
+  PRESCRIPTION
+  VACCINE
+  OTHER
+}
+
+/// The family's document vault: the reports, results and letters that today
+/// live in WhatsApp, email and paper. `title` and `content` are special-category
+/// health data and are AES-256-GCM encrypted at rest like message bodies.
+///
+/// Pilot storage: the file is kept inline as an encrypted data URL, the same
+/// route the chat photos already take. That caps a document at a few MB and
+/// puts bytes in the database — fine for a pilot, and deliberately not the
+/// production answer (see FilesModule for the signed-URL/S3 path).
+model ChildDocument {
+  id               String       @id @default(uuid())
+  childId          String
+  child            Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  uploadedByUserId String?
+  title            String
+  kind             DocumentKind @default(OTHER)
+  mime             String
+  sizeBytes        Int
+  /// When the document itself is dated (exam date), not when it was uploaded.
+  issuedAt         DateTime?
+  content          String
+  createdAt        DateTime     @default(now())
+
+  @@index([childId, createdAt])
 }
 
 // ── Product instrumentation ──────────────────────────
