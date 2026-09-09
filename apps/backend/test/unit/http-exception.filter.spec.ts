@@ -67,6 +67,24 @@ describe('AllExceptionsFilter', () => {
     expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
   });
 
+  // Nest re-wraps the parser failure as its own BadRequestException, and V8's
+  // message quotes the bytes it choked on — so without scrubbing, the reply
+  // echoes a slice of the request body (possibly clinical text) back out.
+  it('does not echo the request body when Nest re-wraps a JSON parse failure', () => {
+    const nestWrapped = new BadRequestException(
+      'Unexpected token \'b\', "{"queixa": febre alta da Rita" is not valid JSON',
+    );
+    const { status, body } = ctxFor(nestWrapped);
+    expect(status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(body().error).toBe('Pedido inválido (JSON malformado).');
+    expect(JSON.stringify(body())).not.toMatch(/Rita|febre/);
+  });
+
+  it('leaves a genuine validation 400 untouched', () => {
+    const { body } = ctxFor(new BadRequestException('Dados inválidos nos campos: email.'));
+    expect(body().error).toBe('Dados inválidos nos campos: email.');
+  });
+
   it('never downgrades a 5xx-flavoured error via the body-parser path', () => {
     const err = Object.assign(new Error('boom'), { type: 'entity.too.large', status: 500 });
     const { status, body } = ctxFor(err);

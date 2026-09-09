@@ -149,6 +149,19 @@ button {
 }
 
 /* Accessibility: visible focus + respect reduced motion. */
+/* Text that only assistive technology reads (WCAG 1.3.1 / 2.4.6) — used for
+   field labels where the visual design carries the meaning some other way. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
@@ -236,6 +249,16 @@ select:focus {
   outline: none;
   background: var(--surface);
   border-color: var(--brand);
+}
+/* WCAG 2.4.7 (Focus Visible) / 2.4.11 (Focus Appearance): the rule above is
+   more specific than the global :focus-visible, so without this a keyboard user
+   would only get a 1px border tint as focus indicator. Re-assert the ring for
+   keyboard focus only (pointer focus keeps the quieter look). */
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 textarea {
   line-height: 1.5;
@@ -524,6 +547,17 @@ button.card:active {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+}
+/* The click-away area behind a sheet or overlay. A real <button> rather than a
+   div with onClick, so it is reachable and operable by keyboard and announced
+   as "Fechar" instead of being an invisible mouse-only affordance. */
+.scrim-btn {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
 }
 .sheet {
   width: 100%;

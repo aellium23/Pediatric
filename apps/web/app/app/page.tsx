@@ -572,6 +572,9 @@ function AvatarPicker({
         }}
       >
         {photoUrl ? (
+          // Data-URL / user-uploaded avatar: next/image cannot optimize it and
+          // would add a proxy hop for no gain.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={photoUrl}
             alt=""
@@ -633,6 +636,8 @@ function ChildAvatar({
 }) {
   if (photoUrl) {
     return (
+      // Same reason as above: user-supplied avatar, often a data URL.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={photoUrl}
         alt=""
@@ -1101,11 +1106,14 @@ export default function MultiProfileApp() {
         )}
       </div>
 
-      <nav className="appbar">
+      <nav className="appbar" aria-label={tr('Navegação principal')}>
         {tabs.map((tb) => (
           <button
             key={tb.key}
+            type="button"
             className={tab === tb.key ? 'active' : ''}
+            // The active tab is styled, not just coloured: announce it too.
+            aria-current={tab === tb.key ? 'page' : undefined}
             aria-label={t(`tab.${tb.key}`, tb.label)}
             title={t(`tab.${tb.key}`, tb.label)}
             onClick={() => {
@@ -1580,14 +1588,14 @@ function HelpSheet({
   }, [onClose]);
   if (!guide) return null;
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
+    <div className="sheet-backdrop">
+      <button type="button" className="scrim-btn" aria-label={tr('Fechar')} onClick={onClose} />
       <div
         className="sheet"
         role="dialog"
         aria-modal="true"
         aria-label={tr('Guia desta página')}
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: '70vh', overflowY: 'auto' }}
+        style={{ maxHeight: '70vh', overflowY: 'auto', position: 'relative' }}
       >
         <div className="sheet-grip" />
         <h2 style={{ marginTop: 4 }}>
@@ -2348,7 +2356,6 @@ function Thread({
           role="dialog"
           aria-modal="true"
           aria-label={tr('Imagem em ecrã inteiro')}
-          onClick={() => setViewer(null)}
           style={{
             position: 'fixed',
             inset: 0,
@@ -2362,6 +2369,14 @@ function Thread({
             padding: 16,
           }}
         >
+          {/* Tap-anywhere-to-close as a real button, so it is also keyboard
+              operable and announced instead of being a mouse-only affordance. */}
+          <button
+            type="button"
+            className="scrim-btn"
+            aria-label={tr('Fechar imagem')}
+            onClick={() => setViewer(null)}
+          />
           <button
             type="button"
             aria-label={tr('Fechar imagem')}
@@ -2386,8 +2401,7 @@ function Thread({
           <img
             src={viewer}
             alt={tr('Foto ampliada')}
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8 }}
+            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, position: 'relative' }}
           />
         </div>
       ) : null}
@@ -2516,7 +2530,11 @@ function HomeTab({
     }
   }, []);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // WCAG 2.3.3: honour "reduce motion" — a smooth auto-scroll is animation.
+    const still =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    endRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'end' });
   }, [msgs, busy]);
 
   function openAnswer(c: ConsultationDto) {
@@ -2715,6 +2733,16 @@ function HomeTab({
       {/* Conversation thread. */}
       {started ? (
         <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* WCAG 4.1.3 (Status Messages): the assistant's reply arrives without
+              a focus change, so a screen-reader user would never hear it. A log
+              region announces each new turn politely, without stealing focus. */}
+          <div
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+            aria-label={tr('Conversa com o assistente')}
+            style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+          >
           {msgs.map((m, i) =>
             m.role === 'user' ? (
               <div
@@ -2728,6 +2756,7 @@ function HomeTab({
                   padding: '9px 12px',
                 }}
               >
+                <span className="sr-only">{tr('Tu')}: </span>
                 {m.text}
               </div>
             ) : (
@@ -2736,6 +2765,7 @@ function HomeTab({
                 className="card"
                 style={{ alignSelf: 'flex-start', maxWidth: '90%', borderRadius: '14px 14px 14px 4px', margin: 0 }}
               >
+                <span className="sr-only">{tr('Assistente')}: </span>
                 {m.text}
               </div>
             ),
@@ -2745,9 +2775,17 @@ function HomeTab({
               {tr('A escrever…')}
             </div>
           ) : null}
+          </div>
 
+          {/* role="alert" (assertive) on purpose: this is the 112 / SNS 24
+              escalation. It must interrupt whatever the screen reader is
+              saying — it is the one message that cannot wait its turn. */}
           {severity === 'emergency' ? (
-            <div className="card" style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14', margin: 0 }}>
+            <div
+              role="alert"
+              className="card"
+              style={{ borderColor: '#f0b8be', background: '#fde4e7', color: '#3d0f14', margin: 0 }}
+            >
               <strong style={{ fontSize: 16 }}>{tr('Isto pode ser urgente')}</strong>
               <p style={{ margin: '6px 0 10px' }}>{tr(ASSIST_COPY.emergency)}</p>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -2789,8 +2827,14 @@ function HomeTab({
           selected automatically. */}
       {children.length > 1 ? (
         <div style={{ maxWidth: 640, margin: '14px auto 0' }}>
-          <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>{tr('Sobre qual criança?')}</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 6 }} id="home-child-label">
+            {tr('Sobre qual criança?')}
+          </div>
+          <div
+            role="group"
+            aria-labelledby="home-child-label"
+            style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+          >
             {children.map((c) => (
               <button
                 key={c.id}
@@ -2816,7 +2860,13 @@ function HomeTab({
         style={{ maxWidth: 640, margin: started ? '12px auto 0' : '0 auto' }}
       >
         <div style={{ position: 'relative' }}>
+          {/* WCAG 3.3.2 / 4.1.2: a placeholder is not an accessible name — it
+              disappears on typing and some readers ignore it. */}
+          <label className="sr-only" htmlFor="home-assistant-input">
+            {tr('Descreve o que se passa com a criança')}
+          </label>
           <textarea
+            id="home-assistant-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -2845,7 +2895,7 @@ function HomeTab({
                   ...(dictating ? { background: 'var(--danger)' } : {}),
                 }}
               >
-                {dictating ? '■' : '🎤'}
+                <span aria-hidden="true">{dictating ? '■' : '🎤'}</span>
               </button>
             ) : null}
             <button
@@ -2855,13 +2905,13 @@ function HomeTab({
               disabled={busy || !input.trim()}
               style={{ borderRadius: 12, padding: '8px 13px', fontSize: 17 }}
             >
-              →
+              <span aria-hidden="true">→</span>
             </button>
           </div>
         </div>
       </form>
       {dictating ? (
-        <p className="muted" style={{ fontSize: 12, textAlign: 'center', margin: '6px auto 0', maxWidth: 640 }}>
+        <p role="status" className="muted" style={{ fontSize: 12, textAlign: 'center', margin: '6px auto 0', maxWidth: 640 }}>
           {tr('A ouvir… fala e depois toca em ■ para parar.')}
         </p>
       ) : null}
@@ -6815,6 +6865,10 @@ function AgendaTab({
               const eff = effective(t);
               const dLbl = fmtUTC(t, { weekday: 'short', day: 'numeric' });
               return (
+                // Drag-to-select is a pointer shortcut layered on top of the
+                // hour cells below, which are real <button>s with labels — the
+                // keyboard path exists, so these handlers add no barrier.
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                 <div
                   key={t}
                   className={`agcal-col${t === today ? ' today' : ''}${t < today ? ' past' : ''}${dayClosed(t) ? ' closed' : ''}`}
@@ -10835,8 +10889,20 @@ function Emergency() {
         SOS
       </button>
       {open ? (
-        <div className="sheet-backdrop" onClick={() => setOpen(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-backdrop">
+          <button
+            type="button"
+            className="scrim-btn"
+            aria-label={tr('Fechar')}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={tr('É uma emergência?')}
+            style={{ position: 'relative' }}
+          >
             <div className="sheet-grip" />
             <h2 style={{ marginTop: 4 }}>{tr('É uma emergência?')}</h2>
             <p className="muted">

@@ -42,6 +42,23 @@ const BODY_PARSER_STATUS: Record<string, { status: number; error: string }> = {
   },
 };
 
+/**
+ * Nest re-wraps body-parser's JSON failure as its own BadRequestException, and
+ * V8's parse error quotes the offending bytes — so the reply would echo a slice
+ * of the request body back to the caller. Harmless with your own typo, less so
+ * when the body carried clinical text, and it is gratuitous detail either way
+ * (OWASP ASVS V7.4.1: say what happened, not what the server saw). Matched on
+ * the message because the `type` marker is lost in the re-wrapping.
+ */
+const JSON_PARSE_SIGNATURE =
+  /is not valid JSON|Unexpected token|Unexpected end of JSON input|JSON at position/i;
+
+function isJsonParseFailure(status: number, message: unknown): boolean {
+  if (status !== HttpStatus.BAD_REQUEST) return false;
+  const text = typeof message === 'string' ? message : (message as { message?: unknown })?.message;
+  return typeof text === 'string' && JSON_PARSE_SIGNATURE.test(text);
+}
+
 function bodyParserError(exception: unknown): { status: number; error: string } | undefined {
   const e = exception as { type?: unknown; status?: unknown; statusCode?: unknown };
   const raw = typeof e?.status === 'number' ? e.status : e?.statusCode;
@@ -69,9 +86,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ? exception.getStatus()
       : mapped?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message = exception instanceof HttpException
+    const raw = exception instanceof HttpException
       ? exception.getResponse()
       : mapped?.error ?? 'Internal server error';
+
+    const message = isJsonParseFailure(status, raw)
+      ? BODY_PARSER_STATUS['entity.parse.failed'].error
+      : raw;
 
     if (status >= 500) {
       this.logger.error(`${req.method} ${req.url}`, exception as Error);

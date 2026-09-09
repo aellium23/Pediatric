@@ -63,18 +63,28 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   // ── OpenAPI ──
-  const swagger = new DocumentBuilder()
-    .setTitle('HOC API')
-    .setDescription('Telepediatrics platform API (MVP)')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  // Published everywhere except a real production deploy: an anonymous, fully
+  // browsable map of every route and DTO is free reconnaissance (OWASP ASVS
+  // V14.3 — attack-surface reduction). The demo keeps it, because there the
+  // API surface is the point; `SWAGGER_PUBLIC=true` forces it back on.
+  const realProduction = process.env.NODE_ENV === 'production' && !demoEnv;
+  if (!realProduction || process.env.SWAGGER_PUBLIC === 'true') {
+    const swagger = new DocumentBuilder()
+      .setTitle('HOC API')
+      .setDescription('Telepediatrics platform API (MVP)')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  }
 
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`HOC API listening on :${port} (OpenAPI at /docs)`);
+  console.log(
+    `HOC API listening on :${port}` +
+      (realProduction && process.env.SWAGGER_PUBLIC !== 'true' ? '' : ' (OpenAPI at /docs)'),
+  );
 }
 
 void bootstrap();

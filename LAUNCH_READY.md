@@ -9,7 +9,7 @@
 > Decisões de âmbito: ver `PRODUCT_DECISIONS.md`. Estado factual: ver
 > `CURRENT_PRODUCT_STATUS.md`. Deploy/handover: ver `DEPLOY-DEMO.md`.
 
-Última atualização: 2026-07-06.
+Última atualização: 2026-09-09.
 
 ---
 
@@ -179,6 +179,33 @@ chamam uma API paga. Sem chave, degradam em silêncio e não custam nada.
 
 ---
 
+## I. Acessibilidade (WCAG 2.2 AA) — Importante
+
+Um pai que usa a app está aflito, muitas vezes de noite, com uma mão livre. E o
+EAA (Diretiva (UE) 2019/882), aplicável desde junho de 2025, trata serviços
+digitais ao consumidor como este — a barra é a **EN 301 549 / WCAG 2.2 AA**.
+
+- [x] Foco visível em todos os campos (2.4.7/2.4.11) — a regra de estilo dos
+      campos anulava o anel de foco global; reposto para foco por teclado.
+- [x] Conversa do assistente anunciada como `role="log"` (4.1.3) e o cartão de
+      emergência como `role="alert"` — a escalada 112/SNS 24 interrompe o
+      leitor de ecrã em vez de esperar a vez.
+- [x] Nome acessível na caixa do assistente (3.3.2/4.1.2) — o *placeholder* não
+      conta como etiqueta.
+- [x] Sobreposições (guia, SOS, foto em ecrã inteiro) fecháveis por teclado, não
+      só por clique no fundo.
+- [x] `aria-current` no separador ativo; `prefers-reduced-motion` respeitado no
+      auto-scroll (2.3.3).
+- [x] `eslint-plugin-jsx-a11y` no CI (`npm run lint`, zero avisos tolerados).
+- [ ] Auditoria manual com leitor de ecrã real (VoiceOver/TalkBack) no percurso
+      pai → pergunta → resposta → consulta. O linter apanha o que é estrutural,
+      não apanha se a experiência faz sentido.
+- [ ] Verificar contraste de cor (1.4.3) nos temas claro e escuro com ferramenta.
+- [ ] Declaração de acessibilidade publicada (exigida pelo EAA a partir do
+      momento em que o serviço é comercial).
+
+---
+
 ## Estado geral
 
 | Bloco | Estado | Nota |
@@ -191,6 +218,7 @@ chamam uma API paga. Sem chave, degradam em silêncio e não custam nada.
 | F. Recrutamento | [ ] | o verdadeiro gargalo — pessoas, não código |
 | G. Critérios de sucesso | [ ] | definir e fixar antes de arrancar |
 | H. Custo da IA | [~] | limites aplicados; falta tecto de gasto |
+| I. Acessibilidade | [~] | correções aplicadas e travadas por linter; falta auditoria com leitor de ecrã |
 
 ### Verificado nesta análise E2E (setembro 2026)
 
@@ -203,6 +231,31 @@ Executado contra Postgres real e servidor a correr, não por leitura de código:
   emergência (incluindo "não está a respirar"); agora 20/20, sem falsos alarmes
   em 14 frases-armadilha, e protegido por 52 testes no CI do frontend.
 - RBAC dos endpoints de IA correto (403 para pediatra, 401 anónimo).
+
+### Endurecimento por standards (setembro 2026)
+
+Verificado por HTTP contra o servidor a correr, nos dois modos (`NODE_ENV=production`
+com e sem `ENABLE_DEV_LOGIN`):
+
+- **Anti-automação na autenticação** (OWASP ASVS V2.2.1): todo o `/api/auth/*`
+  passou de 100 para **20 pedidos/min**. Medido: 20 aceites, os seguintes 429.
+- **Sem eco do corpo do pedido nos erros** (ASVS V7.4.1): JSON malformado
+  devolvia `Unexpected token 'b', "{"queixa": febre alta da Rita" is not valid
+  JSON` — ou seja, o texto clínico enviado voltava na resposta. O Nest
+  re-embrulha o erro do body-parser, pelo que a deteção passou a ser feita no
+  filtro global. Agora devolve `Pedido inválido (JSON malformado).` e há 2
+  testes a garantir que nem o eco volta nem os 400 legítimos são apagados.
+- **OpenAPI fechado em produção real** (ASVS V14.3): `/docs` e `/docs-json` dão
+  404 quando `NODE_ENV=production` sem `ENABLE_DEV_LOGIN`; continuam abertos na
+  demo (onde a superfície da API é o objetivo) e podem ser reabertos com
+  `SWAGGER_PUBLIC=true`.
+- **Cabeçalhos de segurança** confirmados na resposta: `Strict-Transport-Security`,
+  `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer`, sem `X-Powered-By`.
+- **Política de divulgação** escrita em `SECURITY.md` (ISO/IEC 29147) — falta
+  fixar o endereço de contacto.
+- Suites: 347 unitários + 44 E2E + 52 no frontend, lint do backend e do
+  frontend, builds dos dois — verdes.
 
 **Dívida conhecida, não resolvida:** o backend não tem `package-lock.json`
 versionado (o frontend tem), pelo que o CI resolve versões novas a cada build.

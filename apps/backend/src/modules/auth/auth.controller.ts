@@ -24,8 +24,18 @@ import {
   TokenResponseDto,
 } from './dto/auth.dto';
 
+/**
+ * Anti-automation on the endpoints that mint or rotate credentials
+ * (OWASP ASVS V2.2.1 / API Security Top 10 API4). The generic bucket is
+ * 100 req/min, which is a comfortable rate for token-guessing or for
+ * hammering an identity provider on our account; 20/min is not, and no real
+ * client signs in twenty times a minute.
+ */
+const AUTH_RATE_LIMIT = { default: { limit: 20, ttl: 60_000 } };
+
 @ApiTags('auth')
 @Controller('auth')
+@Throttle(AUTH_RATE_LIMIT)
 export class AuthController {
   constructor(
     private readonly auth: AuthService,

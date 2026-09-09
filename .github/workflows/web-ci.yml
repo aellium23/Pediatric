@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      # eslint-plugin-jsx-a11y: keeps the WCAG 2.2 regressions that a linter can
+      # actually catch (missing labels, click-only handlers) out of the app.
+      - run: npm run lint
       # Guards the Home assistant's red-flag detection (the 112 / SNS 24
       # escalation). A silent regression there is a patient-safety issue.
       - run: npm test

@@ -1,0 +1,8 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals", "plugin:jsx-a11y/recommended"],
+  "ignorePatterns": [".next/", "node_modules/", "public/"],
+  "rules": {
+    "jsx-a11y/no-autofocus": "off"
+  }
+}
