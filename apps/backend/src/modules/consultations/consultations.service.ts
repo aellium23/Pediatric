@@ -99,17 +99,19 @@ export class ConsultationsService {
       if (!expectedReplyAt || expectedReplyAt > slaDueAt) expectedReplyAt = slaDueAt;
     }
 
-    // Does the family's plan already cover this? Only MESSAGE consultations
-    // are included, and only while the monthly allowance lasts. Decided here,
-    // at creation, so the price the parent was shown cannot drift from what is
-    // charged a moment later.
-    const covered =
-      service.type === ServiceType.MESSAGE &&
-      (await this.subscriptions.coversNextMessage(userId));
+    // How much does the family's plan cover? Only MESSAGE consultations are
+    // included, only while the monthly allowance lasts, and only up to the
+    // plan's per-consultation cap — above it the family pays the difference.
+    // Decided here, at creation, so the price the parent was shown cannot
+    // drift from what is charged a moment later.
+    const coveredCents =
+      service.type === ServiceType.MESSAGE
+        ? await this.subscriptions.coverageFor(userId, service.priceCents)
+        : 0;
 
     const consultation = await this.prisma.consultation.create({
       data: {
-        coveredBySubscription: covered,
+        coveredCents,
         familyId: child.familyId,
         childId: child.id,
         pediatricianId: service.pediatricianId,

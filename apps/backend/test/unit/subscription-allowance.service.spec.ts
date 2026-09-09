@@ -74,7 +74,7 @@ describe('SubscriptionsService.allowance', () => {
     await service.allowance('u1');
     const where = count.mock.calls[0][0].where;
     expect(where.familyId).toEqual({ in: ['a', 'b'] });
-    expect(where.coveredBySubscription).toBe(true);
+    expect(where.coveredCents).toEqual({ gt: 0 });
     expect(where.openedAt.gte.toISOString()).toBe(monthStart().toISOString());
   });
 
@@ -95,20 +95,47 @@ describe('SubscriptionsService.allowance', () => {
   });
 });
 
-describe('SubscriptionsService.coversNextMessage', () => {
-  it('is true while the allowance lasts', async () => {
-    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(0) } });
-    expect(await service.coversNextMessage('u1')).toBe(true);
+/**
+ * The cap is what bounds the platform's exposure. The inclusion is a promise
+ * the platform makes, but the price is set by each pediatrician — without a
+ * cap, one who charges €30 costs €24 against €9,90 of subscription revenue,
+ * and there is no ceiling at all.
+ */
+describe('SubscriptionsService.coverageFor', () => {
+  const unspent = () => ({ ...active(), consultation: { count: jest.fn().mockResolvedValue(0) } });
+  const spent = () => ({ ...active(), consultation: { count: jest.fn().mockResolvedValue(1) } });
+
+  it('covers a consultation priced below the cap in full', async () => {
+    const { service } = build(unspent());
+    expect(await service.coverageFor('u1', 1800)).toBe(1800);
   });
 
-  it('is false once it is spent', async () => {
-    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(1) } });
-    expect(await service.coversNextMessage('u1')).toBe(false);
+  it('covers exactly the cap when the price sits on it', async () => {
+    const { service } = build(unspent());
+    expect(await service.coverageFor('u1', 2000)).toBe(2000);
   });
 
-  it('is false without a plan', async () => {
+  // The family pays the difference; the platform's cost stops rising.
+  it('covers only up to the cap above it, however expensive the pediatrician', async () => {
+    const { service } = build(unspent());
+    expect(await service.coverageFor('u1', 3000)).toBe(2000);
+    expect(await service.coverageFor('u1', 9900)).toBe(2000);
+  });
+
+  it('covers nothing once the allowance is spent', async () => {
+    const { service } = build(spent());
+    expect(await service.coverageFor('u1', 1800)).toBe(0);
+  });
+
+  it('covers nothing without a plan', async () => {
     const { service } = build();
-    expect(await service.coversNextMessage('u1')).toBe(false);
+    expect(await service.coverageFor('u1', 1800)).toBe(0);
+  });
+
+  it('covers nothing for a free or nonsensical price', async () => {
+    const { service } = build(unspent());
+    expect(await service.coverageFor('u1', 0)).toBe(0);
+    expect(await service.coverageFor('u1', -100)).toBe(0);
   });
 });
 
@@ -117,11 +144,14 @@ describe('plan catalog', () => {
     const { service } = build();
     const family = service.plansFor(Role.PARENT).find((p) => p.plan === 'FAMILY');
     expect(family?.includedMessages).toBe(1);
+    expect(family?.coveredCapCents).toBe(2000);
     // The perk text is generated from the number, so they cannot drift — but
     // assert it anyway: this is the sentence a family reads before paying.
     const n = family?.includedMessages as number;
     expect(family?.perks.join(' ')).toContain(
       n === 1 ? '1 consulta por mensagem incluída' : `${n} consultas por mensagem incluídas`,
     );
+    // The cap is a promise too, so it has to be on the card the family reads.
+    expect(family?.perks.join(' ')).toContain('até €20,00 cada');
   });
 });

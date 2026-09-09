@@ -5475,7 +5475,20 @@ function TriageDialog({
   }, [childId]);
 
   // Only MESSAGE consultations are included; this dialog is the message flow.
-  const covered = !!allowance && allowance.remainingMessages > 0;
+  // The plan pays up to its per-consultation cap; above it the family pays the
+  // difference, so "covered" is an amount here, not a yes/no. Mirrors
+  // SubscriptionsService.coverageFor — if one changes, so must the other.
+  const hasAllowance = !!allowance && allowance.remainingMessages > 0;
+  const priceCents = svcInfo?.priceCents ?? 0;
+  const cap = allowance?.coveredCapCents ?? 0;
+  const coveredCents = hasAllowance
+    ? cap > 0
+      ? Math.min(priceCents, cap)
+      : priceCents
+    : 0;
+  const familyOwesCents = Math.max(0, priceCents - coveredCents);
+  const covered = coveredCents > 0 && familyOwesCents === 0;
+  const partlyCovered = coveredCents > 0 && familyOwesCents > 0;
 
   useEffect(() => {
     let live = true;
@@ -5628,6 +5641,16 @@ function TriageDialog({
             {tr('de')} {allowance?.includedMessages} {tr('este mês.')}
           </p>
         </div>
+      ) : partlyCovered ? (
+        // Said before the parent commits, not on the invoice: the plan pays
+        // part of this one because the pediatrician charges above the cap.
+        <div className="card" style={{ borderColor: 'var(--accent)', marginTop: 10 }}>
+          <strong>{tr('Incluída em parte')}</strong>
+          <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+            {tr('O teu plano cobre')} {euro(coveredCents)} {tr('desta consulta; pagas')}{' '}
+            {euro(familyOwesCents)}. {tr('Usa a consulta incluída deste mês.')}
+          </p>
+        </div>
       ) : allowance && allowance.includedMessages > 0 ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
           {allowance.includedMessages === 1
@@ -5640,7 +5663,7 @@ function TriageDialog({
         {covered
           ? tr('Enviar pergunta · incluída no plano')
           : svcInfo
-            ? `${tr('Enviar pergunta')} · ${euro(svcInfo.priceCents)}`
+            ? `${tr('Enviar pergunta')} · ${euro(familyOwesCents || svcInfo.priceCents)}`
             : tr('Enviar pergunta ao pediatra')}
       </button>
       <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>

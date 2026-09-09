@@ -211,9 +211,17 @@ interessa é a da carteira toda — com menos de metade dos subscritores a usar 
 inclusão, o plano é positivo. O piloto vai dizer qual é a proporção, e é esse o
 dado que resolve o resto.
 
-**O que fica por resolver:** a exposição é ilimitada ao contrário, porque quem
-fixa o preço da consulta é cada pediatra. Um que cobre €30 leva a perda a
-−€14,10. A defesa em falta é um **teto ao valor coberto** pela inclusão.
+**Teto construído a 2026-09-09.** A inclusão paga até **€20,00** por consulta
+(`FAMILY_COVERED_CAP_CENTS`); acima disso a família paga a diferença e a
+consulta gasta a franquia na mesma. Sem teto a exposição era ilimitada — um
+pediatra a cobrar €30 custava −€14,10, e nada impedia €50. Com teto, o custo
+máximo por consulta incluída é **€16,00** (teto × 0,8) e não sobe mais.
+
+Custou uma mudança de modelo, não só uma constante: `coveredBySubscription`
+(booleano) deu lugar a `Consultation.coveredCents`, e `Payment.subsidyCents`
+passou a registar quanto do ato a plataforma financiou — o que também
+corrigiu o reembolso, que antes teria devolvido à família dinheiro que ela
+nunca pagou.
 
 **Efeito no código:** o número passou a estar num sítio só e o texto anunciado
 é **gerado** a partir dele (`includedPerk`), para o que a família lê não poder

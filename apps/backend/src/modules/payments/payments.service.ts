@@ -40,18 +40,22 @@ export class PaymentsService {
     // pediatrician (there is no card charge to take it from). Below it settles
     // locally, which is right for the demo and wrong for real money — see
     // captureAndSplit.
-    if (consultation.coveredBySubscription) {
+    // The plan covers the whole act: nothing to charge the family.
+    const subsidyCents = Math.min(consultation.coveredCents, consultation.priceCents);
+    const familyOwesCents = consultation.priceCents - subsidyCents;
+    if (subsidyCents > 0 && familyOwesCents === 0) {
       await this.prisma.payment.upsert({
         where: { consultationId },
         create: {
           consultationId,
           amountCents: consultation.priceCents,
+          subsidyCents,
           currency: consultation.currency,
           psp: 'subscription',
           pspRef: `sub_${consultationId}`,
           status: PaymentStatus.CREATED,
         },
-        update: { status: PaymentStatus.CREATED },
+        update: { status: PaymentStatus.CREATED, subsidyCents },
       });
       return { clientSecret: null as string | null, coveredBySubscription: true };
     }
@@ -64,18 +68,22 @@ export class PaymentsService {
         create: {
           consultationId,
           amountCents: consultation.priceCents,
+          subsidyCents,
           currency: consultation.currency,
           psp: 'demo',
           pspRef: `demo_${consultationId}`,
           status: PaymentStatus.CREATED,
         },
-        update: { status: PaymentStatus.CREATED },
+        update: { status: PaymentStatus.CREATED, subsidyCents },
       });
       return { clientSecret: null as string | null };
     }
 
+    // The card is charged only what the family owes. `amountCents` stays the
+    // full value of the act, because that is what the pediatrician's split is
+    // computed from — the difference is funded by the platform.
     const intent = await this.stripe.createPaymentIntent({
-      amountCents: consultation.priceCents,
+      amountCents: familyOwesCents,
       currency: consultation.currency,
       consultationId,
     });
@@ -85,12 +93,13 @@ export class PaymentsService {
       create: {
         consultationId,
         amountCents: consultation.priceCents,
+        subsidyCents,
         currency: consultation.currency,
         psp: 'stripe',
         pspRef: intent.id,
         status: PaymentStatus.CREATED,
       },
-      update: { pspRef: intent.id, status: PaymentStatus.CREATED },
+      update: { pspRef: intent.id, status: PaymentStatus.CREATED, subsidyCents },
     });
 
     return { clientSecret: intent.clientSecret };
@@ -121,8 +130,14 @@ export class PaymentsService {
     // subscription-covered consultation, where there is no card charge to
     // capture because the family already paid through their plan.
     //
-    // For real money the subscription case still owes the pediatrician a
-    // platform-funded transfer; that belongs with the payments unfreeze.
+    // The split is always computed on `amountCents`, the full value of the act:
+    // the pediatrician is owed the same whoever funded it.
+    //
+    // PRODUCTION GAP: whenever `subsidyCents > 0` the transfer to the
+    // pediatrician exceeds what was captured from the card, so the difference
+    // needs a platform-funded transfer. True for a fully covered consultation
+    // and, since the per-consultation cap, for a partly covered one too. That
+    // belongs with the payments unfreeze.
     if (
       payment.psp === 'demo' ||
       payment.psp === 'subscription' ||
@@ -184,16 +199,27 @@ export class PaymentsService {
     ) {
       return;
     }
+    // A family can only be given back what it actually paid. On a consultation
+    // the plan covered — in full or in part — the subsidised share was never
+    // charged to a card, so refunding `amountCents` would hand them money they
+    // never spent.
+    // `?? 0` on purpose: a row written before the column existed, or a partial
+    // select, would otherwise make this NaN — and NaN > 0 is false, which would
+    // silently skip the refund instead of failing loudly.
+    const refundableCents = Math.max(0, payment.amountCents - (payment.subsidyCents ?? 0));
     // Demo payment: mark refunded locally — never call Stripe with a demo_ ref.
-    const isDemo = payment.psp === 'demo' || payment.pspRef.startsWith('demo_');
-    if (!isDemo) await this.stripe.refund(payment.pspRef);
+    const isDemo =
+      payment.psp === 'demo' ||
+      payment.psp === 'subscription' ||
+      payment.pspRef.startsWith('demo_');
+    if (!isDemo && refundableCents > 0) await this.stripe.refund(payment.pspRef);
     await this.prisma.$transaction([
       this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: PaymentStatus.REFUNDED },
       }),
       this.prisma.refund.create({
-        data: { paymentId: payment.id, amountCents: payment.amountCents, reason, status: 'done' },
+        data: { paymentId: payment.id, amountCents: refundableCents, reason, status: 'done' },
       }),
     ]);
   }

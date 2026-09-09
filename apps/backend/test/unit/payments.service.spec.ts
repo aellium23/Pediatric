@@ -215,6 +215,61 @@ describe('PaymentsService', () => {
       );
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * A family can only get back what it actually paid. On a consultation the
+     * plan covered — fully or in part — the subsidised share never touched a
+     * card, so refunding the full act value would hand them money they never
+     * spent.
+     */
+    it('refunds only the family’s share of a partly covered consultation', async () => {
+      const { service, prisma, stripe } = build({
+        prisma: {
+          payment: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'p1',
+              pspRef: 'pi_1',
+              status: PaymentStatus.CREATED,
+              amountCents: 3000,
+              subsidyCents: 2000,
+            }),
+            update: jest.fn().mockReturnValue({ op: 'payment.update' }),
+          },
+          refund: { create: jest.fn().mockReturnValue({ op: 'refund.create' }) },
+          $transaction: jest.fn().mockResolvedValue([]),
+        },
+      });
+      await service.refundForConsultation('c1', 'sla_breached');
+      expect(stripe.refund).toHaveBeenCalledWith('pi_1');
+      expect(prisma.refund.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ amountCents: 1000 }) }),
+      );
+    });
+
+    it('refunds nothing, and calls no PSP, when the plan paid the whole act', async () => {
+      const { service, prisma, stripe } = build({
+        prisma: {
+          payment: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'p1',
+              pspRef: 'sub_c1',
+              psp: 'subscription',
+              status: PaymentStatus.CREATED,
+              amountCents: 1800,
+              subsidyCents: 1800,
+            }),
+            update: jest.fn().mockReturnValue({ op: 'payment.update' }),
+          },
+          refund: { create: jest.fn().mockReturnValue({ op: 'refund.create' }) },
+          $transaction: jest.fn().mockResolvedValue([]),
+        },
+      });
+      await service.refundForConsultation('c1', 'sla_breached');
+      expect(stripe.refund).not.toHaveBeenCalled();
+      expect(prisma.refund.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ amountCents: 0 }) }),
+      );
+    });
   });
 
   describe('handleWebhook', () => {

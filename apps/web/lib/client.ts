@@ -1255,6 +1255,8 @@ export interface AllowanceDto {
   includedMessages: number;
   usedMessages: number;
   remainingMessages: number;
+  /** Most the inclusion pays per consultation, in cents. 0 = no cap. */
+  coveredCapCents: number;
   periodStart: string;
 }
 

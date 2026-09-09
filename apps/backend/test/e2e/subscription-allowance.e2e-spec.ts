@@ -86,7 +86,7 @@ describe('Subscription allowance flow (e2e)', () => {
     it('charges the consultation', async () => {
       const res = await startConsultation().expect(201);
       const row = await prisma.consultation.findUniqueOrThrow({ where: { id: res.body.id } });
-      expect(row.coveredBySubscription).toBe(false);
+      expect(row.coveredCents).toBe(0);
     });
   });
 
@@ -111,7 +111,7 @@ describe('Subscription allowance flow (e2e)', () => {
       for (let i = 0; i < included; i++) {
         const res = await startConsultation().expect(201);
         const row = await prisma.consultation.findUniqueOrThrow({ where: { id: res.body.id } });
-        expect(row.coveredBySubscription).toBe(true);
+        expect(row.coveredCents).toBe(row.priceCents);
       }
       const after = await http().get('/api/subscriptions/allowance').set(bearer(token)).expect(200);
       expect(after.body.usedMessages).toBe(included);
@@ -121,14 +121,14 @@ describe('Subscription allowance flow (e2e)', () => {
     it('charges the one after the allowance is spent', async () => {
       const res = await startConsultation().expect(201);
       const row = await prisma.consultation.findUniqueOrThrow({ where: { id: res.body.id } });
-      expect(row.coveredBySubscription).toBe(false);
+      expect(row.coveredCents).toBe(0);
     });
 
     // A covered consultation asks the family for nothing, but the pediatrician
     // is still owed the fee — the platform pays it out of subscription revenue.
     it('creates no charge for the family, at the full fee, on a covered consultation', async () => {
       const covered = await prisma.consultation.findFirst({
-        where: { childId, coveredBySubscription: true },
+        where: { childId, coveredCents: { gt: 0 } },
       });
       expect(covered).toBeTruthy();
       await http()
@@ -141,6 +141,98 @@ describe('Subscription allowance flow (e2e)', () => {
       });
       expect(payment.psp).toBe('subscription');
       expect(payment.amountCents).toBe(covered!.priceCents);
+      expect(payment.subsidyCents).toBe(covered!.priceCents);
+    });
+  });
+
+  /**
+   * The cap is what bounds the platform's exposure: the inclusion is a promise
+   * the platform makes, but the price belongs to each pediatrician. Above the
+   * cap the family pays the difference, and the platform's cost per included
+   * consultation stops rising.
+   */
+  describe('the per-consultation cap', () => {
+    let expensiveServiceId: string;
+    let capToken: string;
+    let capChildId: string;
+
+    beforeAll(async () => {
+      // A pediatrician whose message consultation costs more than the cap.
+      // dev-login mints the account; the Pediatrician row is created here so
+      // this test owns its own price and cannot disturb the seeded ones.
+      await login(`sub-cap-ped-${uniq}@e2e.test`, 'PEDIATRICIAN');
+      const pedUser = await prisma.user.findFirstOrThrow({
+        where: { email: `sub-cap-ped-${uniq}@e2e.test` },
+      });
+      const pedRow = await prisma.pediatrician.create({
+        data: {
+          userId: pedUser.id,
+          licenseNumber: `OM-CAP-${uniq}`,
+          displayName: 'Dr. Caro',
+          status: 'ACTIVE',
+        },
+      });
+      const svc = await prisma.pediatricianService.create({
+        data: { pediatricianId: pedRow.id, type: 'MESSAGE', priceCents: 3000, slaHours: 24 },
+      });
+      expensiveServiceId = svc.id;
+
+      // A fresh family, so this month's allowance is untouched.
+      capToken = await login(`sub-cap-parent-${uniq}@e2e.test`, 'PARENT');
+      const child = await http()
+        .post('/api/children')
+        .set(bearer(capToken))
+        .send({ name: 'Cap Teste', birthDate: '2024-01-10', healthDataConsent: true })
+        .expect(201);
+      capChildId = child.body.id;
+      await http()
+        .post('/api/subscriptions')
+        .set(bearer(capToken))
+        .send({ plan: 'FAMILY' })
+        .expect(201);
+    });
+
+    it('covers only up to the cap on a consultation priced above it', async () => {
+      const res = await http()
+        .post('/api/consultations')
+        .set(bearer(capToken))
+        .send({ childId: capChildId, serviceId: expensiveServiceId, question: 'Tosse há uma semana.' })
+        .expect(201);
+      const row = await prisma.consultation.findUniqueOrThrow({ where: { id: res.body.id } });
+      expect(row.priceCents).toBe(3000);
+      expect(row.coveredCents).toBe(2000);
+    });
+
+    // The half that makes the cap a product feature rather than a limitation:
+    // the family is charged the difference, not the whole price.
+    it('charges the family only the difference', async () => {
+      const row = await prisma.consultation.findFirstOrThrow({
+        where: { childId: capChildId },
+      });
+      await http()
+        .post('/api/payments/intent')
+        .set(bearer(capToken))
+        .send({ consultationId: row.id })
+        .expect(201);
+      const payment = await prisma.payment.findUniqueOrThrow({
+        where: { consultationId: row.id },
+      });
+      // The act keeps its full value — that is what the pediatrician is paid on.
+      expect(payment.amountCents).toBe(3000);
+      expect(payment.subsidyCents).toBe(2000);
+      expect(payment.amountCents - payment.subsidyCents).toBe(1000);
+      // Not a fully-covered consultation: there is a real charge to make.
+      expect(payment.psp).not.toBe('subscription');
+    });
+
+    it('still spends the allowance for the month', async () => {
+      const after = await http()
+        .get('/api/subscriptions/allowance')
+        .set(bearer(capToken))
+        .expect(200);
+      expect(after.body.usedMessages).toBe(1);
+      expect(after.body.remainingMessages).toBe(0);
+      expect(after.body.coveredCapCents).toBe(2000);
     });
   });
 

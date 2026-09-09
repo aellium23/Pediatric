@@ -272,7 +272,11 @@ model Consultation {
   /// True when the family's subscription allowance paid for this consultation
   /// instead of the family being charged. The pediatrician is still owed
   /// priceCents — the platform absorbs it out of subscription revenue.
-  coveredBySubscription Boolean            @default(false)
+  /// How much of `priceCents` the family's plan covers, in cents. Zero means
+  /// the family pays in full. A value below `priceCents` means the plan hit its
+  /// per-consultation cap and the family pays the difference. One field rather
+  /// than a boolean plus an amount, so the two can never disagree.
+  coveredCents          Int                @default(0)
   priceCents            Int
   currency              String             @default("EUR")
   slaDueAt              DateTime? // refund-guarantee ceiling (wall clock)
@@ -345,7 +349,13 @@ model Payment {
   id             String        @id @default(uuid())
   consultationId String        @unique
   consultation   Consultation  @relation(fields: [consultationId], references: [id])
+  /// The full value of the act — what the pediatrician's split is computed
+  /// from, regardless of who funded it.
   amountCents    Int
+  /// The part of `amountCents` the platform funds out of subscription revenue.
+  /// The family is charged `amountCents - subsidyCents`, and that is also all
+  /// they can ever be refunded.
+  subsidyCents   Int           @default(0)
   currency       String        @default("EUR")
   method         String        @default("card")
   psp            String        @default("stripe")

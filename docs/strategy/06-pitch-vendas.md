@@ -21,9 +21,11 @@
 | Família que use a consulta incluída | custo **€14,40** contra receita **€9,90** |
 | **Margem por subscritor ativo** | **−€4,50/mês** |
 
-E a exposição continua **ilimitada ao contrário**: `includedMessages` é um
-compromisso da plataforma, mas quem fixa o preço da consulta é cada pediatra.
-Um que cobre €30 leva a perda a −€14,10.
+**Teto construído a 2026-09-09.** A inclusão paga até **€20,00** por consulta;
+acima disso a família paga a diferença. Antes, um pediatra a cobrar €30 levava
+a perda a −€14,10 e não havia limite nenhum. Agora a exposição por consulta
+incluída está **limitada a €16,00** (teto × 0,8), aconteça o que acontecer ao
+preço.
 
 Isto pode ser aceitável de propósito — a inclusão é um custo de aquisição, e
 **um subscritor que não usa a consulta paga €9,90 de margem quase pura**. A
@@ -33,10 +35,11 @@ menos de metade dos subscritores a usar o que pagaram, o plano fica positivo.
 
 As saídas que restam, se a leitura do piloto disser que a maioria usa:
 
-1. **Subir o preço do plano.** A €16,90 a conta fecha ao preço do seed.
-2. **Teto ao valor coberto.** A inclusão cobre até €X por consulta; acima
-   disso a família paga a diferença. É a única que protege contra o pediatra
-   caro, e é a que falta.
+1. **Subir o preço do plano.** A €16,90 a conta fecha ao preço do seed; a
+   €16,00 fecha no pior caso possível com o teto atual.
+2. **Baixar o teto.** A €12,00 a exposição máxima cai para €9,60 e o plano
+   fica positivo mesmo com toda a gente a usar — ao custo de a inclusão cobrir
+   menos.
 3. **Comissão diferente na consulta incluída.** A plataforma já financia o ato;
    pode financiá-lo com margem menor para o pediatra, em troca de volume.
 
@@ -163,7 +166,8 @@ subscrição.
 | | |
 |---|---|
 | Sem plano | Pagas cada consulta ao preço do pediatra que escolheres |
-| Plano Família | €9,90/mês, com **1 consulta por mensagem incluída** |
+| Plano Família | €9,90/mês, com **1 consulta por mensagem incluída (até €20)** |
+| Se o pediatra cobrar mais de €20 | O plano paga €20 e pagas só a diferença |
 | Ficha da criança | **Gratuita e ilimitada**, com ou sem plano |
 | Se o pediatra não responder no prazo | **Reembolso automático** |
 | Levar os dados | Descarregas a ficha completa quando quiseres |

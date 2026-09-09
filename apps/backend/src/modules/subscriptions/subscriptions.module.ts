@@ -28,24 +28,50 @@ import { AuthenticatedUser } from '../../common/security/jwt.strategy';
  * — and only here: the advertised perk is generated from it, so the number a
  * family is shown cannot drift away from the number the allowance enforces.
  */
-const includedPerk = (n: number): string =>
-  n === 1
-    ? '1 consulta por mensagem incluída por mês'
-    : `${n} consultas por mensagem incluídas por mês`;
+const euros = (cents: number): string => `€${(cents / 100).toFixed(2).replace('.', ',')}`;
+
+const includedPerk = (n: number, capCents: number): string => {
+  const head =
+    n === 1
+      ? '1 consulta por mensagem incluída por mês'
+      : `${n} consultas por mensagem incluídas por mês`;
+  return capCents > 0 ? `${head} (até ${euros(capCents)} cada)` : head;
+};
 
 const FAMILY_INCLUDED = 1;
 
+/**
+ * Per-consultation cap on what the inclusion covers.
+ *
+ * WHY IT EXISTS: the inclusion is a platform commitment, but the price is set
+ * by each pediatrician. Without a cap the platform's cost per included
+ * consultation is unbounded — a pediatrician charging €30 costs it €24 against
+ * €9,90 of subscription revenue. With the cap, the family pays the difference
+ * and the exposure per included consultation tops out at cap × (1 − comissão).
+ *
+ * Zero disables the cap (cover whatever the consultation costs).
+ */
+const FAMILY_COVERED_CAP_CENTS = 2000;
+
 const PLANS: Record<
   SubscriptionPlan,
-  { name: string; priceCents: number; role: Role; includedMessages: number; perks: string[] }
+  {
+    name: string;
+    priceCents: number;
+    role: Role;
+    includedMessages: number;
+    coveredCapCents: number;
+    perks: string[];
+  }
 > = {
   FAMILY: {
     name: 'Plano Família',
     priceCents: 990,
     role: Role.PARENT,
     includedMessages: FAMILY_INCLUDED,
+    coveredCapCents: FAMILY_COVERED_CAP_CENTS,
     perks: [
-      includedPerk(FAMILY_INCLUDED),
+      includedPerk(FAMILY_INCLUDED, FAMILY_COVERED_CAP_CENTS),
       'Histórico de saúde ilimitado',
       'Prioridade no suporte',
     ],
@@ -55,6 +81,7 @@ const PLANS: Record<
     priceCents: 1900,
     role: Role.PEDIATRICIAN,
     includedMessages: 0,
+    coveredCapCents: 0,
     perks: ['Comissão reduzida (15%)', 'Perfil em destaque no marketplace', 'Estatísticas avançadas'],
   },
 };
@@ -69,6 +96,8 @@ export interface Allowance {
   includedMessages: number;
   usedMessages: number;
   remainingMessages: number;
+  /** Most the inclusion pays per consultation, in cents. 0 = no cap. */
+  coveredCapCents: number;
   periodStart: string;
 }
 
@@ -111,6 +140,7 @@ export class SubscriptionsService {
       orderBy: { startedAt: 'desc' },
     });
     const included = sub ? PLANS[sub.plan].includedMessages : 0;
+    const coveredCapCents = sub ? PLANS[sub.plan].coveredCapCents : 0;
     const periodStart = monthStart();
 
     let used = 0;
@@ -126,7 +156,7 @@ export class SubscriptionsService {
         used = await this.prisma.consultation.count({
           where: {
             familyId: { in: familyIds },
-            coveredBySubscription: true,
+            coveredCents: { gt: 0 },
             openedAt: { gte: periodStart },
           },
         });
@@ -138,14 +168,24 @@ export class SubscriptionsService {
       includedMessages: included,
       usedMessages: used,
       remainingMessages: Math.max(0, included - used),
+      coveredCapCents,
       periodStart: periodStart.toISOString(),
     };
   }
 
-  /** Whether this user's next MESSAGE consultation is covered by their plan. */
-  async coversNextMessage(userId: string): Promise<boolean> {
+  /**
+   * How much of a MESSAGE consultation at `priceCents` this user's plan covers.
+   *
+   * Returns cents, not a boolean, because the plan has a per-consultation cap:
+   * a cheap consultation is covered in full, an expensive one up to the cap,
+   * and the family pays the rest. Zero means the allowance is spent (or there
+   * is no plan) and the family pays everything.
+   */
+  async coverageFor(userId: string, priceCents: number): Promise<number> {
     const a = await this.allowance(userId);
-    return a.remainingMessages > 0;
+    if (a.remainingMessages <= 0 || priceCents <= 0) return 0;
+    const cap = a.coveredCapCents;
+    return cap > 0 ? Math.min(priceCents, cap) : priceCents;
   }
 
   async subscribe(user: AuthenticatedUser, plan: SubscriptionPlan) {
