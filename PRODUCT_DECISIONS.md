@@ -150,8 +150,9 @@ o pricing €18 mensagem / €40 vídeo tem procura?).
 ### 6b. Carteira de créditos — **NÃO**, e porquê
 
 **DECIDIDO (2026-09-09).** Não haverá saldo pré-carregado em euros ou créditos.
-O que existe é **inclusão mensal no plano** (o Família inclui 2 consultas por
-mensagem) mais **pagamento num toque** para o que passa disso.
+O que existe é **inclusão mensal no plano** (o Família inclui 1 consulta por
+mensagem — baixada de 2 a 2026-09-09, ver §6c) mais **pagamento num toque** para
+o que passa disso.
 
 **Razão.** A ideia da carteira junta três coisas com respostas opostas, e os
 benefícios que se procuram vêm todos das duas últimas:
@@ -189,6 +190,34 @@ justifica-se.
 **Nota de âmbito:** esta é a terceira exceção ao congelamento (#9), depois da
 instrumentação e do cofre. Fica registada para o congelamento continuar a
 significar alguma coisa.
+
+---
+
+### 6c. Inclusão do plano Família: **1** consulta, não 2
+
+**DECIDIDO (2026-09-09).** O plano Família passa de 2 consultas por mensagem
+incluídas para **1**, ao mesmo preço de €9,90/mês.
+
+**Porquê.** A conta não fechava. Ao preço de referência de €18 por consulta,
+com 20% de comissão, o pediatra recebe €14,40 — e a plataforma financia o ato
+inteiro. Duas incluídas custavam €28,80 contra €9,90 de receita: **−€18,90 por
+mês em cada subscritor que usasse o que pagou**. Angariar famílias para o plano
+acelerava a perda.
+
+Com uma incluída, a margem passa a **−€4,50** no mesmo cenário. **Continua
+negativa**, e é intencional: a inclusão é um custo de aquisição, e um
+subscritor que não usa a consulta paga €9,90 de margem quase pura. A conta que
+interessa é a da carteira toda — com menos de metade dos subscritores a usar a
+inclusão, o plano é positivo. O piloto vai dizer qual é a proporção, e é esse o
+dado que resolve o resto.
+
+**O que fica por resolver:** a exposição é ilimitada ao contrário, porque quem
+fixa o preço da consulta é cada pediatra. Um que cobre €30 leva a perda a
+−€14,10. A defesa em falta é um **teto ao valor coberto** pela inclusão.
+
+**Efeito no código:** o número passou a estar num sítio só e o texto anunciado
+é **gerado** a partir dele (`includedPerk`), para o que a família lê não poder
+divergir do que a franquia aplica. Análise em `docs/strategy/06-pitch-vendas.md`.
 
 ---
 
@@ -348,3 +377,4 @@ faturar". Nenhuma bloqueia o piloto em modo demo:
 | 2026-09-09 | §6b — carteira de créditos **não**; inclusão mensal no plano **sim** | decidido |
 | 2026-09-09 | §9b — via DiGA/PECAN: recomendação de **não agora**, rever a 12 meses | proposta, por assinar |
 | 2026-09-09 | §9c — escriba de IA: parar onde está; Via B (transcrição ambiente) não se constrói | decidido |
+| 2026-09-09 | §6c — plano Família passa de 2 para **1** consulta incluída | decidido |

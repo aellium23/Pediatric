@@ -50,9 +50,9 @@ describe('SubscriptionsService.allowance', () => {
     });
     const a = await service.allowance('u1');
     expect(a.plan).toBe(SubscriptionPlan.FAMILY);
-    expect(a.includedMessages).toBe(2);
+    expect(a.includedMessages).toBe(1);
     expect(a.usedMessages).toBe(1);
-    expect(a.remainingMessages).toBe(1);
+    expect(a.remainingMessages).toBe(0);
   });
 
   it('never reports negative remaining, even if usage somehow exceeds the plan', async () => {
@@ -85,7 +85,7 @@ describe('SubscriptionsService.allowance', () => {
     });
     const a = await service.allowance('u1');
     expect(a.usedMessages).toBe(0);
-    expect(a.remainingMessages).toBe(2);
+    expect(a.remainingMessages).toBe(1);
     expect(prisma.consultation.count).not.toHaveBeenCalled();
   });
 
@@ -97,12 +97,12 @@ describe('SubscriptionsService.allowance', () => {
 
 describe('SubscriptionsService.coversNextMessage', () => {
   it('is true while the allowance lasts', async () => {
-    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(1) } });
+    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(0) } });
     expect(await service.coversNextMessage('u1')).toBe(true);
   });
 
   it('is false once it is spent', async () => {
-    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(2) } });
+    const { service } = build({ ...active(), consultation: { count: jest.fn().mockResolvedValue(1) } });
     expect(await service.coversNextMessage('u1')).toBe(false);
   });
 
@@ -116,8 +116,12 @@ describe('plan catalog', () => {
   it("advertises the inclusion the allowance actually enforces", async () => {
     const { service } = build();
     const family = service.plansFor(Role.PARENT).find((p) => p.plan === 'FAMILY');
-    expect(family?.includedMessages).toBe(2);
-    // The perk text and the enforced number must not drift apart.
-    expect(family?.perks.join(' ')).toContain(`${family?.includedMessages} consultas por mensagem`);
+    expect(family?.includedMessages).toBe(1);
+    // The perk text is generated from the number, so they cannot drift — but
+    // assert it anyway: this is the sentence a family reads before paying.
+    const n = family?.includedMessages as number;
+    expect(family?.perks.join(' ')).toContain(
+      n === 1 ? '1 consulta por mensagem incluída' : `${n} consultas por mensagem incluídas`,
+    );
   });
 });

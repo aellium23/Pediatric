@@ -207,8 +207,8 @@ a confiança em tudo o resto.
 ### Do parceiro
 
 **"Como é que ganham dinheiro?"**
-> Subscrição da família como âncora — inclui consultas por mensagem por mês —
-> e comissão sobre o que passa disso. Já está construído, incluindo o consumo
+> Subscrição da família como âncora — inclui uma consulta por mensagem por mês
+> — e comissão sobre o que passa disso. Já está construído, incluindo o consumo
 > visível ao pai.
 
 **"Porquê vocês e não a Kry, a Babylon, ou o SNS 24?"**

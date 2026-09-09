@@ -24,8 +24,17 @@ import { AuthenticatedUser } from '../../common/security/jwt.strategy';
  * calendar month, because a month a parent can point at beats a rolling window
  * they have to compute.
  *
- * The number is a commercial dial, not an engineering constant: change it here.
+ * The number is a commercial dial, not an engineering constant: change it here
+ * — and only here: the advertised perk is generated from it, so the number a
+ * family is shown cannot drift away from the number the allowance enforces.
  */
+const includedPerk = (n: number): string =>
+  n === 1
+    ? '1 consulta por mensagem incluída por mês'
+    : `${n} consultas por mensagem incluídas por mês`;
+
+const FAMILY_INCLUDED = 1;
+
 const PLANS: Record<
   SubscriptionPlan,
   { name: string; priceCents: number; role: Role; includedMessages: number; perks: string[] }
@@ -34,9 +43,9 @@ const PLANS: Record<
     name: 'Plano Família',
     priceCents: 990,
     role: Role.PARENT,
-    includedMessages: 2,
+    includedMessages: FAMILY_INCLUDED,
     perks: [
-      '2 consultas por mensagem incluídas por mês',
+      includedPerk(FAMILY_INCLUDED),
       'Histórico de saúde ilimitado',
       'Prioridade no suporte',
     ],

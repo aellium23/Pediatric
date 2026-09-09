@@ -5630,8 +5630,9 @@ function TriageDialog({
         </div>
       ) : allowance && allowance.includedMessages > 0 ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          {tr('Já usaste as')} {allowance.includedMessages}{' '}
-          {tr('consultas incluídas este mês — esta é paga.')}
+          {allowance.includedMessages === 1
+            ? tr('Já usaste a consulta incluída este mês — esta é paga.')
+            : `${tr('Já usaste as')} ${allowance.includedMessages} ${tr('consultas incluídas este mês — esta é paga.')}`}
         </p>
       ) : null}
 

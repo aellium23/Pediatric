@@ -8,34 +8,40 @@
 
 ---
 
-## ⚠️ Antes de vender: o plano Família perde dinheiro em cada subscritor ativo
+## ⚠️ Antes de vender: a conta do plano Família
+
+**Corrigido em parte a 2026-09-09:** a inclusão baixou de 2 consultas para
+**1**. A perda por subscritor ativo caiu de −€18,90 para **−€4,50**, mas
+**continua negativa**.
 
 | | |
 |---|---|
-| Plano Família | **€9,90**/mês, inclui **2** consultas por mensagem |
+| Plano Família | **€9,90**/mês, inclui **1** consulta por mensagem |
 | Consulta por mensagem (preço do seed) | **€18** → o pediatra recebe **€14,40** (comissão 20%) |
-| Família que use as duas incluídas | custo **€28,80** contra receita **€9,90** |
-| **Margem por subscritor ativo** | **−€18,90/mês** |
+| Família que use a consulta incluída | custo **€14,40** contra receita **€9,90** |
+| **Margem por subscritor ativo** | **−€4,50/mês** |
 
-E a exposição é **ilimitada ao contrário**: `includedMessages` é um compromisso
-da plataforma, mas quem fixa o preço da consulta é cada pediatra. Um que cobre
-€30 leva a perda a −€38,10.
+E a exposição continua **ilimitada ao contrário**: `includedMessages` é um
+compromisso da plataforma, mas quem fixa o preço da consulta é cada pediatra.
+Um que cobre €30 leva a perda a −€14,10.
 
-Enquanto isto for assim, **angariar famílias para o plano acelera a perda**. As
-saídas possíveis, por ordem de facilidade:
+Isto pode ser aceitável de propósito — a inclusão é um custo de aquisição, e
+**um subscritor que não usa a consulta paga €9,90 de margem quase pura**. A
+conta que interessa é a da carteira toda, não a do utilizador mais ativo: com
+menos de metade dos subscritores a usar o que pagaram, o plano fica positivo.
+É uma aposta razoável; só não deve ser feita por distração.
 
-1. **Baixar a inclusão para 1 consulta/mês.** Uma linha em `PLANS`. Continua a
-   perder €4,50 no preço do seed, mas fica sustentável com preços mais baixos
-   ou comissão mais alta na consulta incluída.
-2. **Subir o preço do plano.** A €29,90 com 2 incluídas a conta fecha.
-3. **Teto ao valor coberto.** A inclusão cobre até €X por consulta; acima
-   disso a família paga a diferença. Protege contra o pediatra caro.
-4. **Comissão diferente na consulta incluída.** A plataforma já financia o ato;
-   pode financiá-lo com margem menor para o pediatra, se ele aceitar em troca
-   de volume garantido.
+As saídas que restam, se a leitura do piloto disser que a maioria usa:
 
-**Decisão de fundador, não de engenharia.** Mas o material abaixo assume que
-está resolvida — não vendas o plano antes disso.
+1. **Subir o preço do plano.** A €16,90 a conta fecha ao preço do seed.
+2. **Teto ao valor coberto.** A inclusão cobre até €X por consulta; acima
+   disso a família paga a diferença. É a única que protege contra o pediatra
+   caro, e é a que falta.
+3. **Comissão diferente na consulta incluída.** A plataforma já financia o ato;
+   pode financiá-lo com margem menor para o pediatra, em troca de volume.
+
+**Decisão de fundador, não de engenharia.** O que a instrumentação vai dizer no
+piloto — quantos subscritores usam a inclusão — é o dado que a resolve.
 
 ---
 
@@ -157,7 +163,7 @@ subscrição.
 | | |
 |---|---|
 | Sem plano | Pagas cada consulta ao preço do pediatra que escolheres |
-| Plano Família | €9,90/mês *(sujeito a revisão — ver o aviso no topo)* |
+| Plano Família | €9,90/mês, com **1 consulta por mensagem incluída** |
 | Ficha da criança | **Gratuita e ilimitada**, com ou sem plano |
 | Se o pediatra não responder no prazo | **Reembolso automático** |
 | Levar os dados | Descarregas a ficha completa quando quiseres |

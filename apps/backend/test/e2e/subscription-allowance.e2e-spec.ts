@@ -102,18 +102,19 @@ describe('Subscription allowance flow (e2e)', () => {
     it('reports what the plan includes', async () => {
       const res = await http().get('/api/subscriptions/allowance').set(bearer(token)).expect(200);
       expect(res.body.plan).toBe('FAMILY');
-      expect(res.body.includedMessages).toBe(2);
-      expect(res.body.remainingMessages).toBe(2);
+      expect(res.body.includedMessages).toBe(1);
+      expect(res.body.remainingMessages).toBe(1);
     });
 
     it('covers the included consultations and counts them down', async () => {
-      for (let i = 0; i < 2; i++) {
+      const included = 1;
+      for (let i = 0; i < included; i++) {
         const res = await startConsultation().expect(201);
         const row = await prisma.consultation.findUniqueOrThrow({ where: { id: res.body.id } });
         expect(row.coveredBySubscription).toBe(true);
       }
       const after = await http().get('/api/subscriptions/allowance').set(bearer(token)).expect(200);
-      expect(after.body.usedMessages).toBe(2);
+      expect(after.body.usedMessages).toBe(included);
       expect(after.body.remainingMessages).toBe(0);
     });
 
