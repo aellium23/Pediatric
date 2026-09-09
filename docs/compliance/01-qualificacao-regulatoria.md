@@ -189,6 +189,30 @@ chama triagem ao que faz.
   atividade clínica real e devidamente enquadrada.
 - Fixar isto como regra de glossário, para não voltar a entrar.
 
+> ### ✅ Feito a 2026-09-09
+>
+> Nenhuma ocorrência de "triagem" resta no texto visível nem nos prompts.
+>
+> | Antes | Depois | Porquê |
+> |---|---|---|
+> | Prompt do LLM: *"assistente de **triagem**"* (3 prompts) | *"assistente de **orientação**"* | Era a declaração de finalidade mais explícita que existia |
+> | Ajuda ao pai: *"**Triagem** rápida"* | *"**Orientação** rápida"* | |
+> | Estado da consulta: *"Em **triagem**"* | *"Em análise"* | Acompanha Aberta / Em análise / Respondida / Fechada |
+> | Nota do pediatra: *"**Triagem** assinalou:"* | *"O **questionário da família** assinalou:"* | Não éramos nós a triar — era a família a responder a um questionário. Atribuir a informação à fonte é também melhor prática clínica |
+> | *"Sem sinais de alarme assinalados na **triagem**"* | *"…assinalados **pela família**"* | idem |
+> | *"⚠️ **Triagem** indicou sinais graves"* | *"⚠️ **A família assinalou** sinais graves"* | idem |
+> | Vista do pediatra: *"**Triagem** da família"* | *"**Questionário** da família"* | |
+> | Funil do admin: *"Iniciou **triagem**"* | *"Iniciou consulta"* | |
+> | Tour público: *"**Triagem**"*, *"**Triagem** rápida"*, *"**Triagem**: 38.5º"* | *"Antes de enviar"*, *"Orientação rápida"*, *"Questionário: 38.5º"* | Página pública — é a que um regulador lê primeiro |
+>
+> **Nomes internos mantidos de propósito:** o componente `TriageDialog`, o
+> estado `ConsultationStatus.TRIAGE` e o evento `triage_start`. Não são
+> declarações ao público, e mudá-los quebraria a lista fechada de eventos e os
+> dados históricos do funil. O que conta é o que é declarado.
+>
+> **Regra de glossário, daqui para a frente:** "triagem" só se usa para
+> descrever o que um **pediatra** faz.
+
 A alteração dos nomes internos (componentes, eventos) é opcional e menos
 urgente; o que conta é o que é declarado.
 

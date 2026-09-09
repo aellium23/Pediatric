@@ -134,9 +134,9 @@ de pagamentos, isto **não** é negociável:
       `docs/compliance/01-qualificacao-regulatoria.md`, com a finalidade
       prevista proposta, a análise MDCG 2019-11 por função (com o
       contra-argumento à vista), oito controlos de desenho e seis gatilhos de
-      reavaliação. **Falta revisão jurídica e assinatura**, e falta trocar a
-      palavra "triagem" por "orientação" no texto visível e nos prompts — é o
-      próprio produto a declarar uma finalidade médica.
+      reavaliação. A palavra "triagem" já foi trocada por "orientação" em todo
+      o texto visível e nos prompts (2026-09-09). **Falta a revisão jurídica e
+      a assinatura.**
 - [ ] **Backup manual da BD** definido (mesmo que só `pg_dump` agendado à
       mão) — a partir do momento em que há dados clínicos reais, mesmo de
       piloto, não podem depender só do seed. Passos concretos:

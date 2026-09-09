@@ -86,7 +86,7 @@ function euro(cents: number): string {
 }
 const STATUS_PT: Record<string, string> = {
   OPEN: 'Aberta',
-  TRIAGE: 'Em triagem',
+  TRIAGE: 'Em análise',
   ANSWERED: 'Respondida',
   CLOSED: 'Fechada',
   CANCELLED: 'Cancelada',
@@ -1450,7 +1450,7 @@ const HELP: Record<string, { title: string; intro: string; items: HelpItem[] }> 
     intro: 'Escolhe um pediatra verificado e envia a tua questão.',
     items: [
       { icon: '🩺', title: 'Escolher pediatra', desc: 'Compara especialidade, avaliações e preços de cada um.' },
-      { icon: '📝', title: 'Triagem rápida', desc: 'Diz-nos como está a criança; sinais graves são destacados.' },
+      { icon: '📝', title: 'Orientação rápida', desc: 'Diz-nos como está a criança; sinais graves são destacados.' },
       { icon: '💬', title: 'Enviar questão', desc: 'Escreve a dúvida e recebes resposta dentro do prazo.' },
       { icon: '🎥', title: 'Marcar videoconsulta', desc: 'Escolhe um horário livre na agenda do pediatra.' },
       { icon: '📂', title: 'Acompanhar resposta', desc: 'Segue a conversa na lista de consultas.', go: 'myconsults' },
@@ -1877,9 +1877,9 @@ function Thread({
       .map((k) => tr(RED_FLAGS.find((f) => f.key === k)?.label ?? k))
       .filter(Boolean);
     const motivo = flagLabels.length
-      ? `${tr('Triagem assinalou:')} ${flagLabels.join('; ')}.`
-      : tr('Sem sinais de alarme assinalados na triagem.');
-    const urgencia = triage.severe ? `\n${tr('⚠️ Triagem indicou sinais graves — avaliar prioridade.')}` : '';
+      ? `${tr('O questionário da família assinalou:')} ${flagLabels.join('; ')}.`
+      : tr('Sem sinais de alarme assinalados pela família.');
+    const urgencia = triage.severe ? `\n${tr('⚠️ A família assinalou sinais graves — avaliar prioridade.')}` : '';
     const tpl =
       `${tr('Motivo / queixa:')}\n${motivo}${urgencia}\n\n` +
       `${tr('Avaliação:')}\n- \n\n` +
@@ -2096,7 +2096,7 @@ function Thread({
         return (
           <div className={`notice${tri.severe ? ' warn' : ''}`} style={{ marginTop: 10 }}>
             <strong style={{ display: 'block', marginBottom: 6 }}>
-              {tr('Triagem da família')}{tri.severe ? ` ${tr('— sinais graves assinalados ⚠️')}` : ''}
+              {tr('Questionário da família')}{tri.severe ? ` ${tr('— sinais graves assinalados ⚠️')}` : ''}
             </strong>
             <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
               {tri.redFlags.map((k) => (
@@ -2140,7 +2140,7 @@ function Thread({
             rows={6}
           />
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn small secondary" onClick={genDraft} disabled={busy} title={tr('Pré-preenche um esqueleto a partir da triagem')}>
+            <button className="btn small secondary" onClick={genDraft} disabled={busy} title={tr('Pré-preenche um esqueleto a partir do questionário')}>
               {tr('Gerar rascunho')}
             </button>
             {speechSupported ? (
@@ -8907,7 +8907,7 @@ function funnelLabel(name: string): string {
   const m: Record<string, string> = {
     search: 'Pesquisa',
     open_profile: 'Abriu perfil',
-    triage_start: 'Iniciou triagem',
+    triage_start: 'Iniciou consulta',
     message_sent: 'Mensagem enviada',
     video_booked: 'Vídeo marcado',
     answered: 'Respondida',

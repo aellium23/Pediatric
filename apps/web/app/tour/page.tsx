@@ -271,10 +271,10 @@ export default function Tour() {
         </div>
       </Step>
 
-      <Step n="P14" title="Triagem" desc="Estrutura a questão (sintomas, febre, duração) e sinais de alarme.">
+      <Step n="P14" title="Antes de enviar" desc="Estrutura a questão (sintomas, febre, duração) e sinais de alarme.">
         <div className="scr">
           <Bar />
-          <div className="scr-top"><h2>Sobre o Leo</h2><span className="sub">Triagem rápida</span></div>
+          <div className="scr-top"><h2>Sobre o Leo</h2><span className="sub">Orientação rápida</span></div>
           <div className="scr-body">
             <div className="tinput">Sintomas — febre, puxa a orelha</div>
             <div className="tinput">Febre — 38.5 ºC</div>
@@ -500,7 +500,7 @@ export default function Tour() {
       <Step n="D5" title="Responder e encerrar" desc="Histórico + rascunho IA (a validar). Encerrar dispara captura, comissão e fatura.">
         <div className="scr">
           <Bar />
-          <div className="scr-top"><h2>Febre — Leo, 8m</h2><span className="sub">Triagem: 38.5º · 2 dias</span></div>
+          <div className="scr-top"><h2>Febre — Leo, 8m</h2><span className="sub">Questionário: 38.5º · 2 dias</span></div>
           <div className="scr-body">
             <div className="tcard surface" style={{ fontSize: 12 }}>🧠 <b>Rascunho IA (rever)</b><br />“Lactente 8m, febre 2 dias, otalgia…”</div>
             <div className="tbubble them">Pelos sintomas parece otite. Vigie a febre e…</div>
@@ -631,7 +631,7 @@ export default function Tour() {
           <div className="scr-body" style={{ fontSize: 13 }}>
             <div className="tcard">Ana — <b>Receção</b> (Colaboradora)</div>
             <div className="tcard">João — <b>Gestor</b> (Administrador)</div>
-            <div className="tcard surface">Colaborador: agendar, triagem · sem acesso clínico amplo</div>
+            <div className="tcard surface">Colaborador: agendar, receber pedidos · sem acesso clínico amplo</div>
           </div>
         </div>
       </Step>

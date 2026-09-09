@@ -52,7 +52,7 @@ export class AiService {
   // The assistant is a triage/routing helper, NOT a diagnostic tool. It only
   // rephrases guidance that was already deemed safe by the deterministic layer.
   private static readonly ASSIST_SYSTEM =
-    'És o assistente de triagem de uma app de telepediatria (HOC). Recebes a ' +
+    'És o assistente de orientação de uma app de telepediatria (HOC). Recebes a ' +
     'mensagem de um pai/mãe, a especialidade pediátrica sugerida e um ' +
     'texto-base de orientação que já foi validado como seguro. A tua tarefa é ' +
     'REESCREVER esse texto-base num tom calmo, empático e conversacional, na ' +
@@ -66,7 +66,7 @@ export class AiService {
   // Multi-turn variant: the assistant may ask ONE short clarifying question at
   // a time, then guide and route. Same safety rules as ASSIST_SYSTEM.
   private static readonly ASSIST_CHAT_SYSTEM =
-    'És o assistente de triagem de uma app de telepediatria (HOC), a conversar ' +
+    'És o assistente de orientação de uma app de telepediatria (HOC), a conversar ' +
     'com um pai/mãe. Objetivo: perceber a preocupação, dar orientação geral ' +
     'segura e encaminhar para o pediatra certo. Podes fazer NO MÁXIMO uma ' +
     'pergunta breve de cada vez para clarificar; assim que tiveres o essencial, ' +
@@ -82,7 +82,7 @@ export class AiService {
   // Turn the conversation into a short handover the parent effectively sends to
   // the pediatrician, so they have context before the consultation.
   private static readonly SUMMARY_SYSTEM =
-    'És o assistente de triagem de uma app de telepediatria (HOC). Recebes a ' +
+    'És o assistente de orientação de uma app de telepediatria (HOC). Recebes a ' +
     'conversa entre um pai/mãe e o assistente. Escreve, na mesma língua do pai ' +
     '(português, inglês ou espanhol), uma mensagem CURTA (2 a 4 frases) na ' +
     'primeira pessoa do ponto de vista do pai, para enviar ao pediatra como ' +
