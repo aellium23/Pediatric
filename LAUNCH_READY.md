@@ -130,6 +130,13 @@ de pagamentos, isto **não** é negociável:
       pagamentos simulados, sem cobranças reais"** — para gerir expectativas.
 - [ ] Aviso de que a faturação certificada AT ainda não está ativa (sem
       faturas legais no piloto).
+- [~] **Qualificação regulatória do assistente** — rascunho escrito em
+      `docs/compliance/01-qualificacao-regulatoria.md`, com a finalidade
+      prevista proposta, a análise MDCG 2019-11 por função (com o
+      contra-argumento à vista), oito controlos de desenho e seis gatilhos de
+      reavaliação. **Falta revisão jurídica e assinatura**, e falta trocar a
+      palavra "triagem" por "orientação" no texto visível e nos prompts — é o
+      próprio produto a declarar uma finalidade médica.
 - [ ] **Backup manual da BD** definido (mesmo que só `pg_dump` agendado à
       mão) — a partir do momento em que há dados clínicos reais, mesmo de
       piloto, não podem depender só do seed. Passos concretos:

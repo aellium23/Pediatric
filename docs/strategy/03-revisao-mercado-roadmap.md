@@ -142,6 +142,25 @@ declaração de finalidade prevista, o que o software faz e não faz, porque nã
 dispositivo médico, e quem assinou. Feito **agora**, enquanto as regras cabem
 numa página. Feito depois do piloto, é arqueologia.
 
+> **Rascunho escrito a 2026-09-09**:
+> [`docs/compliance/01-qualificacao-regulatoria.md`](../compliance/01-qualificacao-regulatoria.md).
+> Percorre os quatro passos do MDCG 2019-11 por função, apresenta o argumento
+> **e o contra-argumento**, e fixa oito controlos de desenho que sustentam a
+> posição mais os seis gatilhos que obrigam a reavaliá-la. Falta a revisão
+> jurídica e a assinatura — a conclusão proposta é deliberadamente "provável,
+> com margem estreita", não uma certeza.
+>
+> **O achado mais consequente não é técnico.** A qualificação depende do que o
+> *fabricante declara*, e o produto declara hoje, em texto legível: o prompt do
+> LLM diz *"és o assistente de **triagem**"*, o ecrã de ajuda anuncia
+> *"**Triagem** rápida"*, e as notas do pediatra dizem *"**Triagem** assinalou"*.
+> Triagem é um termo clínico — atribuir prioridade de atendimento — e usá-lo é
+> declarar uma finalidade médica, exatamente a que a decisão nº 4 quer evitar.
+> Nenhum argumento de defesa sobrevive bem a um documento interno que chama
+> triagem ao que faz. Trocar por "orientação"/"encaminhamento" no texto visível
+> e nos prompts é a alteração mais barata e mais consequente que está em
+> aberto — e está por fazer, porque mexe em texto que o fundador vê e aprova.
+
 ### 3.3 O calendário EHDS decide se o roadmap está adiantado ou atrasado
 
 Datas confirmadas: o regulamento **aplica-se a partir de 26 de março de 2027**,
@@ -269,7 +288,7 @@ registo, ler um artigo).
 |---|---|---|---|
 | 1 | ~~**Divulgar que o assistente é IA** (AI Act art. 50.º)~~ · **feito** | Obrigação já em vigor desde 2 ago 2026 | Horas |
 | 2 | ~~**Instrumentação de hábito** (bloco C, elevado a bloqueante)~~ · **feito** | Sem isto o piloto não testa a tese | Dias |
-| 3 | **Ficheiro de qualificação regulatória** (finalidade prevista, MDR) | Barato agora, arqueologia depois | 1 dia + jurista |
+| 3 | ~~**Ficheiro de qualificação regulatória**~~ · **rascunho feito**, falta assinar | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | ~~**Resolver a contradição entre os dois roadmaps**~~ · **feito** | Evita que alguém construa o produto errado | Meia hora |
 | 5 | **Cofre de documentos** ✓ · *extração por IA ainda não* | É o que cria o hábito semanal e sustenta o Premium | Cofre feito; extração por construir |
 | 6 | **Export do registo em formato aberto/FHIR-compatível** | Preparação EHDS enquanto ainda não há dados reais | Dias |

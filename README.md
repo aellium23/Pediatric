@@ -34,6 +34,7 @@ A proposta assenta em quatro pilares:
 | Programador a entrar | [Estado factual do produto](CURRENT_PRODUCT_STATUS.md) · [Arquitetura](docs/09-arquitetura-tecnica.md) · [Testes](TESTING.md) |
 | A preparar o piloto | [Checklist de lançamento](LAUNCH_READY.md) · [Decisões de âmbito](PRODUCT_DECISIONS.md) |
 | Segurança | [SECURITY.md](SECURITY.md) · [camada enterprise](enterprise/02-security-architecture.md) |
+| Jurista / conformidade | [Qualificação regulatória (rascunho)](docs/compliance/01-qualificacao-regulatoria.md) · [Riscos legais](docs/13-riscos-legais.md) |
 
 ---
 

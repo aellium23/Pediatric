@@ -35,7 +35,13 @@ Quatro pontos, e só estes. Cada documento afetado tem um aviso no topo.
 
 Tudo o resto nos documentos 01–26 mantém-se.
 
-## 3. Estado operacional — na raiz do repositório
+## 3. Conformidade — `docs/compliance/`
+
+| Documento | O que é |
+|---|---|
+| [`01-qualificacao-regulatoria.md`](compliance/01-qualificacao-regulatoria.md) | **Rascunho para revisão jurídica**: finalidade prevista do assistente e do detetor de sinais de alarme, porque se propõe que não seja dispositivo médico, e os controlos que sustentam essa posição |
+
+## 4. Estado operacional — na raiz do repositório
 
 | Documento | O que é |
 |---|---|
