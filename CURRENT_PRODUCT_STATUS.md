@@ -1,7 +1,10 @@
 # CURRENT_PRODUCT_STATUS.md — HOC / Pédia
 
 > Fotografia objetiva do produto, gerada por auditoria de código (read-only).
-> Ramo: `claude/telepediatria-platform-design-pq1y1v` · Data: 2026-07-06.
+> Ramo: `claude/telepediatria-platform-design-pq1y1v` · Auditoria original:
+> 2026-07-06 · **Atualizada a 2026-09-09** (cofre de documentos, leitura por IA,
+> exportação FHIR, marcos de desenvolvimento, inclusão mensal no plano,
+> instrumentação e migrations versionadas).
 > Âmbito: `apps/web` (Next.js), `apps/backend` (NestJS + Prisma/PostgreSQL), `apps/mobile` (Flutter), `render.yaml`, `infra/`.
 > Este documento descreve o estado atual; **não contém recomendações**.
 
@@ -9,7 +12,7 @@
 
 ## 1. Funcionalidades atuais por perfil
 
-Navegação: `tabsFor(role)` define os separadores; toda a app vive em `/app` (componente `MultiProfileApp`, `apps/web/app/app/page.tsx`, ~10.150 linhas).
+Navegação: `tabsFor(role)` define os separadores; toda a app vive em `/app` (componente `MultiProfileApp`, `apps/web/app/app/page.tsx`, ~12.100 linhas).
 
 ### Chrome partilhado (todas as sessões)
 - Ecrã de entrada com seletor de perfis demo (dev-login): PARENT e PEDIATRICIAN em destaque + 6 perfis de equipa colapsados.
@@ -21,14 +24,14 @@ Navegação: `tabsFor(role)` define os separadores; toda a app vive em `/app` (c
 
 ### PARENT — tabs: home, consult, myconsults, children, myaccount
 - **Início**: saudação; CTA "Falar com um pediatra"; próxima videoconsulta; resposta nova; chips das crianças; últimas 3 consultas; 2 artigos Saber+.
-- **Consultar**: pesquisa por nome (sem acentos), filtro por especialidade (chips com descrições), preço máx., favoritos; cartão de pediatra (verificado, rating, região, línguas, janelas de mensagens + garantia SLA, fuso); perfil com avaliações; TriageDialog (red-flags, ack de urgência, expectativa de resposta + preço "Enviar pergunta · €X"); BookVideo (14 dias de slots, confirmação 2 toques, consentimento, dica de fuso).
+- **Consultar**: pesquisa por nome (sem acentos), filtro por especialidade (chips com descrições), preço máx., favoritos; cartão de pediatra (verificado, rating, região, línguas, janelas de mensagens + garantia SLA, fuso); perfil com avaliações; TriageDialog (red-flags, **aviso de que o assistente é IA** — AI Act art. 50.º, ack de urgência, expectativa de resposta + preço "Enviar pergunta · €X", ou "incluída no plano" quando há franquia por gastar); BookVideo (14 dias de slots, confirmação 2 toques, consentimento, dica de fuso).
 - **Consultas**: lista agrupada por período; Thread (chat com bolhas, eventos de sistema, separadores de dia, fotos clínicas ≤3/mensagem com viewer fullscreen, videochamada LiveKit, cancelar com reembolso, "Nova consulta" em fechadas, avaliação ⭐ em CLOSED, remarcação em `pediatrician_unavailable`).
-- **Crianças**: lista com avatares; adicionar (com consentimento); ChildHealth (foto, nº SNS cifrado, crescimento com curvas WHO + alertas, sinais vitais, vacinas PNV, alergias, medicação com dose sugerida e alerta alergia-fármaco, episódios ICPC-2/ICD-10); Linha do tempo; Boletim imprimível.
-- **Conta**: foto de perfil, método de pagamento (cartão/MB WAY/Apple/Google Pay), NIF (validado), região + código postal, subscrição, faturas, privacidade (consentimentos, exportação RGPD, apagar conta).
+- **Crianças**: lista com avatares; adicionar (com consentimento); ChildHealth (foto, nº SNS cifrado, crescimento com curvas WHO + alertas, sinais vitais, vacinas PNV, alergias, medicação com dose sugerida e alerta alergia-fármaco, episódios ICPC-2/ICD-10); **Desenvolvimento** (marcos por idade, catálogo CDC, sem pontuação — ver `docs/compliance/03`); **Documentos** (cofre da criança: PDF/imagem até ~3 MB, quota por família, "Ler com IA" que propõe alergias/vacinas/medicação para o pai confirmar item a item); **Levar a ficha** (descarregar Bundle FHIR R4); Linha do tempo; Boletim imprimível.
+- **Conta**: foto de perfil, método de pagamento (cartão/MB WAY/Apple/Google Pay), NIF (validado), região + código postal, subscrição (**consumo do mês à vista**: incluídas / usadas / restantes), faturas, privacidade (consentimentos, exportação RGPD **com a ficha de cada criança em FHIR**, apagar conta).
 
 ### PEDIATRICIAN — tabs: inbox, patients, referrals, agenda, profile, finance
 - **Caixa**: "A responder" (graves primeiro → SLA) separada de "Respondidas · a aguardar" e "Recentes"; filtros Hoje/7d/30d/Tudo; "Videoconsultas de hoje"; realce de não-respondidas; chips meta (expectativa) + "Responder até" (SLA); Thread com resumo pós-consulta (+ estruturação SOAP por IA, ditado por voz), fecho, pedido de 2ª opinião.
-- **Doentes**: famílias agrupadas (irmãos juntos); ficha da criança (vacinas em atraso por idade, alertas de crescimento, problemas/medicação ativos, curva de peso, histórico, Linha do tempo, Boletim — leitura).
+- **Doentes**: famílias agrupadas (irmãos juntos); ficha da criança (vacinas em atraso por idade, alertas de crescimento, problemas/medicação ativos, curva de peso, histórico, **marcos de desenvolvimento**, **documentos do cofre** (lê, não apaga), Linha do tempo, Boletim — leitura).
 - **2ª opinião**: recebidos/enviados/pedir; aceitar/recusar/parecer (conteúdo cifrado).
 - **Agenda**: calendário Mês/Semana/Dia; blocos Vídeo (dourado) e Mensagens (azul) com filtro persistido; adição por toque (atalhos Manhã/Tarde/Noite) e por arrasto (desktop ≥900px); editar (todas as semanas / só este dia); remover/editar com consultas marcadas → diálogo de confirmação → reembolso + aviso de remarcação; férias (dias fechados) com a mesma proteção; marcações visíveis no calendário + ocupação no mês; copiar semana anterior; fuso de trabalho.
 - **Perfil**: estado/rating; bio; fuso horário; serviços (tipo/preço/SLA); documentos de credenciação (só nome de ficheiro); "Publicar no Saber+" (submissão para revisão editorial, estados, resubmissão); subscrição; faturas; privacidade.
@@ -92,7 +95,16 @@ GET /users/me · POST /users/me/photo · POST /users/me/photo/remove · POST /us
 POST/GET /children · GET /children/:id · POST /children/:id/photo · POST /children/:id/sns · GET /families/me · POST /families/me/region
 
 ### health-records (PARENT; leitura também PEDIATRICIAN com relação de consulta)
-GET /health-records/:childId (overview + percentis WHO) · GET .../timeline · POST .../vitals · .../allergies (+ remove) · .../growth · .../vaccines · .../medications (+ active) · .../episodes (+ close)
+GET /health-records/:childId (overview + percentis WHO) · GET .../timeline · POST .../vitals · .../allergies (+ remove) · .../growth · .../vaccines · .../medications (+ active) · .../episodes (+ close) · GET .../development (catálogo + assinalados + por assinalar) · POST .../development (+ /:code/remove)
+
+### documents — cofre da criança (PARENT escreve; PEDIATRICIAN com consulta lê)
+GET /documents/:childId · GET /documents/:childId/quota · GET /documents/:childId/:id · POST /documents/:childId (valida assinatura dos bytes, quota por família) · POST /documents/:childId/:id/read (**PARENT**, 10/min — leitura por IA que *propõe* e não escreve) · POST /documents/:childId/:id/remove
+
+### interop (PARENT)
+GET /interop/fhir/:childId — ficha como Bundle FHIR R4, 10/min
+
+### analytics
+POST /analytics/track (eventos de cliente da lista fechada) · GET /analytics/funnel · GET /analytics/habit · GET /analytics/export (ADMIN)
 
 ### pediatricians
 GET /pediatricians (@Public marketplace) · GET/POST/DELETE /pediatricians/:id/favorite + GET /favorites (PARENT) · GET/PATCH /pediatricians/me · GET /me/finance (from/to + extrato) · POST/PATCH/DELETE /me/services · POST /me/connect (Stripe onboarding) · GET/POST /me/documents · POST /reviews (PARENT) · GET /:id/reviews (@Public) · GET /:id (@Public, inclui timezone/janelas/preview de resposta)
@@ -122,7 +134,7 @@ POST / · GET /incoming · /outgoing · /:id · POST /:id/{accept,decline,opinio
 GET /catalog/{conditions,medications,allergens,vaccines,dose,drug-allergy}
 
 ### subscriptions (PARENT,PED)
-GET /plans · GET /me · POST / · POST /cancel
+GET /plans · GET /me · **GET /allowance** (incluídas/usadas/restantes, derivadas das consultas) · POST / · POST /cancel
 
 ### admin
 GET /admin/metrics (ADMIN,COMPLIANCE,FINANCE) · GET /admin/finance/series · GET /admin/market (ADMIN,FINANCE) · GET /admin/pediatricians (+ verify/suspend) · GET /admin/users (?q) · GET /admin/users/:id · PATCH /admin/users/:id/role · GET /admin/audit · GET /admin/pediatricians/:id/documents · POST /admin/documents/:docId/review
@@ -131,7 +143,7 @@ GET /admin/metrics (ADMIN,COMPLIANCE,FINANCE) · GET /admin/finance/series · GE
 GET /clinics/me (CLINIC_ADMIN,STAFF) · POST /clinics · POST/DELETE /clinics/:id/staff(/:userId) · POST/DELETE /clinics/:id/pediatricians(/:pedId)
 
 ### privacy (auth)
-GET /consents · POST /consents/:id/revoke · GET /export (RGPD) · POST /delete-account · GET /invoices
+GET /consents · POST /consents/:id/revoke · GET /export (RGPD — **inclui `records`: um Bundle FHIR por criança**) · POST /delete-account · GET /invoices
 
 ### infra
 GET /health · /health/ready · /metrics (Prometheus in-memory) · POST /files presign (upload S3 SSE-KMS, quarentena)
@@ -163,8 +175,11 @@ GET /health · /health/ready · /metrics (Prometheus in-memory) · POST /files p
 | AuditLog | append-only (actor, ação, entidade, ip, UA) |
 | Clinic · ClinicMember · ClinicPediatrician | taxId, **ersRegistration**; revenueSharePct |
 | GrowthMeasurement · Vital · Allergy · Vaccination · Medication · Episode | registos clínicos; campos identificantes cifrados, códigos (ICPC-2/ICD-10/ATC/PNV) em claro |
-| Subscription · Favorite · Article · Referral | planos; favoritos; workflow editorial; 2ª opinião (**reason/opinion cifrados**) |
+| Subscription · Favorite · Article · Referral | planos (**`includedMessages`: consultas por mensagem incluídas/mês**); favoritos; workflow editorial; 2ª opinião (**reason/opinion cifrados**) |
 | FileAsset | storageKey, scanStatus (pending/clean/infected) |
+| **ChildDocument** | cofre da família: **título e ficheiro cifrados**; mime decidido pela assinatura dos bytes; kind, sizeBytes, issuedAt |
+| **DevelopmentMilestone** | marco assinalado pela família: `code` do catálogo em claro, `achievedAt`, **nota cifrada**; único por (criança, marco). **Não há linha para "não faz"** |
+| **AnalyticsEvent** | funil e hábito; **sem coluna de texto livre** — só ids, nomes fixos e números |
 
 ---
 
@@ -213,7 +228,13 @@ Flags de cliente (localStorage): pedia_token/refresh, pedia_profile, pedia_onboa
 | Reembolso | Todos os caminhos: cancelamento do pai, SLA vencido, no-show de vídeo, indisponibilidade do pediatra, admin — idempotentes. |
 | Faturação | Em `payment.captured`: fatura do ato (IVA isento, NIF do titular se existir) + fatura de comissão (IVA 23%), idempotente — valores/PDF do **adaptador stub** (ver §9). |
 | Verificação de pediatra | Completo: submissão de docs → revisão compliance → ativação (ACTIVE + janelas de mensagens default seg–sex 9h–19h). |
-| Arquivo clínico | Completo: registos → overview com percentis WHO → timeline → boletim com SNS decifrado; acesso do pediatra por relação de consulta. |
+| Arquivo clínico | Completo: registos → overview com percentis WHO → timeline → boletim com SNS decifrado; acesso do pediatra por relação de consulta (regra única em `ChildAccessService`). |
+| Cofre de documentos | Completo: upload (tipo decidido pela assinatura dos bytes, quota por família 25 MB/100 docs) → cifrado em repouso → listagem sem os bytes → abertura por blob URL → apagar. Dois caminhos de descoberta (cartão na consulta fechada, pastilha no resumo da ficha). **Sem análise de malware** (§10). |
+| Leitura de documento por IA | Com `ANTHROPIC_API_KEY`: o pai pede, o modelo transcreve alergias/vacinas/medicação, e o ecrã mostra tudo **por marcar**. Só o que ele marca é gravado, pelos endpoints normais da ficha. Sem chave devolve vazio e diz que não está disponível. Nada é escrito automaticamente. |
+| Marcos de desenvolvimento | Completo: catálogo estático (CDC, 2 meses–5 anos, 4 domínios) → o pai assinala → entra na ficha, na timeline e na exportação FHIR. Marcos de bandas já ultrapassadas aparecem como "vale a pena falar com o pediatra" — **sem pontuação, sem nível de risco, sem condição nomeada**. |
+| Exportação / portabilidade | Completo: `GET /interop/fhir/:childId` devolve Bundle FHIR R4 (Observation com LOINC/UCUM, AllergyIntolerance, Immunization, MedicationStatement, Condition, DocumentReference sem os bytes). A exportação RGPD leva um Bundle por criança. Limites declarados em `docs/compliance/02`. |
+| Inclusão mensal no plano | Completo: o plano Família inclui 2 consultas por mensagem/mês; o uso é **derivado das consultas**, não de um contador paralelo; a franquia é da família e o período é o mês de calendário. A consulta coberta não cobra à família e regista o pagamento pelo valor integral com a plataforma como pagadora. |
+| Instrumentação | Completo: eventos de funil e de hábito (lista fechada de nomes, sem texto livre), emitidos por eventos de domínio fora da cadeia clínica; ecrã de admin com funil, hábito semana a semana e exportação CSV. |
 | Notificações | Evento → Notification in-app com deep-link + WebSocket em tempo real. Entrega externa (push/email/SMS): inexistente (stub). |
 | Saber+ | Completo: seed (45 artigos) → leitura pública → autoria do pediatra → revisão editorial (aprovar/rejeitar com nota; edição de publicado volta a revisão). |
 
@@ -250,9 +271,14 @@ Flags de cliente (localStorage): pedia_token/refresh, pedia_profile, pedia_onboa
 
 Sem `TODO`/`FIXME`/`HACK` literais no código de produção. Marcadores existentes:
 
-- `files.module.ts:28` — scan de malware "(Increment 2)": **não implementado**; `scanStatus` fica `pending`.
+- `files.module.ts:28` — scan de malware "(Increment 2)": **não implementado**; `scanStatus` fica `pending`. **O mesmo vale para o cofre de documentos**: mitigado por validação de assinatura dos bytes e visualizador do browser em sandbox, mas um PDF malicioso continua a ser um vetor (`SECURITY.md`).
+- **Cofre em linha na base de dados** — o ficheiro fica como data URL cifrada na coluna, não em S3. Adequado ao piloto, deliberadamente não é a resposta de produção: o `FilesModule` já tem o caminho de URL assinado e é para lá que deve migrar antes de escalar.
+- **Catálogo de marcos por rever clinicamente** — a redação PT e a banda etária de cada marco foram escritas por engenharia a partir da lista publicada dos CDC. Portão em `LAUNCH_READY.md` § E; `CATALOGUE.clinicallyReviewed` está a `null`.
+- **Consulta coberta pela subscrição com dinheiro real** — exige uma transferência financiada pela plataforma (não há cobrança de cartão de onde a tirar). Em demo liquida localmente; comentado no `captureAndSplit`.
+- **AI Act art. 50.º(2)** — marcação de conteúdo sintético, prazo 2 de dezembro de 2026, por fazer.
 - `certified-partner.adapter.ts:12` — integração de faturação real "Increment 3" (stub).
 - `invoicing.service.ts:10` — comentário "comissão em Increment 3" **desatualizado** (já implementada).
+- `docs/26-ai-scribe.md` §§1–7 — plano da transcrição ambiente, **decidido não construir** (`PRODUCT_DECISIONS` §9c); fica como referência, não é trabalho por fazer.
 - `passkey.service.ts:12-14` — challenge WebAuthn ecoado pelo cliente (nota: em produção deve ficar em sessão server-side).
 - `main.ts` — com `ENABLE_DEV_LOGIN=true`, **CORS reflete qualquer origem** (modo demo); warn se em produção.
 - `scheduling.service.ts:706` — pré-autorização de pagamento "best-effort" (marcação sobrevive a falha do PSP).
@@ -266,9 +292,9 @@ Sem `TODO`/`FIXME`/`HACK` literais no código de produção. Marcadores existent
 
 ## 11. Testes existentes e cobertura funcional
 
-- **Backend unit**: 36 suites em `test/unit/` — **325 testes** (auth, token, roles.guard, encryption, filters, regions, wall-clock, expected-reply, who-growth, growth-lms, catalog, consultations (+patients), scheduling (+vacation, availability-edit), payments, stripe, invoicing, subscriptions, video, clinics, content, reviews, referrals, notifications, privacy, health-records (+vitals), admin (+market), children-sns, families-region, pediatricians-documents, users-billing).
-- **Backend e2e**: 6 specs (`health`, `consultation-flow`, `children-flow`, `health-records-flow`, `patient-chart-flow`, `privacy-flow`).
-- **Web**: 0 testes automatizados. Verificações usadas em desenvolvimento: `tsc --noEmit`, `next build`, script de cobertura de traduções (942 chaves EN/ES simétricas).
+- **Backend unit**: 42 suites em `test/unit/` — **455 testes** (auth, token, roles.guard, encryption, filters, regions, wall-clock, expected-reply, who-growth, growth-lms, catalog, consultations (+patients), scheduling (+vacation, availability-edit), payments, stripe, invoicing, subscriptions, video, clinics, content, reviews, referrals, notifications, privacy, health-records (+vitals), admin (+market), children-sns, families-region, pediatricians-documents, users-billing).
+- **Backend e2e**: 10 specs, **93 testes** contra Postgres real (`health`, `consultation-flow`, `children-flow`, `health-records-flow`, `patient-chart-flow`, `privacy-flow`, `documents-flow`, `subscription-allowance`, `interop-flow`, `development-flow`).
+- **Web**: **67 testes** (vitest) — `assist.test.ts` (64: espinha de segurança dos sinais de alarme + encaminhamento por especialidade) e `translations.test.ts` (3: paridade EN/ES e cobertura de todos os literais que a app passa por `tr()`, **1157 chaves por língua**). Mais `tsc --noEmit`, `eslint --max-warnings 0` (com regras de acessibilidade) e `next build`.
 - **Mobile**: 1 teste (auth controller).
 - **Sem spec dedicado**: oidc.service, passkey.service, consent.service, files (presign), audit.interceptor, observability, adaptador push.
 
@@ -278,11 +304,11 @@ Sem `TODO`/`FIXME`/`HACK` literais no código de produção. Marcadores existent
 
 | Área | Estado |
 |---|---|
-| **Frontend** | Vercel (root `apps/web`, `next build`); produção `pediatric-taupe.vercel.app`; deploy automático por push ao ramo; `NEXT_PUBLIC_API_BASE` aponta ao Render. |
+| **Frontend** | Vercel (root `apps/web`, `next build`). Cada push ao ramo constrói um **preview**; a **promoção a produção é manual** (Vercel → Promote to Production). Produção em `pediatric-taupe.vercel.app`; `NEXT_PUBLIC_API_BASE` aponta ao Render. |
 | **Backend** | Render blueprint (`render.yaml`): plano **free**, branch fixado, boot = `scripts/db-migrate.js` (migrations versionadas) + seed idempotente + `node dist/main.js`; health check `/health`. Cold-start mitigado no cliente (retries) e keep-alive de 10 min quando a app está aberta. |
 | **Base de dados** | PostgreSQL gerido Render (plano free). **Migrations versionadas** em `prisma/migrations`, aplicadas no arranque; uma base criada pelo antigo `db push` é feita *baseline* na primeira vez. Dados demo recriados/preservados por seed idempotente. |
 | **Env vars** | Geradas no deploy: JWT_ACCESS/REFRESH_SECRET, FIELD_ENCRYPTION_KEY; DATABASE_URL da BD gerida. Por preencher (`sync:false`): CORS_ORIGINS, STRIPE_*, ANTHROPIC_*, LIVEKIT_*. Fixas: NODE_ENV=production, ENABLE_DEV_LOGIN=true (demo). |
-| **Deployments** | Push ao ramo → Vercel (web) + Render (API). Sem CI de testes no caminho de deploy (testes correm localmente/no desenvolvimento). |
+| **Deployments** | Push ao ramo → **preview** na Vercel (web) + deploy automático no Render (API). Os dois lados não andam ao mesmo passo: a **API vai a produção sozinha**, o **frontend espera pela promoção manual**. O CI (Backend CI, Web CI) corre no mesmo push, com filtros de caminho, mas **não bloqueia nenhum dos dois**. |
 | **Logs** | stdout apenas: log estruturado JSON por request (reqId, duração, status) + `/metrics` Prometheus com contadores **in-memory** (perdem-se em restart). Sem APM/Sentry/OTel. |
 | **Segurança** | helmet; ValidationPipe global (whitelist+forbid); Throttler 100 req/min; JWT + RBAC globais (Zero-Trust, @Public explícito); auditoria de todas as mutações; AES-256-GCM em campos clínicos; refresh rotativo com deteção de reuso; segredos fora do repo (gitleaks); TLS terminado na plataforma. Em modo demo: CORS aberto e dev-login ativo. |
 | **Backups** | **Nenhum backup de dados configurado** no repositório (sem pg_dump/snapshots automatizados). Backup de código: git (guia em `DEPLOY-DEMO.md`). A BD demo é reconstituível por seed. |
