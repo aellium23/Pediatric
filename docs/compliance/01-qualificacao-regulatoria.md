@@ -91,6 +91,16 @@ diagnosticar, indicar medicamentos, doses ou tratamentos, e obrigam a manter a
 indicação de falar com um pediatra. Sem chave, a camada degrada em silêncio e o
 texto determinístico é usado tal como está.
 
+### 3.2.1 Leitura de documentos do cofre
+
+Um segundo uso do modelo **transcreve** um documento que a família carregou
+(relatório, análises, boletim de vacinas) para três listas: alergias, vacinas e
+medicação. O prompt proíbe interpretar, diagnosticar e inferir — só pode
+devolver o que está escrito no documento. **A saída não é gravada**: é mostrada
+ao titular do registo, com todas as caixas por marcar, e só o que ele marcar
+entra na ficha. É transcrição sob decisão humana, não leitura clínica
+automática (ver § 7).
+
 ### 3.3 Encaminhamento por especialidade
 
 Um segundo comparador sugere **que especialidade do marketplace consultar**
@@ -233,6 +243,15 @@ mantiverem, a análise da secção 5 aguenta-se:
 - [ ] O produto nunca afirma **excluir** uma condição.
 - [ ] O conteúdo de emergência limita-se a encaminhar para 112 / SNS 24.
 - [ ] A finalidade prevista publicada coincide com a da secção 2.
+- [ ] **Nenhuma saída de modelo entra no registo clínico sem confirmação
+      humana explícita.** A leitura de documentos do cofre
+      (`POST /documents/:childId/:id/read`) *propõe*: devolve alergias, vacinas
+      e medicação lidas, sem escrever. Só o que o titular do registo marca, item
+      a item e sem nada pré-marcado, é gravado — e pelos endpoints normais da
+      ficha, com as validações de sempre. É esta fronteira que mantém a
+      extração no passo 2 do MDCG 2019-11 (armazenar e transcrever sob decisão
+      humana) e fora do "agir sobre dados"; se algum dia se gravar
+      automaticamente, a secção 5 tem de ser refeita antes.
 
 ---
 
@@ -246,6 +265,8 @@ implementado:
 - Deixar o LLM decidir a gravidade em vez de reescrever o tom.
 - Dizer ao pai se deve ou não ir à urgência, em vez de mostrar os números.
 - Ligar o detetor ao registo clínico da criança.
+- Gravar automaticamente no registo o que um modelo leu de um documento, ou
+  pré-marcar as sugestões para o pai apenas confirmar em bloco.
 - Seguir a via de **reembolso público** (DiGA na Alemanha, PECAN em França) —
   que exige marcação CE, e portanto é uma decisão de entrar no MDR de propósito,
   não por acidente (ver `docs/strategy/03-revisao-mercado-roadmap.md` §1).

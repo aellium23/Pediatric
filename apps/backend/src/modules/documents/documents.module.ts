@@ -20,6 +20,8 @@ import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ChildAccessService } from '../../common/security/child-access.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { AiModule } from '../ai/ai.module';
+import { AiService, DocumentReading } from '../ai/ai.module';
 
 /** What a parent can actually photograph or download from a portal. */
 const ALLOWED_MIME = [
@@ -167,7 +169,24 @@ export class DocumentsService {
     private readonly crypto: EncryptionService,
     private readonly access: ChildAccessService,
     private readonly events: EventEmitter2,
+    private readonly ai: AiService,
   ) {}
+
+  /**
+   * Ask the model to read a document and PROPOSE record entries.
+   *
+   * Returns candidates only — this writes nothing. The parent reviews them and
+   * confirms through the ordinary health-record endpoints, which is where the
+   * existing validation and audit already live. A model reading a scan is not
+   * a clinical source of truth, and treating it as one is the failure mode this
+   * design exists to prevent.
+   */
+  async read(user: AuthenticatedUser, childId: string, id: string): Promise<DocumentReading | null> {
+    const doc = await this.get(user, childId, id);
+    const parsed = /^data:([a-z0-9.+/-]+);base64,(.+)$/i.exec(doc.content);
+    if (!parsed) throw new BadRequestException('Documento ilegível.');
+    return this.ai.readDocument({ mime: parsed[1].toLowerCase(), base64: parsed[2], title: doc.title });
+  }
 
   /** Metadata only — never ship megabytes of base64 to render a list. */
   async list(user: AuthenticatedUser, childId: string): Promise<DocumentSummary[]> {
@@ -331,6 +350,23 @@ class DocumentsController {
     return this.service.add(user, childId, dto);
   }
 
+  /**
+   * Read a document with the model. A separate, deliberate action: this is the
+   * moment a clinical document leaves for a third-party processor, so it is the
+   * parent's choice and not a side effect of uploading. Also the most expensive
+   * call in the product — a whole PDF — hence the tight limit.
+   */
+  @Post(':childId/:id/read')
+  @Roles(Role.PARENT)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  read(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.read(user, childId, id);
+  }
+
   @Post(':childId/:id/remove')
   @Roles(Role.PARENT)
   remove(
@@ -343,6 +379,7 @@ class DocumentsController {
 }
 
 @Module({
+  imports: [AiModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
   exports: [DocumentsService],

@@ -212,12 +212,39 @@ volta a ser a comissão — ou seja, volta-se ao roadmap antigo por omissão.
 > pediatra que a acompanha lê**, dentro do registo que já consulta, e não pode
 > apagar. Cada upload conta como ação de hábito (`document_add`).
 >
-> **O que fica por fazer, de propósito:** a *extração por IA* (OCR → alergias,
-> vacinas, medicação para o registo estruturado) — a metade que a estratégia
-> liga ao Family Premium. É uma peça própria, com revisão humana obrigatória
-> antes de qualquer coisa entrar no registo clínico, e não devia ser enfiada na
-> mesma entrega que o armazenamento.
+> **O que ficou por fazer, de propósito, e ficou feito a 2026-09-09:** a
+> *extração por IA* (OCR → alergias, vacinas, medicação para o registo
+> estruturado) — a metade que a estratégia liga ao Family Premium. Foi
+> entregue como peça própria, e não enfiada na mesma entrega que o
+> armazenamento.
 >
+> **Extração por IA — o modelo propõe, a pessoa decide.** `POST
+> /documents/:childId/:id/read` devolve uma *leitura* do documento e **não
+> escreve nada**. O ecrã mostra o que foi lido com todas as caixas por marcar;
+> só o que o pai marca é gravado, e é gravado pelos mesmos endpoints de sempre
+> (`allergies`, `vaccines`, `medications`), com as mesmas validações. Não há
+> caminho pelo qual uma saída do modelo entre no registo clínico sem alguém a
+> ter lido — está provado em E2E ("writes nothing to the record on its own").
+> Três razões, e a ordem importa: uma alergia inventada num registo pediátrico
+> é pior do que uma alergia em falta; o produto é um registo, não um
+> dispositivo médico, e é a revisão humana que sustenta essa qualificação
+> (§ 6 de `compliance/01-qualificacao-regulatoria.md`); e um pai que confere
+> linha a linha aprende o que a ficha tem, o que é exatamente o hábito que se
+> quer criar.
+>
+> O parser é deliberadamente desconfiado do modelo: extrai o objeto JSON de
+> dentro de qualquer prosa ou cerca ```json, deita fora entradas sem nome
+> utilizável, recusa datas que não sejam um dia ISO real (fica a vacina, sai a
+> data), ignora valores que não sejam texto em vez de os converter, limita a 12
+> entradas por lista e trunca rótulos. Onze testes cobrem esses casos, porque
+> o modo de falha que interessa não é "não leu" — é "leu de mais".
+>
+> Sem `ANTHROPIC_API_KEY` a leitura devolve vazio e a interface diz que a
+> funcionalidade não está disponível neste ambiente; o cofre continua a
+> funcionar. O endpoint é só do pai (`PARENT`), 10 pedidos por minuto — o
+> pediatra lê os documentos, não manda a plataforma lê-los.
+>
+
 > **Endurecido a 2026-09-09**, depois de eu próprio ter apontado as duas
 > lacunas que deixei: o tipo do ficheiro passou a ser decidido pela assinatura
 > dos bytes e não pelo rótulo do cliente (um HTML disfarçado de PDF é recusado,
@@ -290,7 +317,7 @@ registo, ler um artigo).
 | 2 | ~~**Instrumentação de hábito** (bloco C, elevado a bloqueante)~~ · **feito** | Sem isto o piloto não testa a tese | Dias |
 | 3 | ~~**Ficheiro de qualificação regulatória**~~ · **rascunho feito**, falta assinar | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | ~~**Resolver a contradição entre os dois roadmaps**~~ · **feito** | Evita que alguém construa o produto errado | Meia hora |
-| 5 | **Cofre de documentos** ✓ · *extração por IA ainda não* | É o que cria o hábito semanal e sustenta o Premium | Cofre feito; extração por construir |
+| 5 | ~~**Cofre de documentos + extração por IA**~~ · **feito** | É o que cria o hábito semanal e sustenta o Premium | Feito (cofre + leitura com confirmação humana) |
 | 6 | **Export do registo em formato aberto/FHIR-compatível** | Preparação EHDS enquanto ainda não há dados reais | Dias |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
 | 8 | **Módulo de desenvolvimento/saúde mental** | Maior crescimento do segmento; densidade de subscrição | A2 |

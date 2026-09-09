@@ -171,6 +171,51 @@ describe('Document vault flow (e2e)', () => {
     });
   });
 
+  // The model only ever proposes: this endpoint returns a reading and writes
+  // nothing. Everything in the child's record still goes through the ordinary
+  // allergy/vaccine/medication endpoints, after the parent ticks a box.
+  describe('AI reading', () => {
+    it('is the parent’s to ask for, not another family’s (403)', async () => {
+      const other = await login(`doc-read-other-${uniq}@e2e.test`, 'PARENT');
+      await http()
+        .post(`/api/documents/${childId}/${docId}/read`)
+        .set(bearer(other))
+        .expect(403);
+    });
+
+    it('is not open to a pediatrician (403)', async () => {
+      const ped = await login(`doc-read-ped-${uniq}@e2e.test`, 'PEDIATRICIAN');
+      await http().post(`/api/documents/${childId}/${docId}/read`).set(bearer(ped)).expect(403);
+    });
+
+    it('404s for a document id that is not this child’s', async () => {
+      await http()
+        .post(`/api/documents/${childId}/11111111-1111-1111-1111-111111111111/read`)
+        .set(bearer(token))
+        .expect(404);
+    });
+
+    // No key in CI, and none in the demo environment either: the feature has to
+    // say "not available" rather than fail the upload flow around it.
+    it('answers with no reading when the model is not configured', async () => {
+      const res = await http()
+        .post(`/api/documents/${childId}/${docId}/read`)
+        .set(bearer(token))
+        .expect(201);
+      expect(res.text).toBe('');
+    });
+
+    it('writes nothing to the record on its own', async () => {
+      const record = await http()
+        .get(`/api/health-records/${childId}`)
+        .set(bearer(token))
+        .expect(200);
+      expect(record.body.allergies ?? []).toEqual([]);
+      expect(record.body.vaccines ?? []).toEqual([]);
+      expect(record.body.medications ?? []).toEqual([]);
+    });
+  });
+
   describe('delete', () => {
     it('removes the document and it stops being listed', async () => {
       await http()

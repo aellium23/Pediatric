@@ -81,4 +81,22 @@ Isto é aceitável num piloto fechado com famílias conhecidas. **Antes de
 inscrições abertas**, é preciso análise de conteúdo — o modelo `FileAsset` já
 tem o campo `scanStatus` e o prefixo de quarentena previstos para isso.
 
+## Leitura de documentos por IA — o que sai da plataforma
+
+Quando o pai carrega no botão de ler um documento do cofre, **o documento é
+enviado ao fornecedor do modelo** (Anthropic) para ser transcrito. Três coisas
+tornam isto defensável, e nenhuma é opcional:
+
+1. **É sempre um ato deliberado do pai**, documento a documento. Não há leitura
+   em massa, nem no upload, nem em segundo plano.
+2. **Só o pai pode pedi-la** (`PARENT`, 10 pedidos/minuto). O pediatra lê os
+   documentos com os olhos; não manda a plataforma lê-los.
+3. **Nada volta cifrado para o registo por si só**: a resposta é uma proposta
+   que morre no ecrã se o pai não marcar nada.
+
+O documento continua cifrado em repouso na nossa base de dados; a exposição é
+o trânsito e o processamento no fornecedor, que é subcontratante ao abrigo do
+RGPD e tem de constar da lista de subcontratantes e da informação de
+privacidade dada às famílias antes do piloto.
+
 *Última atualização: 2026-09-09.*

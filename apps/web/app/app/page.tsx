@@ -52,6 +52,7 @@ import {
   type DocumentKind,
   type VaultQuotaDto,
   type AllowanceDto,
+  type DocumentReadingDto,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -3274,6 +3275,13 @@ function DocumentVault({
   const [pending, setPending] = useState<{ name: string; content: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
+  // Proposals read off a document, awaiting the parent's confirmation. Nothing
+  // here has been written; `picked` is what they ticked.
+  const [reading, setReading] = useState<{ doc: ChildDocumentDto; data: DocumentReadingDto } | null>(
+    null,
+  );
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [readingDoc, setReadingDoc] = useState<string | null>(null);
 
   const load = useCallback(() => {
     Api.documents(childId)
@@ -3340,6 +3348,72 @@ function DocumentVault({
     }
   }
 
+  async function readDoc(doc: ChildDocumentDto) {
+    if (readingDoc) return;
+    setReadingDoc(doc.id);
+    try {
+      const data = await Api.readDocument(childId, doc.id);
+      if (!data) {
+        onMsg(tr('Leitura por IA indisponível neste ambiente.'));
+        return;
+      }
+      const total = data.allergies.length + data.vaccines.length + data.medications.length;
+      if (!total) {
+        onMsg(tr('Não reconheci alergias, vacinas nem medicação neste documento.'));
+        return;
+      }
+      // Nothing pre-ticked: the parent opts in to each line, one at a time.
+      setPicked({});
+      setReading({ doc, data });
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setReadingDoc(null);
+    }
+  }
+
+  /** Writes only what the parent ticked, through the ordinary record endpoints. */
+  async function confirmReading() {
+    if (!reading || busy) return;
+    setBusy(true);
+    let saved = 0;
+    try {
+      for (const [i, a] of reading.data.allergies.entries()) {
+        if (picked[`a${i}`]) {
+          await Api.addAllergy(childId, { label: a.label });
+          saved++;
+        }
+      }
+      for (const [i, v] of reading.data.vaccines.entries()) {
+        if (picked[`v${i}`]) {
+          // The record requires a date; without one on the document we use today
+          // and the parent can correct it in the vaccine list.
+          await Api.addVaccine(childId, {
+            name: v.name,
+            date: v.date ?? new Date().toISOString().slice(0, 10),
+          });
+          saved++;
+        }
+      }
+      for (const [i, m] of reading.data.medications.entries()) {
+        if (picked[`m${i}`]) {
+          await Api.addMedication(childId, { name: m.name, dose: m.dose });
+          saved++;
+        }
+      }
+      setReading(null);
+      onMsg(
+        saved
+          ? `${saved} ${saved === 1 ? tr('entrada adicionada à ficha ✓') : tr('entradas adicionadas à ficha ✓')}`
+          : tr('Nada selecionado — a ficha ficou como estava.'),
+      );
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function open(doc: ChildDocumentDto) {
     try {
       const full = await Api.document(childId, doc.id);
@@ -3378,6 +3452,13 @@ function DocumentVault({
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
         {tr('Relatórios, análises e receitas num sítio só. O pediatra que te acompanha vê-os na consulta.')}
       </p>
+      {/* Said before the button is pressed, not after: pressing it sends the
+          document out to the model provider, and that is the parent's call. */}
+      {canEdit && docs?.length ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          {tr('«Ler com IA» envia o documento para um serviço de inteligência artificial que o transcreve. O que ele ler só entra na ficha se tu confirmares.')}
+        </p>
+      ) : null}
 
       {docs === null ? (
         <p className="muted">{tr('A carregar…')}</p>
@@ -3406,6 +3487,17 @@ function DocumentVault({
                     <button
                       type="button"
                       className="btn small secondary"
+                      disabled={!!readingDoc}
+                      onClick={() => readDoc(doc)}
+                      aria-label={`${tr('Ler com IA')} ${doc.title}`}
+                    >
+                      {readingDoc === doc.id ? tr('A ler…') : tr('Ler com IA')}
+                    </button>
+                  ) : null}
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="btn small secondary"
                       disabled={busy}
                       onClick={() => remove(doc)}
                       aria-label={`${tr('Apagar')} ${doc.title}`}
@@ -3419,6 +3511,75 @@ function DocumentVault({
           );
         })
       )}
+
+      {/* Review before anything is written. The model proposes; the parent
+          decides. Nothing is pre-ticked, and nothing reaches the record until
+          they confirm. */}
+      {reading ? (
+        <div className="card section" style={{ borderColor: 'var(--accent)' }}>
+          <strong>{tr('O que li neste documento')}</strong>
+          <p className="muted" style={{ margin: '4px 0 10px', fontSize: 13 }}>
+            {tr('Confere e escolhe o que queres guardar na ficha. Nada é guardado sem a tua confirmação.')}
+          </p>
+          {reading.data.summary ? (
+            <p className="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>
+              {reading.data.summary}
+            </p>
+          ) : null}
+
+          {([
+            ['a', tr('Alergias'), reading.data.allergies.map((x) => x.label)],
+            [
+              'v',
+              tr('Vacinas'),
+              reading.data.vaccines.map(
+                (x) => `${x.name}${x.date ? ` · ${new Date(x.date).toLocaleDateString(appLocale())}` : ''}`,
+              ),
+            ],
+            [
+              'm',
+              tr('Medicação'),
+              reading.data.medications.map((x) => `${x.name}${x.dose ? ` · ${x.dose}` : ''}`),
+            ],
+          ] as [string, string, string[]][]).map(([key, label, items]) =>
+            items.length ? (
+              <div key={key} style={{ marginTop: 10 }}>
+                <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>{label}</div>
+                {items.map((text, i) => (
+                  <label key={`${key}${i}`} className="row" style={{ gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!picked[`${key}${i}`]}
+                      onChange={(e) =>
+                        setPicked((p) => ({ ...p, [`${key}${i}`]: e.target.checked }))
+                      }
+                      style={{ width: 'auto' }}
+                    />
+                    <span>{text}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null,
+          )}
+
+          <div className="row" style={{ gap: 8, marginTop: 12 }}>
+            <button type="button" className="btn" disabled={busy} onClick={confirmReading}>
+              {busy ? tr('A guardar…') : tr('Guardar o que escolhi')}
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={busy}
+              onClick={() => setReading(null)}
+            >
+              {tr('Descartar')}
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            {tr('A leitura é automática e pode enganar-se — confirma sempre com o documento à frente.')}
+          </p>
+        </div>
+      ) : null}
 
       {canEdit && quota ? (
         (() => {

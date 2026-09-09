@@ -34,8 +34,11 @@ function build(over: Record<string, any> = {}) {
     ...over,
   };
   const events = { emit: jest.fn() } as any;
-  const service = new DocumentsService(prisma, crypto, new ChildAccessService(prisma), events);
-  return { service, prisma, events };
+  // Reading is opt-in and returns proposals; null models the demo mode where
+  // there is no key and nothing was read.
+  const ai = { readDocument: jest.fn().mockResolvedValue(null) } as any;
+  const service = new DocumentsService(prisma, crypto, new ChildAccessService(prisma), events, ai);
+  return { service, prisma, events, ai };
 }
 
 const parent: AuthenticatedUser = { userId: 'u-parent', role: Role.PARENT };

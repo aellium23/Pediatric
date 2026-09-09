@@ -32,6 +32,84 @@ const AI_RATE_LIMIT = { default: { limit: 20, ttl: 60_000 } };
  *     client (lib/assist) and never reach this call.
  * Uses raw HTTPS (global fetch) to avoid a heavy SDK dependency.
  */
+/** Anthropic message content blocks we actually send. */
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | {
+      type: 'image' | 'document';
+      source: { type: 'base64'; media_type: string; data: string };
+    };
+
+/** Structured candidates read off a document. Nothing here is saved until a
+ *  human confirms it — these are proposals, not facts. */
+export interface DocumentReading {
+  allergies: { label: string }[];
+  vaccines: { name: string; date?: string }[];
+  medications: { name: string; dose?: string }[];
+  summary?: string;
+}
+
+const MAX_ITEMS = 12;
+const clean = (v: unknown, max = 140): string | undefined => {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim().slice(0, max);
+  return t || undefined;
+};
+const isIsoDate = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+
+/**
+ * Parse the model's JSON defensively. A model asked for JSON will occasionally
+ * wrap it in prose or a code fence, and will occasionally return a shape that
+ * is nearly right — so every field is checked and clamped rather than trusted.
+ * Anything unparseable becomes an empty reading, never an exception: a failed
+ * extraction should look like "found nothing", not like a broken app.
+ */
+export function parseDocumentReading(raw: string): DocumentReading {
+  const empty: DocumentReading = { allergies: [], vaccines: [], medications: [] };
+  if (!raw) return empty;
+  // Tolerate ```json fences and stray prose around the object.
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) return empty;
+
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return empty;
+  }
+  const list = (v: unknown): Record<string, unknown>[] =>
+    Array.isArray(v) ? (v.filter((x) => x && typeof x === 'object') as Record<string, unknown>[]) : [];
+
+  // flatMap rather than map+filter: an entry without a usable name is dropped
+  // outright, so nothing half-read reaches the parent's review list.
+  return {
+    allergies: list(obj.allergies)
+      .flatMap((a) => {
+        const label = clean(a.label);
+        return label ? [{ label }] : [];
+      })
+      .slice(0, MAX_ITEMS),
+    vaccines: list(obj.vaccines)
+      .flatMap((v) => {
+        const name = clean(v.name);
+        if (!name) return [];
+        return [isIsoDate(v.date) ? { name, date: v.date } : { name }];
+      })
+      .slice(0, MAX_ITEMS),
+    medications: list(obj.medications)
+      .flatMap((m) => {
+        const name = clean(m.name);
+        if (!name) return [];
+        const dose = clean(m.dose, 80);
+        return [dose ? { name, dose } : { name }];
+      })
+      .slice(0, MAX_ITEMS),
+    summary: clean(obj.summary, 300),
+  };
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger('AI');
@@ -89,6 +167,23 @@ export class AiService {
     'enquadramento: motivo do contacto, sintomas, desde quando e o que já foi ' +
     'observado. Sê factual; não diagnostiques nem sugiras tratamento. Devolve ' +
     'APENAS a mensagem, sem preâmbulos.';
+
+  /**
+   * Extraction prompt. Deliberately narrow: transcribe what is written, do not
+   * interpret, do not infer, and leave a field out rather than guess it — a
+   * plausible invention in a child's allergy list is worse than a gap.
+   */
+  private static readonly DOCUMENT_SYSTEM =
+    'Recebes um documento de saúde de uma criança (relatório, análises, receita ' +
+    'ou boletim de vacinas). Extrai APENAS o que está literalmente escrito, em ' +
+    'JSON e nada mais, com esta forma exata: ' +
+    '{"allergies":[{"label":""}],"vaccines":[{"name":"","date":"AAAA-MM-DD"}],' +
+    '"medications":[{"name":"","dose":""}],"summary":""}. ' +
+    'REGRAS ABSOLUTAS: não interpretes, não diagnostiques, não infiras nada que ' +
+    'não esteja escrito; se um campo não estiver no documento, omite-o em vez de ' +
+    'o inventar; se não reconheceres nada, devolve as listas vazias. O "summary" ' +
+    'é uma frase factual sobre o que o documento é, sem opinião clínica. ' +
+    'Devolve só o JSON, sem preâmbulo e sem blocos de código.';
 
   /** Whether a real Anthropic key is configured. */
   get enabled(): boolean {
@@ -174,6 +269,48 @@ export class AiService {
     return this.callMessages(AiService.SUMMARY_SYSTEM, transcript, 300);
   }
 
+  /**
+   * Read a clinical document (PDF or photo) and PROPOSE structured entries.
+   *
+   * This never writes anything: it returns candidates for a human to confirm.
+   * That is a hard rule, not a phase — nothing a model reads off a scan belongs
+   * in a child's clinical record without a person saying yes.
+   *
+   * Returns null in demo mode (no key) so the caller can say "not available"
+   * rather than pretend the document was read and found nothing.
+   */
+  async readDocument(input: {
+    mime: string;
+    base64: string;
+    title?: string;
+  }): Promise<DocumentReading | null> {
+    if (!this.enabled) return null;
+    const block: ContentBlock =
+      input.mime === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: input.mime, data: input.base64 } }
+        : { type: 'image', source: { type: 'base64', media_type: input.mime, data: input.base64 } };
+
+    const raw = await this.callRaw(
+      AiService.DOCUMENT_SYSTEM,
+      [
+        {
+          role: 'user',
+          content: [
+            block,
+            {
+              type: 'text',
+              text: input.title
+                ? `O documento chama-se "${String(input.title).slice(0, 140)}". Extrai o que conseguires.`
+                : 'Extrai o que conseguires.',
+            },
+          ],
+        },
+      ],
+      800,
+    );
+    return parseDocumentReading(raw);
+  }
+
   /** Single-user-turn Messages call. */
   private callMessages(system: string, user: string, maxTokens: number): Promise<string> {
     return this.callRaw(system, [{ role: 'user', content: user }], maxTokens);
@@ -182,7 +319,7 @@ export class AiService {
   /** Anthropic Messages call from a full turn list, with timeout + safe logging. */
   private async callRaw(
     system: string,
-    messages: { role: 'user' | 'assistant'; content: string }[],
+    messages: { role: 'user' | 'assistant'; content: string | ContentBlock[] }[],
     maxTokens: number,
   ): Promise<string> {
     if (!this.enabled) {

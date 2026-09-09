@@ -686,6 +686,9 @@ export const Api = {
       mime: string;
       sizeBytes: number;
     }>,
+  /** Ask the model to read a document. Returns PROPOSALS — writes nothing. */
+  readDocument: (childId: string, id: string) =>
+    request(`/documents/${childId}/${id}/read`, { method: 'POST' }) as Promise<DocumentReadingDto | null>,
   removeDocument: (childId: string, id: string) =>
     request(`/documents/${childId}/${id}/remove`, { method: 'POST' }),
 
@@ -1209,4 +1212,11 @@ export interface AllowanceDto {
   usedMessages: number;
   remainingMessages: number;
   periodStart: string;
+}
+
+export interface DocumentReadingDto {
+  allergies: { label: string }[];
+  vaccines: { name: string; date?: string }[];
+  medications: { name: string; dose?: string }[];
+  summary?: string;
 }
