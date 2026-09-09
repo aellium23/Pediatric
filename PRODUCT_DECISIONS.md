@@ -235,6 +235,47 @@ freeze, anota no backlog e segue.
 
 ---
 
+## 9b. Reembolso público (DiGA / PECAN) — **não agora**, com data para reabrir
+
+**PROPOSTA DE DECISÃO (2026-09-09), por assinar.** A análise completa está em
+`docs/strategy/04-diga-pecan.md`; o que segue é o essencial.
+
+A pergunta não é "queremos ser reembolsados" — é *"queremos tornar-nos
+fabricante de dispositivos médicos, construir um produto terapêutico diferente
+do atual, e entrar na Alemanha ou em França, antes de o piloto português dizer
+se a tese base funciona?"*. São três compromissos, não um.
+
+**A constatação que decide quase tudo:** o HOC não é elegível para DiGA por ser
+**de outra espécie**, não por falhar um requisito. O DiGA reembolsa uma
+intervenção digital com indicação clínica e efeito demonstrado no cuidado. O
+HOC é um registo mais um marketplace — e o registo *guarda e mostra*, que é
+exatamente o argumento em que assenta a decisão nº 4. Seguir esta via não é
+acrescentar um canal ao produto: é construir outro produto.
+
+Acresce que **Portugal não tem via equivalente**. DiGA e PECAN não abrem receita
+no nosso mercado; abrem outro país.
+
+**Recomendação: opção A — não agora, rever a 12 meses.** A tese base ainda não
+foi testada (o piloto não arrancou), o produto atual não é elegível por
+natureza, e a via contradiz de frente uma decisão que foi tomada de propósito
+para evitar 12–24 meses de desvio. O custo de esperar é baixo; o de errar é a
+empresa.
+
+**O que se mantém para a opção continuar viva, a custo zero** — e quase tudo já
+está feito: registo exportável em FHIR, campos codificados (ICD-10, ICPC-2,
+ATC, CVX), o rasto documental do raciocínio regulatório em `docs/compliance/`,
+e a decisão explícita de **não** construir instrumentos de rastreio por
+acidente.
+
+**Quando reabrir:** o piloto confirma o hábito *e* revela uma indicação clínica
+concreta; alguém financia o ensaio; Portugal ou a UE criam uma via; a receita do
+bolso da família estagna; **ou** a decisão sobre um instrumento de rastreio
+(`docs/compliance/03` §3) for afirmativa — essa exige marcação CE de qualquer
+forma, e as duas são a mesma decisão vista de dois lados. Devem ser tomadas na
+mesma reunião.
+
+---
+
 ## 10. Decisões técnicas de produção conscientemente ADIADAS
 
 Documentadas para não serem esquecidas nem confundidas com "está pronto para
@@ -260,3 +301,5 @@ faturar". Nenhuma bloqueia o piloto em modo demo:
 | Data | Decisão | Estado |
 |---|---|---|
 | 2026-07-06 | Criação — âmbito do piloto, perfis→4, freeze de 6 semanas, instrumentação como única exceção | inicial |
+| 2026-09-09 | §6b — carteira de créditos **não**; inclusão mensal no plano **sim** | decidido |
+| 2026-09-09 | §9b — via DiGA/PECAN: recomendação de **não agora**, rever a 12 meses | proposta, por assinar |

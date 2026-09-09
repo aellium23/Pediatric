@@ -34,6 +34,19 @@ Outras leituras do mercado, com consequências diretas:
   Alemanha, PECAN em França), e **não aparece em lado nenhum do roadmap**. É a
   única via que paga sem depender do bolso da família. Exige, porém, marcação CE
   — colide de frente com a decisão nº 4 (ver §3).
+
+  > **Analisado a 2026-09-09** em `strategy/04-diga-pecan.md`, com uma
+  > constatação que muda a forma da pergunta: o HOC **não é elegível para DiGA
+  > por ser de outra espécie**, não por falhar um requisito. O DiGA reembolsa
+  > uma intervenção com indicação clínica; um registo guarda e mostra, e um
+  > marketplace intermedeia. Seguir esta via é construir outro produto, não
+  > acrescentar um canal a este. Acresce que **Portugal não tem via
+  > equivalente** — isto não abre receita no nosso mercado, abre outro país.
+  >
+  > **Recomendação: não agora, rever a 12 meses**, com as condições de
+  > reabertura escritas e a opção mantida viva a custo zero (registo exportável,
+  > campos codificados, rasto documental). Falta a assinatura dos fundadores:
+  > § 9 daquele documento tem três opções e é para marcar uma.
 - **Saúde mental pediátrica** é apontada como a área de maior crescimento em
   telessaúde infantil. O produto não tinha nada nesse eixo.
 
@@ -367,7 +380,7 @@ registo, ler um artigo).
 | 6 | ~~**Export do registo em formato aberto/FHIR-compatível**~~ · **feito** | Preparação EHDS enquanto ainda não há dados reais | Feito (Bundle FHIR R4; limites em `compliance/02`) |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
 | 8 | ~~**Módulo de desenvolvimento**~~ · **feito** · *instrumentos de saúde mental deliberadamente não* | Maior crescimento do segmento; densidade de subscrição | Feito (marcos + encaminhamento); rastreio com pontuação exige decisão MDR |
-| 9 | **Decidir conscientemente sobre a via DiGA/PECAN** | Receita que não depende do bolso da família — mas exige CE | Decisão A2/A3 |
+| 9 | ~~**Decidir conscientemente sobre a via DiGA/PECAN**~~ · **analisado, por assinar** | Receita que não depende do bolso da família — mas exige CE | Recomendação: *não agora*, rever a 12 meses (`strategy/04-diga-pecan.md`) |
 | 10 | **Não investir mais em escriba de IA** | É commodity; a vantagem está no registo | — (poupança) |
 
 As propostas 1 a 4 cabem antes do piloto e não competem com o recrutamento de

@@ -12,6 +12,7 @@ diferentes. Quando se contradizem, vale a de cima.
 | [`01-simulacoes-financeiras.md`](strategy/01-simulacoes-financeiras.md) | Cenários financeiros |
 | [`02-resumo-projeto-contexto.md`](strategy/02-resumo-projeto-contexto.md) | Contexto do projeto |
 | [`03-revisao-mercado-roadmap.md`](strategy/03-revisao-mercado-roadmap.md) | Revisão de mercado (set. 2026) vs. roadmap vs. código, e as melhorias propostas |
+| [`04-diga-pecan.md`](strategy/04-diga-pecan.md) | **Proposta de decisão, por assinar**: seguir ou não a via de reembolso público (DiGA/PECAN), o que custaria, e as condições escritas para reabrir |
 
 ## 2. Blueprint do MVP — `docs/01` a `docs/26`
 

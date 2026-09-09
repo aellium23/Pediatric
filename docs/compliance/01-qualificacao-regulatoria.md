@@ -284,7 +284,9 @@ implementado:
   está a decisão de **não** o fazer e o que a inverteria.
 - Seguir a via de **reembolso público** (DiGA na Alemanha, PECAN em França) —
   que exige marcação CE, e portanto é uma decisão de entrar no MDR de propósito,
-  não por acidente (ver `docs/strategy/03-revisao-mercado-roadmap.md` §1).
+  não por acidente. **Analisada e recomendada como "não agora"** em
+  `docs/strategy/04-diga-pecan.md`, com as condições escritas para reabrir; a
+  assinatura dos fundadores está por fazer.
 
 ---
 
@@ -298,6 +300,11 @@ implementado:
   e `docs/13-riscos-legais.md`.
 - **RGPD** — os dados tratados aqui são de categoria especial; ver
   `docs/14-seguranca-privacidade.md`.
+- **DiGA / PECAN** — as vias de reembolso público alemã e francesa exigem
+  marcação CE e, portanto, inverter a decisão nº 4. A análise e a recomendação
+  estão em `docs/strategy/04-diga-pecan.md`. Nota que decide a forma da
+  pergunta: o produto atual **não é elegível por ser de outra espécie** — o
+  DiGA reembolsa uma intervenção com indicação clínica, não um registo.
 
 ---
 
