@@ -62,6 +62,25 @@ de precedência ("substituído pelo relatório do conselho para efeitos de
 estratégia; mantido como referência do plano de execução do MVP"), ou
 reescrevê-los. É meia hora de trabalho e evita uma decisão errada.
 
+> **Resolvido em 2026-09-09** — e a contradição era mais larga do que estes
+> dois documentos. O `17-kpis.md` fixava como Métrica Norte "consultas pagas
+> concluídas por mês", que é exatamente o que o relatório do conselho rejeita,
+> e o `01-resumo-executivo.md` é a porta de entrada com o posicionamento
+> antigo. Pior: a pasta `docs/strategy/` não estava indexada em lado nenhum,
+> pelo que a camada decisiva era invisível a quem chegasse ao repositório.
+>
+> O que foi feito, sem reescrever nenhum documento — reescrever o modelo de
+> negócio é decisão dos fundadores, não arrumação:
+> - **`docs/README.md`** novo: índice de precedência que nomeia as duas camadas
+>   e a tabela dos **quatro pontos** substituídos (posicionamento, âncora de
+>   receita, métrica norte, horizonte), deixando claro que tudo o resto de
+>   01–26 se mantém.
+> - **Aviso no topo** de 01, 05, 15 e 17, cada um a dizer o que naquele
+>   documento ficou substituído e o que continua válido.
+> - **README da raiz**: passa a abrir com a tese em vigor, tem uma tabela "por
+>   onde começar" por tipo de leitor, e indexa `docs/strategy/`. O índice do
+>   blueprint fica marcado como tal.
+
 ---
 
 ## 3. Três coisas que mudaram por baixo do plano
@@ -229,7 +248,7 @@ registo, ler um artigo).
 | 1 | ~~**Divulgar que o assistente é IA** (AI Act art. 50.º)~~ · **feito** | Obrigação já em vigor desde 2 ago 2026 | Horas |
 | 2 | ~~**Instrumentação de hábito** (bloco C, elevado a bloqueante)~~ · **feito** | Sem isto o piloto não testa a tese | Dias |
 | 3 | **Ficheiro de qualificação regulatória** (finalidade prevista, MDR) | Barato agora, arqueologia depois | 1 dia + jurista |
-| 4 | **Resolver a contradição entre os dois roadmaps** | Evita que alguém construa o produto errado | Meia hora |
+| 4 | ~~**Resolver a contradição entre os dois roadmaps**~~ · **feito** | Evita que alguém construa o produto errado | Meia hora |
 | 5 | **Cofre de documentos** ✓ · *extração por IA ainda não* | É o que cria o hábito semanal e sustenta o Premium | Cofre feito; extração por construir |
 | 6 | **Export do registo em formato aberto/FHIR-compatível** | Preparação EHDS enquanto ainda não há dados reais | Dias |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |

@@ -1,5 +1,14 @@
 # 01 · Resumo Executivo
 
+> **Precedência — posicionamento substituído.** Este resumo descreve o
+> blueprint do MVP como *marketplace de telepediatria*. O posicionamento em
+> vigor é o **Child Health OS** — o registo de saúde da criança, com a
+> telepediatria como *um serviço* dentro dele — e a receita é ancorada na
+> subscrição Family Premium, não na comissão. Ver
+> [`strategy/00-child-health-os-relatorio-conselho.md`](strategy/00-child-health-os-relatorio-conselho.md)
+> e o [índice de precedência](README.md). O resto deste documento (produto,
+> tipos de consulta, perfis) mantém-se válido.
+
 ## A tese em três frases
 
 Os pais já consultam pediatras informalmente por mensagem — milhares de vezes por dia, em Portugal — mas esse trabalho é invisível, desorganizado, não remunerado e juridicamente exposto. **Pédia** estrutura essa relação num produto digital seguro e compliant, em que cada interação clínica tem âmbito definido, preço, SLA, registo e fatura. A plataforma cobra uma comissão de marketplace sobre consultas pagas e constrói receita recorrente via subscrições familiares e planos para pediatras e clínicas.

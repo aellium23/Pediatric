@@ -19,7 +19,38 @@ A proposta assenta em quatro pilares:
 
 ---
 
-## Índice de entregáveis
+## Por onde começar
+
+> **A tese em vigor é o [Child Health OS](docs/strategy/00-child-health-os-relatorio-conselho.md)**
+> — o registo de saúde da criança, com a telepediatria como *um serviço* dentro
+> dele. O blueprint indexado abaixo foi escrito antes dessa decisão e mantém-se
+> como referência de execução, mas está substituído em quatro pontos
+> (posicionamento, âncora de receita, métrica norte e horizonte do roadmap).
+> O [`docs/README.md`](docs/README.md) diz exatamente quais e onde.
+
+| Se és… | Lê primeiro |
+|---|---|
+| Investidor / conselho | [Relatório do conselho](docs/strategy/00-child-health-os-relatorio-conselho.md) · [Revisão de mercado e roadmap](docs/strategy/03-revisao-mercado-roadmap.md) |
+| Programador a entrar | [Estado factual do produto](CURRENT_PRODUCT_STATUS.md) · [Arquitetura](docs/09-arquitetura-tecnica.md) · [Testes](TESTING.md) |
+| A preparar o piloto | [Checklist de lançamento](LAUNCH_READY.md) · [Decisões de âmbito](PRODUCT_DECISIONS.md) |
+| Segurança | [SECURITY.md](SECURITY.md) · [camada enterprise](enterprise/02-security-architecture.md) |
+
+---
+
+## Estratégia (camada atual)
+
+| Doc | Tema |
+|-----|------|
+| [S00](docs/strategy/00-child-health-os-relatorio-conselho.md) | Relatório do conselho — tese, modelo de negócio, roadmap 24 meses / 5 anos |
+| [S01](docs/strategy/01-simulacoes-financeiras.md) | Simulações financeiras |
+| [S02](docs/strategy/02-resumo-projeto-contexto.md) | Resumo do projeto e contexto |
+| [S03](docs/strategy/03-revisao-mercado-roadmap.md) | Revisão de mercado (set. 2026) vs. roadmap vs. código |
+
+---
+
+## Índice de entregáveis (blueprint do MVP)
+
+> Escrito antes do reposicionamento. Ver [precedência](docs/README.md).
 
 | # | Documento | Conteúdo |
 |---|-----------|----------|
