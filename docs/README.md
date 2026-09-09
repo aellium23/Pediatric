@@ -34,7 +34,11 @@ Quatro pontos, e só estes. Cada documento afetado tem um aviso no topo.
 | **Métrica Norte** | Consultas pagas concluídas por mês | **Engagement semanal** — o pai voltar quando ninguém está doente |
 | **Horizonte do roadmap** | 12 meses (M0–M12), fases 0–3 | 24 meses + 5 anos |
 
-Tudo o resto nos documentos 01–26 mantém-se.
+Tudo o resto nos documentos 01–26 mantém-se, **com uma exceção posterior**: a
+"Via B" do [`26-ai-scribe.md`](26-ai-scribe.md) — transcrição ambiente da
+consulta — foi decidida contra a 2026-09-09 e deixou de ser trabalho por fazer
+(`../PRODUCT_DECISIONS.md` §9c). O ditado e a estruturação SOAP, que estão
+implementados, mantêm-se.
 
 ## 3. Conformidade — `docs/compliance/`
 

@@ -10,7 +10,7 @@ enterprise. Legenda: ✅ feito · ◑ parcial / a degradar até config · ⏳ po
 | **0 · Discovery** | ◑ | Tech (ADRs, CI/CD, auth, ambientes) ✅. Legal/fiscal/regulatório (DPIA, DPO, parecer ERS/Ordem, fiscalista) ⚖️ por fechar. |
 | **1 · MVP Portugal** | ✅ | Auth, perfis, consentimentos, arquivo da criança, uploads, marketplace + verificação, consulta por mensagem + SLA + triagem, pagamentos (hold/capture/split), faturação por eventos, reembolsos, dashboard financeiro, notificações. Falta **pentest/hardening final** e **beta fechado** (processo). |
 | **2 · Vídeo + Agenda** | ◑ | Agenda ✅, vídeo **media real** ✅ (sala LiveKit no web + token HS256 no backend; ativa com `LIVEKIT_*`), reembolsos/cancelamentos ✅, episódios ✅, notas/resumo pós-consulta ✅. Falta **lembretes push** 🔑, **Apple/Google Pay** 🔑(Stripe). |
-| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n (PT-only por decisão de produto; EN/ES prontos a reativar) ✅, **partilha médico-médico** ✅, **AI administrativa** ◑ (ditado + estruturação SOAP ✅; scribe ambiente planeado — doc 26), **percentis WHO** ✅ (motor LMS + gráfico). Falta **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
+| **3 · Escala** | ◑ | Subscrições ✅, conteúdos ✅, 2ª opinião/seguimento ✅, **clínicas B2B** ✅, i18n (PT-only por decisão de produto; EN/ES prontos a reativar) ✅, **partilha médico-médico** ✅, **AI administrativa** ✅ (ditado + estruturação SOAP ✅; scribe ambiente **decidido não construir** — `PRODUCT_DECISIONS` §9c), **percentis WHO** ✅ (motor LMS + gráfico). Falta **prep Espanha** ⚖️, **ISO 27001/SOC 2** ⚖️. |
 
 ## 2. Produto / funcional (backend = 21 módulos, 35 modelos)
 Tudo o que não precisa de serviços externos está **implementado e em produção**:
@@ -60,7 +60,9 @@ classificação por medição no `overview` e **curvas P3–P97** no gráfico da
 **AI administrativa** ◑ — **estruturação SOAP por LLM** (Claude) implementada
 (endpoint `POST /consultations/:id/summary/structure` + botão "Estruturar com IA";
 ativa com `ANTHROPIC_API_KEY`, degrada com 503 sem ela) · **AI scribe** de vídeo
-(transcrição ambiente — planeado, ver **doc 26**; 🔑 STT + ⚖️ consentimento/DPA/DPIA).
+(transcrição ambiente) — **decidido não construir** a 2026-09-09: é *commodity*
+e a vantagem está no registo (`PRODUCT_DECISIONS.md` §9c). O ditado e a
+estruturação SOAP ficam; o **doc 26** passa a referência de como se faria.
 
 ## 3. Integrações reais 🔑 (código pronto, falta credenciais — ver doc 21)
 - **Pagamentos**: Stripe live + **MB WAY** + Apple/Google Pay + Connect payouts.

@@ -30,6 +30,21 @@ Outras leituras do mercado, com consequências diretas:
   em instituições de topo já os usam; há mais de 50 fornecedores, e Epic,
   Oracle Health, athenahealth e Meditech integraram-nos no core. O HOC já tem
   ditado + estruturação SOAP — **isso é suficiente; não investir mais aqui.**
+
+  > **Decidido a 2026-09-09** (`PRODUCT_DECISIONS` §9c). E havia aqui uma
+  > contradição por resolver, do mesmo tipo da §2: o `docs/26-ai-scribe.md`
+  > continha um **plano de implementação completo** da transcrição ambiente —
+  > arquitetura, bloqueadores de conformidade, sete passos de implementação.
+  > Quem o lesse amanhã construiria exatamente o que esta linha diz para não
+  > construir. Passou a ter aviso de precedência: as secções 0 e 0b descrevem
+  > código em produção e ficam; as secções 1–7 deixam de ser trabalho por fazer
+  > e passam a referência de *como se faria*.
+  >
+  > A decisão traz a linha desenhada, para ser instrução e não intenção:
+  > corrigir erros, melhorar o prompt SOAP e trocar o STT do ditado por um
+  > europeu com DPA continuam permitidos; captar áudio da consulta, gerar
+  > rascunho sem o pediatra ter escrito primeiro, ou integrar um fornecedor de
+  > escriba, não.
 - **Reembolso público de software de saúde é um canal real na UE** (DiGA na
   Alemanha, PECAN em França), e **não aparece em lado nenhum do roadmap**. É a
   única via que paga sem depender do bolso da família. Exige, porém, marcação CE
@@ -381,11 +396,32 @@ registo, ler um artigo).
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
 | 8 | ~~**Módulo de desenvolvimento**~~ · **feito** · *instrumentos de saúde mental deliberadamente não* | Maior crescimento do segmento; densidade de subscrição | Feito (marcos + encaminhamento); rastreio com pontuação exige decisão MDR |
 | 9 | ~~**Decidir conscientemente sobre a via DiGA/PECAN**~~ · **analisado, por assinar** | Receita que não depende do bolso da família — mas exige CE | Recomendação: *não agora*, rever a 12 meses (`strategy/04-diga-pecan.md`) |
-| 10 | **Não investir mais em escriba de IA** | É commodity; a vantagem está no registo | — (poupança) |
+| 10 | ~~**Não investir mais em escriba de IA**~~ · **decidido** | É commodity; a vantagem está no registo | Feito (`PRODUCT_DECISIONS` §9c; aviso de precedência no `docs/26`) |
 
 As propostas 1 a 4 cabem antes do piloto e não competem com o recrutamento de
 pediatras, que continua a ser o verdadeiro gargalo. A proposta 5 é a que muda o
 negócio.
+
+### Estado a 2026-09-09 — a lista está trabalhada
+
+As dez propostas foram percorridas no mesmo dia. **Sete eram construção e estão
+construídas**; **duas eram decisões e estão escritas**; **uma é externa**.
+
+| | |
+|---|---|
+| Construído | 1 (aviso de IA), 2 (instrumentação), 5 (cofre + leitura por IA), 6 (exportação FHIR), 8 (marcos de desenvolvimento) — e 3 e 4 como documentação |
+| Decidido | 9 (DiGA/PECAN: *não agora*, **por assinar**), 10 (escriba: parar onde está) |
+| Externo | 7 (parecer EHDS) — e 3 continua a precisar da assinatura de um jurista |
+
+**O que resta não é engenharia.** É a assinatura de quatro coisas — a
+qualificação regulatória (3), o parecer EHDS (7), a opção DiGA/PECAN (9) e a
+revisão clínica do catálogo de marcos — mais os portões operacionais do
+`LAUNCH_READY.md`: desligar o `dev-login` e configurar os backups da base de
+dados.
+
+E o gargalo que este documento identificou no início não mudou com nada disto:
+**o recrutamento de pediatras**. Nenhuma das dez propostas o resolve, e é ele
+que decide se há piloto.
 
 ---
 

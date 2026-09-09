@@ -1,8 +1,28 @@
-# 26 · AI Scribe — resumo automático da consulta de vídeo (funcionalidade planeada)
+# 26 · AI Scribe — resumo automático da consulta de vídeo
 
-> **Estado:** Via A (ditado de voz da nota) **implementada** ✅. Via B
-> (transcrição ambiente da consulta) **planeada** — depende de credenciais
-> (LLM/STT) e de processo legal (consentimento, DPA, DPIA). Ver legenda em `docs/24`.
+> ## ⚠️ Precedência — a Via B foi **decidida contra** a 2026-09-09
+>
+> **Via A (ditado) e a estruturação SOAP por LLM estão feitas e ficam.** Secções
+> 0 e 0b descrevem código em produção.
+>
+> **Via B — transcrição ambiente de toda a consulta — não vai ser construída.**
+> As secções 1 a 7 abaixo são um plano de implementação que **já não está em
+> vigor**; ficam como referência técnica de *como se faria*, e como a lista de
+> bloqueadores que teriam de ser levantados. Não são trabalho por fazer.
+>
+> **Porquê:** escribas de IA ambientais tornaram-se *commodity* — até 90% dos
+> médicos em instituições de topo já os usam, há mais de 50 fornecedores, e a
+> Epic, a Oracle Health, a athenahealth e a Meditech integraram-nos no core. Não
+> há vantagem competitiva a construir aqui, e o que a Via B custaria (agente
+> LiveKit, STT europeu com DPA, ecrã de consentimento próprio, DPIA, política de
+> retenção, avaliação de fidelidade clínica) é grande e é todo em regulação e
+> integração, não em produto.
+>
+> A vantagem do HOC está no **registo**, não na nota da consulta. Decisão
+> registada em [`../PRODUCT_DECISIONS.md`](../PRODUCT_DECISIONS.md) §9c, com as
+> condições escritas para reabrir; origem em
+> [`strategy/03-revisao-mercado-roadmap.md`](strategy/03-revisao-mercado-roadmap.md)
+> §1 e §6 (proposta nº 10).
 
 ## 0. Via A — ditado de voz da nota (implementado)
 No editor de resumo da consulta, o pediatra carrega em **"🎙️ Ditar nota"** e

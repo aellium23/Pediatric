@@ -276,6 +276,50 @@ mesma reunião.
 
 ---
 
+## 9c. Escriba de IA — **parar onde está**
+
+**DECIDIDO (2026-09-09).** O que existe fica; a transcrição ambiente da consulta
+(a "Via B" de `docs/26-ai-scribe.md`) **não vai ser construída**.
+
+**O que existe e fica** — ambos em produção, ambos completos:
+
+| | |
+|---|---|
+| **Ditado da nota** | Web Speech API no browser; o pediatra dita, revê e guarda no campo cifrado. Sem chave de API, sem custo por utilização. |
+| **Estruturação SOAP** | `POST /consultations/:id/summary/structure` — o modelo limpa os erros de transcrição e organiza em SOAP, sem inventar factos; o pediatra revê antes de guardar. Sem `ANTHROPIC_API_KEY` responde 503 e o ditado continua a funcionar. |
+
+**O que não se constrói:** agente na sala de vídeo, captação de áudio da
+consulta, STT em streaming, rascunho gerado sem o pediatra ter escrito nada.
+
+**Razão.** Escribas ambientais são *commodity*: até 90% dos médicos em
+instituições de topo já os usam, há mais de 50 fornecedores, e a Epic, a Oracle
+Health, a athenahealth e a Meditech integraram-nos no core do produto. Não há
+vantagem a construir onde quatro fornecedores de EHR já entregam de série. E o
+custo da Via B é quase todo fora do produto — agente LiveKit, STT europeu com
+DPA assinado, ecrã de consentimento próprio para gravação, DPIA, política de
+retenção da transcrição, avaliação da fidelidade clínica do resumo. Meses de
+regulação e integração para igualar o que já é uma caixa de série.
+
+A vantagem do HOC está no **registo**, que é o que ninguém tem. Cada semana
+gasta no escriba é uma semana não gasta aí.
+
+**Onde passa a linha** — para "não investir mais" ser uma instrução e não uma
+vaga intenção:
+
+- ✅ **Permitido:** corrigir erros, melhorar o prompt SOAP, trocar o fornecedor
+  de STT do ditado por um europeu com DPA (que é um requisito de privacidade
+  pendente, não uma funcionalidade nova), traduzir a interface.
+- ❌ **É investimento novo, e está fora:** qualquer coisa que capte áudio da
+  consulta, qualquer coisa que produza um rascunho sem o pediatra ter falado ou
+  escrito primeiro, e qualquer integração de fornecedor de escriba.
+
+**Quando reabrir:** se os pediatras do piloto disserem, sem lhes perguntarmos
+por isso, que a documentação é o que os impede de atender mais famílias — e
+mesmo então, a primeira resposta é **integrar** um escriba existente, não
+construir um.
+
+---
+
 ## 10. Decisões técnicas de produção conscientemente ADIADAS
 
 Documentadas para não serem esquecidas nem confundidas com "está pronto para
@@ -303,3 +347,4 @@ faturar". Nenhuma bloqueia o piloto em modo demo:
 | 2026-07-06 | Criação — âmbito do piloto, perfis→4, freeze de 6 semanas, instrumentação como única exceção | inicial |
 | 2026-09-09 | §6b — carteira de créditos **não**; inclusão mensal no plano **sim** | decidido |
 | 2026-09-09 | §9b — via DiGA/PECAN: recomendação de **não agora**, rever a 12 meses | proposta, por assinar |
+| 2026-09-09 | §9c — escriba de IA: parar onde está; Via B (transcrição ambiente) não se constrói | decidido |
