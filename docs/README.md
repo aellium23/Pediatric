@@ -15,6 +15,7 @@ diferentes. Quando se contradizem, vale a de cima.
 | [`04-diga-pecan.md`](strategy/04-diga-pecan.md) | **Proposta de decisão, por assinar**: seguir ou não a via de reembolso público (DiGA/PECAN), o que custaria, e as condições escritas para reabrir |
 | [`05-pitch-3-minutos.md`](strategy/05-pitch-3-minutos.md) | Guião falado de 3 minutos para pediatra + parceiro, preparação de perguntas, e as seis coisas a fechar numa sociedade 50/50 |
 | [`06-pitch-vendas.md`](strategy/06-pitch-vendas.md) | Materiais de angariação — pediatras e famílias — com objeções, o que **não** prometer, e o aviso de que o plano Família perde dinheiro por subscritor ativo |
+| [`07-prompt-storyboard-video.md`](strategy/07-prompt-storyboard-video.md) | Prompt para gerar o storyboard dos dois vídeos (pediatras e famílias), com os factos do produto e as restrições de Runway/ElevenLabs/DaVinci embutidos |
 
 ## 2. Blueprint do MVP — `docs/01` a `docs/26`
 
