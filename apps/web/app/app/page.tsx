@@ -3776,6 +3776,33 @@ function ChildHealth({
     }
   }
 
+  /**
+   * Downloads the record as a FHIR R4 Bundle. Not a backup of our screens — a
+   * file another health system can read without knowing anything about us,
+   * which is what GDPR art. 20 asks for and what the EHDS will expect.
+   */
+  async function exportFhir() {
+    setBusy(true);
+    try {
+      const bundle = await Api.childFhir(child.id);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/fhir+json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // The child's name would put clinical data in a filename that lands in a
+      // downloads folder, a backup and a cloud sync. The date is enough.
+      a.download = `ficha-${new Date().toISOString().slice(0, 10)}.fhir.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      track('record_export');
+      onMsg(tr('Ficha exportada ✓ (ficheiro descarregado).'));
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (view === 'timeline') {
     return <ChildTimelineView child={child} onBack={() => setView('main')} onMsg={onMsg} />;
   }
@@ -4444,6 +4471,23 @@ function ChildHealth({
               {tr('Criar episódio')}
             </button>
           </Reg>
+          </section>
+
+          {/* The record is the family's, and it has to be able to leave. */}
+          <section className="hsec">
+            <div className="hsec-head">
+              <span className="hsec-ico" aria-hidden>📤</span>
+              <h3>{tr('Levar a ficha')}</h3>
+            </div>
+            <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+              {tr('Descarrega a ficha num formato aberto (FHIR R4) — o mesmo que os sistemas de saúde europeus usam. Serve para mudar de médico, de país ou de app.')}
+            </p>
+            <button type="button" className="btn small secondary" disabled={busy} onClick={exportFhir}>
+              {busy ? tr('A preparar…') : tr('Descarregar a ficha')}
+            </button>
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              {tr('O ficheiro leva o crescimento, sinais vitais, alergias, vacinas, medicação e problemas de saúde. Os documentos do cofre vão referenciados, não incluídos.')}
+            </p>
           </section>
         </>
       )}
@@ -8653,7 +8697,7 @@ function PrivacySection({ onMsg, onLeave }: { onMsg: (m: string) => void; onLeav
       <div className="card section">
         <strong>{tr('Os teus dados')}</strong>
         <p className="muted" style={{ fontSize: 13 }}>
-          {tr('Direito de acesso e portabilidade — descarrega uma cópia em JSON.')}
+          {tr('Direito de acesso e portabilidade — descarrega uma cópia em JSON, com a ficha de cada criança em formato aberto FHIR.')}
         </p>
         <button className="btn small" onClick={exportData} disabled={busy}>
           {tr('Exportar os meus dados')}

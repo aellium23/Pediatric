@@ -67,6 +67,11 @@ em produção, e estão documentadas em `LAUNCH_READY.md`:
   dos bytes e não pelo rótulo enviado pelo cliente — um payload disfarçado de
   PDF é recusado. Quota por família para o cofre não poder esgotar a base de
   dados.
+- **Exportação da ficha (FHIR)**: só o pai/mãe, com a mesma regra de acesso do
+  resto da ficha e 10 pedidos/minuto. Um pediatra lê a ficha dentro da consulta
+  em que participa e não tem descarga completa. Os ficheiros do cofre vão
+  referenciados, não embutidos, e o nome do ficheiro descarregado não contém o
+  nome da criança (ver `docs/compliance/02-exportacao-fhir.md`).
 
 ## Limitação conhecida — sem análise de malware
 

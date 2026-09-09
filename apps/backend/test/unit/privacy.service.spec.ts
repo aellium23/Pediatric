@@ -27,7 +27,8 @@ function build() {
     pediatrician: { findUnique: jest.fn().mockResolvedValue({ id: 'ped1' }) },
     $transaction: jest.fn().mockResolvedValue([]),
   };
-  return { service: new PrivacyService(prisma), prisma };
+  const fhir: any = { bundlesForUser: jest.fn().mockResolvedValue([]) };
+  return { service: new PrivacyService(prisma, fhir), prisma, fhir };
 }
 
 const parent: AuthenticatedUser = { userId: 'u1', role: Role.PARENT };

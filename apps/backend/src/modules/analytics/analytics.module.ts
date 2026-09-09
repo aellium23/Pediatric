@@ -46,14 +46,27 @@ export const HABIT_EVENTS = [
   'document_add',
 ] as const;
 
+/**
+ * Worth counting, deliberately NOT a habit event. Exporting the record says
+ * whether portability matters to families — which is what decides how much to
+ * invest in EHDS interoperability — but it happens once or twice a year at
+ * most. Counting it as habit would dilute the one metric the pilot exists to
+ * read.
+ */
+export const OTHER_EVENTS = ['record_export'] as const;
+
 /** Events a client may report. Server-owned outcomes are not in this list. */
 export const CLIENT_EVENTS = [
   'search',
   'open_profile',
   ...HABIT_EVENTS,
+  ...OTHER_EVENTS,
 ] as const;
 
-export type EventName = (typeof FUNNEL_EVENTS)[number] | (typeof HABIT_EVENTS)[number];
+export type EventName =
+  | (typeof FUNNEL_EVENTS)[number]
+  | (typeof HABIT_EVENTS)[number]
+  | (typeof OTHER_EVENTS)[number];
 
 class TrackEventDto {
   @ApiProperty({ enum: CLIENT_EVENTS })

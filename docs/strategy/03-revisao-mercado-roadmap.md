@@ -180,6 +180,30 @@ em interoperabilidade. E, entretanto, uma medida barata: **exportar o registo da
 criança em formato aberto e estruturado** já — hoje custa dias, depois de haver
 dados reais custa um projeto.
 
+> **Exportação construída a 2026-09-09.** `GET /interop/fhir/:childId` devolve a
+> ficha como Bundle FHIR R4: crescimento e sinais vitais como `Observation` com
+> códigos LOINC e unidades UCUM, alergias, vacinas, medicação e problemas como
+> `AllergyIntolerance` / `Immunization` / `MedicationStatement` / `Condition`,
+> documentos do cofre como `DocumentReference` **sem os bytes**. Só o pai
+> exporta; os campos clínicos saem decifrados e há um teste que confirma que a
+> base continua a guardá-los cifrados.
+>
+> A regra que governa o mapeamento inteiro: **um código só é emitido quando o
+> temos mesmo**. Texto livre sai como `text`, sem `coding` — nada de adivinhar
+> SNOMED a partir de português escrito por um pai, porque quem recebe confia na
+> `coding` e ignora o `text`.
+>
+> Pelo caminho fechou-se uma lacuna do RGPD que ninguém tinha visto: a
+> exportação do artigo 20.º levava conta, consultas e consentimentos e **nenhuma
+> linha do registo clínico**. Passa a levar um Bundle por criança.
+>
+> O que fica por fazer está listado, não escondido, em
+> `compliance/02-exportacao-fhir.md` § 4: sem conformidade declarada com
+> qualquer perfil (IPS, EEHRxF), sem validação pelo validador oficial da HL7, e
+> com dois sistemas de nomes locais — número de utente e catálogo de alergénios
+> — que têm de ser substituídos pelos oficiais antes de qualquer troca
+> transfronteiriça.
+
 ---
 
 ## 4. A maior lacuna não é regulatória — é de produto
@@ -318,7 +342,7 @@ registo, ler um artigo).
 | 3 | ~~**Ficheiro de qualificação regulatória**~~ · **rascunho feito**, falta assinar | Barato agora, arqueologia depois | 1 dia + jurista |
 | 4 | ~~**Resolver a contradição entre os dois roadmaps**~~ · **feito** | Evita que alguém construa o produto errado | Meia hora |
 | 5 | ~~**Cofre de documentos + extração por IA**~~ · **feito** | É o que cria o hábito semanal e sustenta o Premium | Feito (cofre + leitura com confirmação humana) |
-| 6 | **Export do registo em formato aberto/FHIR-compatível** | Preparação EHDS enquanto ainda não há dados reais | Dias |
+| 6 | ~~**Export do registo em formato aberto/FHIR-compatível**~~ · **feito** | Preparação EHDS enquanto ainda não há dados reais | Feito (Bundle FHIR R4; limites em `compliance/02`) |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
 | 8 | **Módulo de desenvolvimento/saúde mental** | Maior crescimento do segmento; densidade de subscrição | A2 |
 | 9 | **Decidir conscientemente sobre a via DiGA/PECAN** | Receita que não depende do bolso da família — mas exige CE | Decisão A2/A3 |

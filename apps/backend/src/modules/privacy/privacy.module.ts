@@ -4,11 +4,15 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { FhirExportService, InteropModule } from '../interop/interop.module';
 
 /** GDPR data-subject rights: consents, access/portability export, erasure, invoices. */
 @Injectable()
 export class PrivacyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fhir: FhirExportService,
+  ) {}
 
   consents(userId: string) {
     return this.prisma.consent.findMany({
@@ -62,6 +66,14 @@ export class PrivacyService {
         this.prisma.favorite.findMany({ where: { userId: user.userId }, take: 1000 }),
         this.prisma.notification.findMany({ where: { userId: user.userId }, orderBy: { createdAt: 'desc' }, take: 1000 }),
       ]);
+    // The clinical record itself — growth, vitals, allergies, vaccines,
+    // medication, problems, document metadata — as FHIR R4 Bundles, one per
+    // child. Art. 20 asks for a "structured, commonly used and machine-readable
+    // format"; the rows above are structured and machine-readable but only
+    // commonly used by us. Until this was added the export carried the
+    // administrative half of the account and none of the record the family
+    // actually came for.
+    const records = await this.fhir.bundlesForUser(user);
     return {
       exportedAt: new Date().toISOString(),
       account,
@@ -71,6 +83,7 @@ export class PrivacyService {
       subscriptions,
       favorites,
       notifications,
+      records,
     };
   }
 
@@ -182,6 +195,7 @@ class PrivacyController {
 }
 
 @Module({
+  imports: [InteropModule],
   controllers: [PrivacyController],
   providers: [PrivacyService],
   exports: [PrivacyService],

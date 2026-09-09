@@ -691,6 +691,12 @@ export const Api = {
     request(`/documents/${childId}/${id}/read`, { method: 'POST' }) as Promise<DocumentReadingDto | null>,
   removeDocument: (childId: string, id: string) =>
     request(`/documents/${childId}/${id}/remove`, { method: 'POST' }),
+  /**
+   * The child's record as a FHIR R4 Bundle — the format another health system
+   * can read without knowing anything about us (GDPR art. 20, EHDS).
+   */
+  childFhir: (childId: string) =>
+    request(`/interop/fhir/${childId}`) as Promise<Record<string, unknown>>,
 
   addGrowth: (
     childId: string,
@@ -1124,7 +1130,10 @@ export type ClientEventName =
   | 'record_view'
   | 'growth_add'
   | 'article_read'
-  | 'document_add';
+  | 'document_add'
+  // Counted, but not a habit event: it says whether portability matters to
+  // families without diluting the metric the pilot exists to read.
+  | 'record_export';
 
 export interface ClientEvent {
   name: ClientEventName;
