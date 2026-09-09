@@ -91,13 +91,67 @@
 > marcos de desenvolvimento, que **ainda não foi validada por ninguém com
 > formação clínica**. Não a ponho à frente de uma família sem isso.
 >
-> **[Parceiro]:** *(escolher uma)*
-> - *Capital:* preciso de X para chegar ao fim do piloto com dez pediatras e
->   cinquenta famílias, e a decisão está a Y semanas.
-> - *Distribuição:* preciso de acesso às primeiras famílias — através de
->   [creches / seguradora / empregador].
-> - *Sócio operacional:* preciso de alguém que assuma o recrutamento de
->   pediatras, porque é o gargalo e não é onde eu sou melhor.
+> **[Parceiro]:** quero-te a construir isto comigo, não a olhar de fora. Marca
+> comigo duas horas esta semana e falamos a sério — do que cada um traz, de
+> quem decide o quê, e dos números.
+>
+> ⚠️ **Fica por aqui na reunião conjunta.** A conversa de sociedade é a dois —
+> ver a secção seguinte, e o porquê.
+
+---
+
+## A conversa a dois — sociedade 50/50
+
+> Isto **não** se faz à frente da pediatra. Ela vem para um piloto clínico; se
+> assistir a uma negociação de capital, passa a ler tudo o que ouviu antes como
+> argumento de venda, e fica a saber sobre a estrutura da empresa o que não
+> precisa de saber. Na reunião conjunta, o fecho é o convite. O resto é depois.
+>
+> As notas abaixo são para preparar a conversa, não são aconselhamento
+> jurídico. Cada ponto marcado 📎 tem de passar por advogado antes de assinar
+> seja o que for.
+
+### A pergunta que ele vai fazer primeiro
+
+Não é "quanto vale". É **"porquê eu?"**. Tem a resposta pronta e específica:
+
+> O gargalo deste negócio não é tecnologia — é ter pediatras suficientes para
+> uma família ter resposta a qualquer hora. Eu construí o produto. Não sou a
+> melhor pessoa para resolver o gargalo. Tu és, e é por isso que te quero como
+> sócio e não como investidor.
+
+Se não conseguires dizer uma frase assim, com o nome dele lá dentro, então o
+que queres é dinheiro — e aí 50/50 é o instrumento errado.
+
+### As seis coisas a fechar antes de haver acordo
+
+| # | O quê | Porque importa |
+|---|---|---|
+| 1 | **O que cada um traz**, escrito: capital, tempo a full-time, rede de contactos, IP | 50/50 pressupõe contribuições comparáveis. Se um traz dinheiro e o outro traz dois anos de trabalho, não é a mesma coisa e é melhor dizê-lo agora |
+| 2 | 📎 **O produto que já existe** | Meses de trabalho e uma plataforma em produção estão feitos. 50/50 a partir de hoje é dar metade de trabalho já feito. Ou se reconhece (parcela já adquirida, entrada de capital do outro lado, ou uma avaliação de partida), ou se aceita conscientemente — mas não por distração |
+| 3 | 📎 **Vesting, para os dois** | O erro clássico: 50/50 no primeiro dia, o sócio sai ao sexto mês e leva metade da empresa. O padrão é quatro anos com um ano de *cliff*, **aplicado aos dois** — proteges-te a ti e dás-lhe a mesma garantia |
+| 4 | 📎 **O desempate** | Duas quotas de 50% numa sociedade por quotas significam que qualquer desacordo paralisa a empresa. Tem de haver mecanismo: voto de qualidade de um em matérias definidas, um terceiro elemento neutro, ou uma cláusula de compra/venda. **Decidam isto enquanto se dão bem** |
+| 5 | **Quem decide o quê, no dia a dia** | Sem áreas de decisão claras, o ponto 4 é acionado todas as semanas. O corte natural aqui: produto e tecnologia de um lado, recrutamento clínico e comercial do outro |
+| 6 | 📎 **Transmissão da propriedade intelectual** | O código e a documentação existem hoje fora da sociedade. Entrar para a empresa é um ato formal, e é a primeira coisa que qualquer investidor futuro vai verificar |
+
+### O que dizer sobre os números
+
+Não leves uma avaliação. Leva **o que o dinheiro compra**:
+
+> O que preciso é de chegar ao fim do piloto — dez pediatras, cinquenta
+> famílias, doze semanas — com a resposta a uma pergunta: os pais voltam
+> quando ninguém está doente? Com essa resposta, ou temos um negócio e
+> levantamos capital a sério, ou sabemos que não temos e poupámos dois anos.
+
+Um sócio que só entra se lhe garantires que a resposta vai ser sim não é o
+sócio certo.
+
+### O sinal de alarme
+
+Se ele quiser 50% **sem trabalhar a tempo inteiro**, não é sócio — é
+investidor a pedir preço de fundador. É uma conversa legítima, mas é outra, e
+o instrumento é uma entrada de capital com percentagem proporcional, não
+metade da empresa.
 
 ---
 
