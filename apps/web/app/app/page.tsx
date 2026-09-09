@@ -52,7 +52,10 @@ import {
   type DocumentKind,
   type VaultQuotaDto,
   type AllowanceDto,
+  type DevelopmentDto,
   type DocumentReadingDto,
+  type MilestoneDomain,
+  type MilestoneDto,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -163,6 +166,7 @@ const SPECIALTY_PT: Record<string, string> = {
   gastroenterology: 'Gastroenterologia',
   dermatology: 'Dermatologia',
   neurology: 'Neurologia',
+  development: 'Desenvolvimento e comportamento',
 };
 /** Plain-parent explanations — most families don't know specialty names. */
 const SPECIALTY_DESC: Record<string, string> = {
@@ -174,6 +178,8 @@ const SPECIALTY_DESC: Record<string, string> = {
   gastroenterology: 'Digestão: refluxo, obstipação, dores de barriga, intolerâncias.',
   dermatology: 'Pele: dermatite atópica, borbulhas, manchas, infeções da pele.',
   neurology: 'Desenvolvimento, dores de cabeça, convulsões, sono.',
+  development:
+    'Marcos que tardam, birras difíceis, sono, atenção, ansiedade, adaptação à creche ou à escola.',
 };
 function specLabel(s?: string | null): string {
   if (!s) return 'Pediatria geral';
@@ -3250,6 +3256,159 @@ async function fileToDataUrl(file: File): Promise<string> {
  * live in WhatsApp, email and a drawer. Read-only for the treating
  * pediatrician, who sees it inside the same record.
  */
+const DOMAIN_ICON: Record<MilestoneDomain, string> = {
+  social: '💛',
+  linguagem: '💬',
+  cognitivo: '🧩',
+  motor: '🤸',
+};
+const DOMAIN_LABEL: Record<MilestoneDomain, string> = {
+  social: 'Social e emocional',
+  linguagem: 'Linguagem e comunicação',
+  cognitivo: 'Aprender e pensar',
+  motor: 'Movimento',
+};
+/** "2 meses" / "18 meses" / "3 anos" — how a parent says the age, not months. */
+function bandLabel(months: number, tr: (s: string) => string): string {
+  if (months < 12) return `${months} ${tr('meses')}`;
+  const years = months / 12;
+  if (Number.isInteger(years)) return `${years} ${years === 1 ? tr('ano') : tr('anos')}`;
+  return `${months} ${tr('meses')}`;
+}
+
+/**
+ * Developmental milestones.
+ *
+ * A checklist, not a screening test. There is no score anywhere in this
+ * component, no severity and no condition named — what a family sees is the
+ * published list, what they have ticked, and which items from ages the child
+ * is past have no tick, with the same ending the growth chart uses: talk to
+ * your paediatrician. See `docs/compliance/03-marcos-desenvolvimento.md`.
+ */
+function DevelopmentSection({
+  childId,
+  canEdit,
+  onMsg,
+}: {
+  childId: string;
+  canEdit?: boolean;
+  onMsg: (m: string) => void;
+}) {
+  const { tr } = useT();
+  const [d, setD] = useState<DevelopmentDto | null>(null);
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(() => {
+    Api.childDevelopment(childId)
+      .then(setD)
+      .catch(() => setD(null));
+  }, [childId]);
+  useEffect(load, [load]);
+
+  if (!d || d.currentBand === null) return null;
+
+  const done = new Map(d.achieved.map((a) => [a.code, a]));
+  const pendingCodes = new Set(d.pending.map((m) => m.code));
+
+  async function toggle(code: string, next: boolean) {
+    if (!canEdit || busy) return;
+    setBusy(code);
+    try {
+      if (next) await Api.addMilestone(childId, { code });
+      else await Api.removeMilestone(childId, code);
+      load();
+    } catch (e) {
+      onMsg(`${tr('Erro')}: ${String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const checklist = (items: MilestoneDto[]) => {
+    const byDomain = new Map<MilestoneDomain, MilestoneDto[]>();
+    for (const m of items) byDomain.set(m.domain, [...(byDomain.get(m.domain) ?? []), m]);
+    return [...byDomain.entries()].map(([domain, list]) => (
+      <div key={domain} style={{ marginTop: 10 }}>
+        <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>
+          <span aria-hidden>{DOMAIN_ICON[domain]}</span> {tr(DOMAIN_LABEL[domain])}
+        </div>
+        {list.map((m) => (
+          <label key={m.code} className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={done.has(m.code)}
+              disabled={!canEdit || busy === m.code}
+              onChange={(e) => toggle(m.code, e.target.checked)}
+              style={{ width: 'auto', marginTop: 3 }}
+            />
+            <span>{m.pt}</span>
+          </label>
+        ))}
+      </div>
+    ));
+  };
+
+  const current = d.catalogue.filter((m) => m.months === d.currentBand);
+  const earlier = d.bands.filter((b) => b < (d.currentBand as number)).reverse();
+
+  return (
+    <section className="hsec">
+      <div className="hsec-head">
+        <span className="hsec-ico" aria-hidden>🌱</span>
+        <h3>{tr('Desenvolvimento')}</h3>
+        <span className="pill muted">{bandLabel(d.currentBand, tr)}</span>
+      </div>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        {tr('Coisas que a maioria das crianças já faz nesta idade. Assinala o que já viste — não é um teste, e cada criança tem o seu ritmo.')}
+      </p>
+
+      {checklist(current)}
+
+      {/* Same shape as the growth alert: a signal to take to a person, never a
+          finding. No count, no severity, and nothing named. */}
+      {d.pending.length > 0 ? (
+        <div className="card" style={{ borderColor: 'var(--warn, #b26a00)', marginTop: 12 }}>
+          <strong>{tr('Vale a pena falar com o pediatra')}</strong>
+          <div className="muted" style={{ marginTop: 4, marginBottom: 6 }}>
+            {tr('Há coisas de idades anteriores que ainda não assinalaste. Pode ser só porque te esqueceste de as marcar — isto não é um diagnóstico. Mostra esta lista ao pediatra na próxima consulta.')}
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {d.pending.map((m) => (
+              <li key={m.code}>
+                {m.pt}{' '}
+                <span className="muted" style={{ fontSize: 12 }}>
+                  ({bandLabel(m.months, tr)})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {earlier.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          {earlier.map((b) => {
+            const items = d.catalogue.filter((m) => m.months === b);
+            const missing = items.filter((m) => pendingCodes.has(m.code)).length;
+            return (
+              <Reg
+                key={b}
+                label={`${bandLabel(b, tr)}${missing ? ' ·' : ' ✓'}`}
+              >
+                {checklist(items)}
+              </Reg>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+        {tr('Fonte')}: {d.source}
+      </p>
+    </section>
+  );
+}
+
 function DocumentVault({
   childId,
   canEdit,
@@ -4140,6 +4299,8 @@ function ChildHealth({
           </section>
 
           {/* Document vault */}
+          <DevelopmentSection childId={child.id} canEdit onMsg={onMsg} />
+
           <DocumentVault
             childId={child.id}
             canEdit
@@ -4503,6 +4664,7 @@ const TL_ICON: Record<TimelineEvent['kind'], string> = {
   episode: '🤒',
   medication: '💊',
   allergy: '⚠️',
+  milestone: '🌱',
 };
 
 function ChildTimelineView({
@@ -6656,6 +6818,8 @@ function ChildChart({
         <>
           {/* The family's vault, read-only: the reports a pediatrician would
               otherwise have to ask for over chat. */}
+          <DevelopmentSection childId={childId} onMsg={onMsg} />
+
           <DocumentVault childId={childId} onMsg={onMsg} />
 
           {overdueVax.length > 0 ? (

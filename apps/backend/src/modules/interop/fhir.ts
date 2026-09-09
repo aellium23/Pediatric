@@ -40,6 +40,7 @@ export const SYS = {
   // and the allergen catalogue needs mapping to SNOMED CT.
   snsUtente: 'urn:pedia:sns-utente',
   allergen: 'urn:pedia:allergen',
+  milestone: 'urn:pedia:milestone',
 } as const;
 
 /** A LOINC concept plus the UCUM unit its value is recorded in. */
@@ -143,6 +144,14 @@ export interface DocumentIn {
   createdAt: Date | string;
 }
 
+export interface MilestoneIn {
+  id: string;
+  code: string;
+  label: string;
+  achievedAt: Date | string;
+  note?: string | null;
+}
+
 export interface RecordIn {
   child: ChildIn;
   growth?: GrowthIn[];
@@ -152,6 +161,7 @@ export interface RecordIn {
   medications?: MedicationIn[];
   episodes?: EpisodeIn[];
   documents?: DocumentIn[];
+  milestones?: MilestoneIn[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -440,6 +450,37 @@ export function toDocumentReference(d: DocumentIn, patientId: string, apiBase = 
   });
 }
 
+/**
+ * A milestone the family observed, as an `Observation` — FHIR has no
+ * developmental-milestone resource, and an Observation with a date and a
+ * "yes" is exactly what this is.
+ *
+ * The category is `survey`, not `vital-signs`: the value came from a parent
+ * answering a published checklist, not from a measurement. No LOINC is
+ * asserted — the CDC milestones have no code we hold — so the catalogue key
+ * travels in our own opaque namespace and the wording as `text`. Absence of an
+ * Observation means the box was not ticked, which is NOT the same as the child
+ * not doing it; nothing downstream may read it as a negative finding.
+ */
+export function toMilestoneObservation(m: MilestoneIn, patientId: string): Json {
+  return compact({
+    resourceType: 'Observation',
+    id: m.id,
+    status: 'final',
+    category: [
+      { coding: [{ system: SYS.obsCategory, code: 'survey', display: 'Survey' }] },
+    ],
+    code: compact({
+      coding: [{ system: SYS.milestone, code: m.code }],
+      text: text(m.label),
+    }),
+    subject: ref(patientId),
+    effectiveDateTime: instant(m.achievedAt),
+    valueBoolean: true,
+    note: text(m.note) ? [{ text: text(m.note) }] : undefined,
+  });
+}
+
 /** The whole record as one FHIR R4 `collection` Bundle. */
 export function toBundle(rec: RecordIn, opts: { apiBase?: string; now?: Date } = {}): FhirBundle {
   const patientId = rec.child.id;
@@ -451,6 +492,7 @@ export function toBundle(rec: RecordIn, opts: { apiBase?: string; now?: Date } =
   for (const v of rec.vaccines ?? []) resources.push(toImmunization(v, patientId));
   for (const m of rec.medications ?? []) resources.push(toMedicationStatement(m, patientId));
   for (const e of rec.episodes ?? []) resources.push(toCondition(e, patientId));
+  for (const m of rec.milestones ?? []) resources.push(toMilestoneObservation(m, patientId));
   for (const d of rec.documents ?? []) resources.push(toDocumentReference(d, patientId, opts.apiBase));
 
   return {

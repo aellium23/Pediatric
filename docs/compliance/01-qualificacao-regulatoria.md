@@ -237,7 +237,18 @@ mantiverem, a análise da secção 5 aguenta-se:
       revistas por humanos**.
 - [ ] A gravidade **nunca** é decidida por um modelo de linguagem.
 - [ ] Nenhum dado clínico da criança (idade, peso, histórico, alergias) entra no
-      cálculo da gravidade.
+      **cálculo da gravidade**. Esta restrição é do detetor de sinais de alarme
+      e é absoluta: a mesma frase produz o mesmo resultado para qualquer
+      criança.
+- [ ] **Comparação com uma referência populacional publicada é permitida;
+      produzir a partir dela uma pontuação, um nível ou uma condição não é.**
+      Duas funções do produto comparam com uma referência em função da idade —
+      as curvas de crescimento da OMS e os marcos de desenvolvimento — e é
+      preciso não confundir isso com o ponto anterior. Colocar um ponto numa
+      curva publicada é o que uma curva em papel faz; o que não pode aparecer
+      é um resultado construído a partir dela. Ver
+      `03-marcos-desenvolvimento.md` § 2.1, que é onde esta distinção tem de
+      ser confirmada ou corrigida pelo jurista.
 - [ ] A saída nunca inclui diagnóstico, hipóteses, probabilidade ou pontuação.
 - [ ] A saída nunca indica medicamento, dose ou tratamento.
 - [ ] O produto nunca afirma **excluir** uma condição.
@@ -267,6 +278,10 @@ implementado:
 - Ligar o detetor ao registo clínico da criança.
 - Gravar automaticamente no registo o que um modelo leu de um documento, ou
   pré-marcar as sugestões para o pai apenas confirmar em bloco.
+- Implementar um instrumento de rastreio com pontuação — M-CHAT-R/F, ASQ-3,
+  SDQ, EPDS ou equivalente. Qualquer um deles é entrar no MDR de propósito
+  (Regra 11, provável Classe IIa); ver `03-marcos-desenvolvimento.md` § 3, onde
+  está a decisão de **não** o fazer e o que a inverteria.
 - Seguir a via de **reembolso público** (DiGA na Alemanha, PECAN em França) —
   que exige marcação CE, e portanto é uma decisão de entrar no MDR de propósito,
   não por acidente (ver `docs/strategy/03-revisao-mercado-roadmap.md` §1).

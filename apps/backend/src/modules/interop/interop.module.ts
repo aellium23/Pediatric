@@ -7,6 +7,7 @@ import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ChildAccessService } from '../../common/security/child-access.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
+import { findMilestone } from '../../common/development/milestones';
 import { FhirBundle, toBundle } from './fhir';
 
 /**
@@ -37,7 +38,7 @@ export class FhirExportService {
    */
   async childBundle(user: AuthenticatedUser, childId: string): Promise<FhirBundle> {
     const child = await this.access.assertAccess(user, childId);
-    const [growth, vitals, allergies, vaccines, medications, episodes, documents] =
+    const [growth, vitals, allergies, vaccines, medications, episodes, milestones, documents] =
       await Promise.all([
         this.prisma.growthMeasurement.findMany({
           where: { childId },
@@ -48,6 +49,10 @@ export class FhirExportService {
         this.prisma.vaccination.findMany({ where: { childId }, orderBy: { date: 'asc' } }),
         this.prisma.medication.findMany({ where: { childId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'asc' } }),
+        this.prisma.developmentMilestone.findMany({
+          where: { childId },
+          orderBy: { achievedAt: 'asc' },
+        }),
         // Metadata only — `content` (the encrypted file) is deliberately not
         // selected, so a multi-megabyte PDF cannot end up inside the JSON.
         this.prisma.childDocument.findMany({
@@ -92,6 +97,21 @@ export class FhirExportService {
         summary: this.crypto.decryptSafe(e.summary),
       })),
       documents,
+      // The catalogue wording travels with the row: the code alone is opaque
+      // to a receiver, and the row alone has no label.
+      milestones: milestones.flatMap((m) => {
+        const item = findMilestone(m.code);
+        if (!item) return [];
+        return [
+          {
+            id: m.id,
+            code: m.code,
+            label: item.pt,
+            achievedAt: m.achievedAt,
+            note: this.crypto.decryptSafe(m.note),
+          },
+        ];
+      }),
     });
   }
 

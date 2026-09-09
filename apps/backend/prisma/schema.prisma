@@ -686,6 +686,24 @@ model Episode {
   @@index([childId])
 }
 
+/// A developmental milestone the FAMILY says the child has reached. One row per
+/// milestone actually observed — the absence of a row means "not ticked", which
+/// is not the same as "not reached", and nothing in the product treats it as
+/// such. `code` is a key into the static catalogue
+/// (`src/common/development/milestones.ts`), kept clear like the other coded
+/// clinical fields (ICD-10, ATC, CVX); only the parent's own note is encrypted.
+model DevelopmentMilestone {
+  id         String   @id @default(uuid())
+  childId    String
+  code       String
+  achievedAt DateTime
+  note       String? // encrypted
+  createdAt  DateTime @default(now())
+
+  @@unique([childId, code])
+  @@index([childId])
+}
+
 // ── Subscriptions (Phase D) ──────────────────────────
 enum SubscriptionPlan {
   FAMILY

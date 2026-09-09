@@ -691,6 +691,19 @@ export const Api = {
     request(`/documents/${childId}/${id}/read`, { method: 'POST' }) as Promise<DocumentReadingDto | null>,
   removeDocument: (childId: string, id: string) =>
     request(`/documents/${childId}/${id}/remove`, { method: 'POST' }),
+  /** Developmental milestones: the catalogue, what is ticked, what is not. */
+  childDevelopment: (childId: string) =>
+    request(`/health-records/${childId}/development`) as Promise<DevelopmentDto>,
+  addMilestone: (childId: string, data: { code: string; achievedAt?: string; note?: string }) =>
+    request(`/health-records/${childId}/development`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removeMilestone: (childId: string, code: string) =>
+    request(`/health-records/${childId}/development/${encodeURIComponent(code)}/remove`, {
+      method: 'POST',
+    }),
+
   /**
    * The child's record as a FHIR R4 Bundle — the format another health system
    * can read without knowing anything about us (GDPR art. 20, EHDS).
@@ -897,11 +910,33 @@ export interface HealthOverview {
 
 export interface TimelineEvent {
   at: string;
-  kind: 'consultation' | 'vaccine' | 'growth' | 'episode' | 'medication' | 'allergy';
+  kind: 'consultation' | 'vaccine' | 'growth' | 'episode' | 'medication' | 'allergy' | 'milestone';
   title: string;
   detail: string | null;
   refId: string;
 }
+export type MilestoneDomain = 'social' | 'linguagem' | 'cognitivo' | 'motor';
+export interface MilestoneDto {
+  code: string;
+  months: number;
+  domain: MilestoneDomain;
+  pt: string;
+}
+/**
+ * Deliberately has no score, no proportion and no severity: `pending` is the
+ * subset of a published checklist with no tick against it, and nothing more.
+ * A screening result is what would make this a medical device.
+ */
+export interface DevelopmentDto {
+  ageMonths: number;
+  currentBand: number | null;
+  bands: number[];
+  catalogue: MilestoneDto[];
+  source: string;
+  achieved: { code: string; achievedAt: string; note: string | null }[];
+  pending: MilestoneDto[];
+}
+
 export interface ChildTimeline {
   child: {
     id: string;

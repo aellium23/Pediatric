@@ -30,6 +30,7 @@ function build(prismaOverrides: Record<string, any> = {}) {
     episode: { findMany: jest.fn().mockResolvedValue([]) },
     vital: { findMany: jest.fn().mockResolvedValue([]) },
     allergy: { findMany: jest.fn().mockResolvedValue([]) },
+    developmentMilestone: { findMany: jest.fn().mockResolvedValue([]) },
     ...prismaOverrides,
   };
   // The real access rule, on the same mocked prisma — so these tests still

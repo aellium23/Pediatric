@@ -137,6 +137,16 @@ de pagamentos, isto **não** é negociável:
       reavaliação. A palavra "triagem" já foi trocada por "orientação" em todo
       o texto visível e nos prompts (2026-09-09). **Falta a revisão jurídica e
       a assinatura.**
+- [ ] **Catálogo de marcos de desenvolvimento revisto por um pediatra** — a
+      redação portuguesa e a banda etária de cada marco em
+      `apps/backend/src/common/development/milestones.ts` foram escritas por
+      engenharia a partir da lista publicada dos CDC (revisão de 2022). São a
+      nossa versão, não uma tradução oficial, e ninguém com formação clínica as
+      leu. Um marco na banda errada preocupa uma família cuja criança está bem,
+      ou tranquiliza uma que precisa de ser vista — e é um pai a ler isto
+      sozinho, à noite. Ao fechar, preencher `CATALOGUE.clinicallyReviewed` com
+      quem reviu e quando. Contexto:
+      `docs/compliance/03-marcos-desenvolvimento.md`.
 - [ ] **Backup manual da BD** definido (mesmo que só `pg_dump` agendado à
       mão) — a partir do momento em que há dados clínicos reais, mesmo de
       piloto, não podem depender só do seed. Passos concretos:

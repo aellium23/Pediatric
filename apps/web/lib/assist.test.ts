@@ -110,6 +110,43 @@ describe('assess — specialty routing', () => {
   });
 });
 
+// Routing terms are matched as plain substrings, so a broad word silently
+// hijacks unrelated questions. These are the phrases that were tried and cut,
+// kept as tests so nobody puts them back without seeing what they cost.
+describe('assess — development and behaviour routing', () => {
+  it.each([
+    'o meu filho ainda não fala',
+    'tem atraso na fala',
+    'faz birras enormes',
+    'problemas de comportamento na creche',
+    'está muito ansioso desde que entrou na escola',
+    'atraso no desenvolvimento',
+    'he has a speech delay',
+    'no habla todavía',
+  ])('routes "%s" to development', (phrase) => {
+    expect(assess(phrase).specialty).toBe('development');
+  });
+
+  it('does not hijack an unrelated question that happens to mention nursery', () => {
+    expect(assess('anda na creche e apanhou uma constipação').specialty).toBeNull();
+  });
+
+  it('does not hijack a bite or a fall', () => {
+    expect(assess('um cão mordeu-lhe a mão').specialty).not.toBe('development');
+    expect(assess('caiu e bateu com a cabeça').specialty).not.toBe('development');
+  });
+
+  it('leaves a headache with neurology', () => {
+    expect(assess('dor de cabeça há dois dias').specialty).toBe('neurology');
+  });
+
+  // Routing is navigation, not assessment: a parent who types the word gets
+  // pointed at the right kind of professional, and nothing is concluded.
+  it('still escalates a red flag over any routing', () => {
+    expect(assess('teve uma convulsão e não acorda').severity).toBe('emergency');
+  });
+});
+
 describe('wantsPediatrician', () => {
   it.each([
     'quero contactar a minha pediatra',

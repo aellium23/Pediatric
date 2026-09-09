@@ -41,6 +41,7 @@ Tudo o resto nos documentos 01–26 mantém-se.
 |---|---|
 | [`01-qualificacao-regulatoria.md`](compliance/01-qualificacao-regulatoria.md) | **Rascunho para revisão jurídica**: finalidade prevista do assistente e do detetor de sinais de alarme, porque se propõe que não seja dispositivo médico, e os controlos que sustentam essa posição |
 | [`02-exportacao-fhir.md`](compliance/02-exportacao-fhir.md) | A ficha da criança em FHIR R4: o que a exportação garante, que códigos são reais e quais são locais, e o que um sistema recetor **não** pode assumir |
+| [`03-marcos-desenvolvimento.md`](compliance/03-marcos-desenvolvimento.md) | Marcos de desenvolvimento: porque um registo com uma lista publicada não é dispositivo médico, porque um instrumento com pontuação (M-CHAT-R, ASQ-3, SDQ, EPDS) seria, e o portão clínico ainda por fechar |
 
 ## 4. Estado operacional — na raiz do repositório
 

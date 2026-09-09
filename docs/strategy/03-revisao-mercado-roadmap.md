@@ -35,7 +35,29 @@ Outras leituras do mercado, com consequências diretas:
   única via que paga sem depender do bolso da família. Exige, porém, marcação CE
   — colide de frente com a decisão nº 4 (ver §3).
 - **Saúde mental pediátrica** é apontada como a área de maior crescimento em
-  telessaúde infantil. O produto não tem nada nesse eixo.
+  telessaúde infantil. O produto não tinha nada nesse eixo.
+
+  > **Construído a 2026-09-09**, e com uma linha traçada de propósito a meio.
+  > O que existe: **marcos de desenvolvimento** (catálogo dos CDC, 2 meses a 5
+  > anos, quatro domínios incluindo o socio-emocional), assinalados pela
+  > família, na cronologia e na exportação FHIR; uma **especialidade nova** no
+  > marketplace — *Desenvolvimento e comportamento* — porque a lista acabava em
+  > "fala com o pediatra" e não havia ninguém cujo perfil dissesse que esse era
+  > o assunto; e **encaminhamento** para ela a partir de "ainda não fala",
+  > "faz birras", "está muito ansioso".
+  >
+  > O que **não** existe, e não por esquecimento: M-CHAT-R/F, ASQ-3, SDQ, EPDS.
+  > Todos produzem uma pontuação com ponto de corte, e uma pontuação de rastreio
+  > é o que torna software um dispositivo médico (MDR, Regra 11, provável Classe
+  > IIa). Construir um é entrar no MDR **de propósito** — a decisão nº 4 do
+  > conselho ao contrário, com 12–24 meses de desvio atrás dela. Não é um "não"
+  > definitivo: é um "não por acidente", e anda de mãos dadas com a proposta
+  > nº 9 (DiGA/PECAN), que exige marcação CE de qualquer forma. As duas devem
+  > ser decididas juntas, por quem as pode assinar. Análise completa em
+  > `compliance/03-marcos-desenvolvimento.md`.
+  >
+  > **Portão por fechar:** o catálogo é a nossa redação portuguesa da lista dos
+  > CDC e **não foi revisto por um pediatra** (`LAUNCH_READY.md` § E).
 - **Monitorização remota e wearables** aparecem em todas as listas de
   tendências, mas para 0–6 anos (a cabeça-de-ponte) o hardware quase não existe.
   Manter em A4 como está. Não antecipar por moda.
@@ -344,7 +366,7 @@ registo, ler um artigo).
 | 5 | ~~**Cofre de documentos + extração por IA**~~ · **feito** | É o que cria o hábito semanal e sustenta o Premium | Feito (cofre + leitura com confirmação humana) |
 | 6 | ~~**Export do registo em formato aberto/FHIR-compatível**~~ · **feito** | Preparação EHDS enquanto ainda não há dados reais | Feito (Bundle FHIR R4; limites em `compliance/02`) |
 | 7 | **Parecer sobre qualificação EHDS** ("somos um sistema EHR?") | Decide arquitetura, não calendário | Externo |
-| 8 | **Módulo de desenvolvimento/saúde mental** | Maior crescimento do segmento; densidade de subscrição | A2 |
+| 8 | ~~**Módulo de desenvolvimento**~~ · **feito** · *instrumentos de saúde mental deliberadamente não* | Maior crescimento do segmento; densidade de subscrição | Feito (marcos + encaminhamento); rastreio com pontuação exige decisão MDR |
 | 9 | **Decidir conscientemente sobre a via DiGA/PECAN** | Receita que não depende do bolso da família — mas exige CE | Decisão A2/A3 |
 | 10 | **Não investir mais em escriba de IA** | É commodity; a vantagem está no registo | — (poupança) |
 

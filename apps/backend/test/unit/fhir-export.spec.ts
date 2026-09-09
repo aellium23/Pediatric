@@ -9,6 +9,7 @@ import {
   toGrowthObservations,
   toImmunization,
   toMedicationStatement,
+  toMilestoneObservation,
   toPatient,
   toVitalObservations,
 } from '../../src/modules/interop/fhir';
@@ -269,6 +270,32 @@ describe('FHIR export — conditions', () => {
   });
 });
 
+describe('FHIR export — developmental milestones', () => {
+  const m = {
+    id: 'ms1',
+    code: 'm12-motor-1',
+    label: 'Põe-se de pé agarrado a alguma coisa',
+    achievedAt: '2026-02-10T00:00:00.000Z',
+  };
+
+  it('is a survey Observation, not a vital sign', () => {
+    const o = toMilestoneObservation(m, PATIENT);
+    expect(o.resourceType).toBe('Observation');
+    expect(o.category[0].coding[0].code).toBe('survey');
+    expect(o.valueBoolean).toBe(true);
+    expect(o.effectiveDateTime).toBe('2026-02-10T00:00:00.000Z');
+  });
+
+  // The CDC milestones have no code we hold, so the catalogue key travels in
+  // our own namespace — never dressed up as LOINC or SNOMED.
+  it('codes the milestone in our own namespace and keeps the wording as text', () => {
+    const o = toMilestoneObservation(m, PATIENT);
+    expect(o.code.coding).toEqual([{ system: SYS.milestone, code: 'm12-motor-1' }]);
+    expect(o.code.text).toBe('Põe-se de pé agarrado a alguma coisa');
+    expect(JSON.stringify(o)).not.toContain('loinc');
+  });
+});
+
 describe('FHIR export — documents', () => {
   const doc = {
     id: 'd1',
@@ -303,6 +330,9 @@ describe('FHIR export — the bundle', () => {
     vaccines: [{ id: 'i1', name: 'BCG', date: '2023-03-01' }],
     medications: [{ id: 'm1', name: 'Paracetamol', active: true }],
     episodes: [{ id: 'e1', title: 'Febre', status: 'OPEN' }],
+    milestones: [
+      { id: 'ms1', code: 'm12-motor-1', label: 'Põe-se de pé', achievedAt: '2026-02-10T00:00:00.000Z' },
+    ],
     documents: [
       { id: 'd1', title: 'R', kind: 'LAB', mime: 'application/pdf', sizeBytes: 10, createdAt: '2026-03-04T08:00:00.000Z' },
     ],
@@ -327,6 +357,7 @@ describe('FHIR export — the bundle', () => {
       'Immunization',
       'MedicationStatement',
       'Condition',
+      'Observation',
       'DocumentReference',
     ]);
   });

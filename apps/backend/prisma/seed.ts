@@ -69,6 +69,10 @@ const PEDS: PedSpec[] = [
   { email: 'pedro@demo.pedia', name: 'Dr. Pedro Almeida', license: 'OM-20077', region: 'Angra do Heroísmo (Açores)', specialties: ['general'], languages: ['pt'], experienceYears: 9, rating: 4.6, bio: 'Pediatria geral e urgência. Açores (Terceira).', band: NIGHT, days: ALLWEEK },
   { email: 'martas@demo.pedia', name: 'Dra. Marta Sousa', license: 'OM-20088', region: 'Lisboa', specialties: ['dermatology'], languages: ['pt', 'es'], experienceYears: 13, rating: 4.8, bio: 'Dermatologia pediátrica (eczema, dermatites). Lisboa.', band: EVE, days: WEEK },
   { email: 'joaom@demo.pedia', name: 'Dr. João Mendes', license: 'OM-20099', region: 'Porto', specialties: ['neurology'], languages: ['pt', 'en'], experienceYears: 16, rating: 4.9, bio: 'Neurologia pediátrica (convulsões, desenvolvimento). Porto.', band: NIGHT, days: ALLWEEK },
+  // Development and behaviour: the milestone checklist ends with "talk to your
+  // paediatrician", and until now there was nobody in the marketplace whose
+  // profile said that was their subject.
+  { email: 'helena@demo.pedia', name: 'Dra. Helena Castro', license: 'OM-20110', region: 'Lisboa', specialties: ['development', 'general'], languages: ['pt', 'en'], experienceYears: 17, rating: 4.9, bio: 'Desenvolvimento e comportamento (linguagem, sono, birras, adaptação à creche). Lisboa.', band: EVE, days: WEEK },
 ];
 
 // Açores demo pediatricians live one hour behind the mainland — their

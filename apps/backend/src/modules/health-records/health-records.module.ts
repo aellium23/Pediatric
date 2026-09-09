@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -23,6 +24,15 @@ import { ChildAccessService } from '../../common/security/child-access.service';
 import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { evaluate, evaluateBmi, centileBands, sexCode } from '../../common/growth/who-growth';
+import {
+  BANDS,
+  CATALOGUE,
+  MILESTONES,
+  ageInMonths,
+  currentBand,
+  findMilestone,
+  pendingMilestones,
+} from '../../common/development/milestones';
 
 class GrowthDto {
   @ApiProperty() @IsDateString() measuredAt!: string;
@@ -59,6 +69,11 @@ class AllergyDto {
   @ApiProperty() @IsString() @MaxLength(200) label!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) code?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) category?: string;
+}
+class MilestoneDto {
+  @ApiProperty() @IsString() @MaxLength(60) code!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsDateString() achievedAt?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 class VitalDto {
   @ApiProperty() @IsDateString() measuredAt!: string;
@@ -196,7 +211,8 @@ export class HealthRecordsService {
    */
   async timeline(user: AuthenticatedUser, childId: string) {
     const child = await this.assertAccess(user, childId);
-    const [consults, growth, vaccines, medications, episodes, allergies] = await Promise.all([
+    const [consults, growth, vaccines, medications, episodes, allergies, milestones] =
+      await Promise.all([
       this.prisma.consultation.findMany({
         where: { childId },
         orderBy: { openedAt: 'desc' },
@@ -223,11 +239,23 @@ export class HealthRecordsService {
       }),
       this.prisma.episode.findMany({ where: { childId }, orderBy: { createdAt: 'desc' }, take: 200 }),
       this.prisma.allergy.findMany({ where: { childId }, orderBy: { createdAt: 'desc' }, take: 200 }),
+      this.prisma.developmentMilestone.findMany({
+        where: { childId },
+        orderBy: { achievedAt: 'desc' },
+        take: 200,
+      }),
     ]);
 
     type TimelineEvent = {
       at: Date;
-      kind: 'consultation' | 'vaccine' | 'growth' | 'episode' | 'medication' | 'allergy';
+      kind:
+        | 'consultation'
+        | 'vaccine'
+        | 'growth'
+        | 'episode'
+        | 'medication'
+        | 'allergy'
+        | 'milestone';
       title: string;
       detail: string | null;
       refId: string;
@@ -307,6 +335,21 @@ export class HealthRecordsService {
       });
     }
 
+    // First steps and first words belong on the same line as the vaccines and
+    // the consultations — that is what makes it one record instead of a folder
+    // of illnesses.
+    for (const m of milestones) {
+      const item = findMilestone(m.code);
+      if (!item) continue;
+      events.push({
+        at: m.achievedAt,
+        kind: 'milestone',
+        title: item.pt,
+        detail: this.crypto.decryptSafe(m.note),
+        refId: m.id,
+      });
+    }
+
     events.sort((a, b) => b.at.getTime() - a.at.getTime());
     return {
       child: {
@@ -338,6 +381,64 @@ export class HealthRecordsService {
   async removeAllergy(user: AuthenticatedUser, childId: string, id: string) {
     await this.assertAccess(user, childId);
     await this.prisma.allergy.deleteMany({ where: { id, childId } });
+    return { ok: true };
+  }
+
+  /**
+   * Developmental milestones: the published checklist, what the family has
+   * ticked, and which items from bands the child is past have no tick.
+   *
+   * There is deliberately no score, no proportion and no severity in this
+   * response — a screening result is what turns a checklist into a medical
+   * device, and this is a record, not a screen. See
+   * `docs/compliance/03-marcos-desenvolvimento.md`.
+   */
+  async development(user: AuthenticatedUser, childId: string) {
+    const child = await this.assertAccess(user, childId);
+    const rows = await this.prisma.developmentMilestone.findMany({
+      where: { childId },
+      orderBy: { achievedAt: 'asc' },
+    });
+    const months = ageInMonths(child.birthDate);
+    return {
+      ageMonths: months,
+      currentBand: currentBand(months),
+      bands: BANDS,
+      // The catalogue travels with the answer so the client never keeps its
+      // own copy: one list, versioned in one place, and a client a release
+      // behind still shows exactly what the server compared against.
+      catalogue: MILESTONES,
+      source: CATALOGUE.source,
+      achieved: rows.map((r) => ({
+        code: r.code,
+        achievedAt: r.achievedAt,
+        note: this.crypto.decryptSafe(r.note),
+      })),
+      pending: pendingMilestones(
+        months,
+        rows.map((r) => r.code),
+      ),
+    };
+  }
+
+  async addMilestone(user: AuthenticatedUser, childId: string, dto: MilestoneDto) {
+    await this.assertAccess(user, childId);
+    // Catalogue codes only: this lands in a clinical record, and an unknown
+    // code would be an unreadable row forever.
+    if (!findMilestone(dto.code)) throw new BadRequestException('Marco desconhecido.');
+    const achievedAt = dto.achievedAt ? new Date(dto.achievedAt) : new Date();
+    const note = this.crypto.encrypt(dto.note) ?? null;
+    return this.prisma.developmentMilestone.upsert({
+      where: { childId_code: { childId, code: dto.code } },
+      create: { childId, code: dto.code, achievedAt, note },
+      update: { achievedAt, note },
+    });
+  }
+
+  /** Un-ticking is ordinary: a parent ticks the wrong line and fixes it. */
+  async removeMilestone(user: AuthenticatedUser, childId: string, code: string) {
+    await this.assertAccess(user, childId);
+    await this.prisma.developmentMilestone.deleteMany({ where: { childId, code } });
     return { ok: true };
   }
 
@@ -526,6 +627,35 @@ class HealthRecordsController {
     @Body() dto: EpisodeDto,
   ) {
     return this.service.addEpisode(user, childId, dto);
+  }
+
+  // The pediatrician reads the milestones inside the chart, like the rest of
+  // the record; only the family ticks them, because only the family sees the
+  // child do them.
+  @Get(':childId/development')
+  @Roles(Role.PARENT, Role.PEDIATRICIAN)
+  development(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
+    return this.service.development(user, childId);
+  }
+
+  @Post(':childId/development')
+  @Roles(Role.PARENT)
+  addMilestone(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Body() dto: MilestoneDto,
+  ) {
+    return this.service.addMilestone(user, childId, dto);
+  }
+
+  @Post(':childId/development/:code/remove')
+  @Roles(Role.PARENT)
+  removeMilestone(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('childId') childId: string,
+    @Param('code') code: string,
+  ) {
+    return this.service.removeMilestone(user, childId, code);
   }
 
   @Post(':childId/episodes/:id/close')

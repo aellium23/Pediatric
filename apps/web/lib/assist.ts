@@ -119,6 +119,14 @@ const ROUTING: { specialty: string; topic: string; terms: string[] }[] = [
   { specialty: 'allergology', topic: 'allergy', terms: ['alergi', 'alergic', 'espirr', 'rinite', 'comichao', 'olhos a lacrimejar', 'reacao a', 'allergy', 'allergic', 'sneez', 'itch', 'estornud', 'picazon', 'alergia'] },
   { specialty: 'pulmonology', topic: 'respiratory', terms: ['tosse', 'pieira', 'sibil', 'bronqui', 'asma', 'ronco no peito', 'expectora', 'cough', 'wheeze', 'asthma', 'bronchi', 'silbid'] },
   { specialty: 'gastroenterology', topic: 'digestive', terms: ['barriga', 'dor de barriga', 'vomit', 'diarrei', 'prisao de ventre', 'obstip', 'colica', 'nausea', 'refluxo', 'stomach', 'belly', 'diarrh', 'constipation', 'reflux', 'vientre', 'diarrea', 'estrenimiento'] },
+  // Development and behaviour. The product had no route for "he doesn't talk
+  // yet" or "she bites at nursery": those landed in neurology or nowhere, and
+  // it is the fastest-growing part of paediatric telehealth. Placed ABOVE
+  // neurology on purpose — "atraso no desenvolvimento" belongs here now.
+  // Terms are matched as plain substrings, so every one of these is a phrase
+  // specific enough not to hijack an unrelated question ('atencao' and
+  // 'creche' were tried and dropped for exactly that reason).
+  { specialty: 'development', topic: 'development', terms: ['desenvolvimento', 'nao fala', 'ainda nao fala', 'nao diz palavras', 'atraso na fala', 'atraso de fala', 'gaguez', 'gagueja', 'ainda nao anda', 'nao anda ainda', 'birras', 'comportamento', 'agressiv', 'hiperativ', 'nao se concentra', 'nao presta atencao', 'ansiedade', 'ansios', 'autis', 'nao brinca com outras', 'speech delay', 'developmental', 'tantrum', 'anxiety', 'behaviour', 'behavior', 'no habla', 'retraso en el habla', 'rabietas', 'comportamiento', 'ansiedad'] },
   { specialty: 'neurology', topic: 'neuro', terms: ['dor de cabeca', 'enxaqueca', 'cefalei', 'tremor', 'epilep', 'atraso no desenvolvimento', 'headache', 'migraine', 'dolor de cabeza', 'tics'] },
   { specialty: 'cardiology', topic: 'cardiac', terms: ['coracao', 'sopro', 'palpitac', 'bate muito depressa', 'heart', 'murmur', 'palpitat', 'corazon', 'soplo'] },
   { specialty: 'neonatology', topic: 'newborn', terms: ['recem-nascido', 'recem nascido', 'bebe de dias', 'bebe recem', 'newborn', 'recien nacido'] },
