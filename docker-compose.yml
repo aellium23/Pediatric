@@ -37,7 +37,7 @@ services:
       PORT: "3000"
     ports:
       - "3000:3000"
-    command: sh -c "npx prisma db push --skip-generate && node dist/main.js"
+    command: sh -c "node scripts/db-migrate.js && node dist/main.js"
 
 volumes:
   pedia_pg:

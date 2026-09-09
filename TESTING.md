@@ -129,7 +129,7 @@ docker compose up -d            # Postgres + backend on :3000
 cd apps/backend
 cp -n .env.example .env
 npm install
-npx prisma db push              # create the schema
+node scripts/db-migrate.js      # apply the versioned migrations
 npm run seed                    # demo pediatrician + parent (marta@demo.pedia)
 ```
 - API: http://localhost:3000/api

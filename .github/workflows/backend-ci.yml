@@ -36,8 +36,14 @@ jobs:
       - run: npm install
       - run: npx prisma generate
       - run: npm run lint
-      # Schema is materialized via db push until versioned migrations land.
-      - run: npx prisma db push --skip-generate
+      # The schema is built by the committed migrations — the same path
+      # production takes, so a broken migration fails here and not on deploy.
+      - run: npx prisma migrate deploy
+      # And it must still match schema.prisma. Without this gate someone edits
+      # the schema, `db push`es it locally, and the migrations quietly rot.
+      # migrate diff exits 2 when there is a difference.
+      - name: No drift between migrations and schema.prisma
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       # Run the demo seed so a seed bug is caught here (it runs on every boot).
       - run: npm run seed
       - run: npm test -- --coverage

@@ -87,7 +87,7 @@ Requisitos: Node 22+, PostgreSQL 15+.
 cd apps/backend
 cp .env.example .env        # editar: DATABASE_URL, segredos NOVOS (ver abaixo)
 npm install && npx prisma generate && npm run build
-npx prisma db push && npm run seed
+node scripts/db-migrate.js && npm run seed   # aplica migrations versionadas
 node dist/main.js           # (ou dist/src/main.js)
 
 # Frontend

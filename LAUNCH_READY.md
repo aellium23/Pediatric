@@ -140,11 +140,16 @@ de pagamentos, isto **não** é negociável:
         backup.
   - [ ] Guardar o `FIELD_ENCRYPTION_KEY` num cofre à parte: sem essa chave, um
         dump restaurado tem os dados clínicos ilegíveis.
-- [ ] **Migrations em vez de `prisma db push`** antes de existirem dados a
-      preservar. Enquanto o arranque correr `db push`, uma alteração de schema
-      pode destruir colunas sem aviso. Passo: `npx prisma migrate dev --name
-      init` a partir do schema atual, e trocar o comando de arranque para
-      `prisma migrate deploy`.
+- [x] **Migrations em vez de `prisma db push`** — feito a 2026-09-09, e
+      passou a urgente quando o cofre começou a guardar documentos que podem
+      ser a única cópia que a família tem. O `db push` aplicava a diferença
+      entre o schema e a base sem perguntar, e podia largar uma coluna para as
+      fazer coincidir; com backups por configurar, isso era perda definitiva.
+      O arranque corre agora `scripts/db-migrate.js`, que faz o *baseline* de
+      uma base criada pelo `db push` na primeira vez e depois só aplica
+      migrations pendentes — e **falha o arranque** se não conseguir, em vez de
+      servir contra um schema com que não concorda. O CI aplica as mesmas
+      migrations e falha se elas derivarem do `schema.prisma`.
 
 > Nota honesta: backups automáticos, migrations versionadas, APM, scan de
 > malware e faturação certificada ficam para **antes de produção comercial**

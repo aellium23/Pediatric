@@ -199,8 +199,9 @@ faturar". Nenhuma bloqueia o piloto em modo demo:
 
 - **Backups de BD** — nenhum configurado; BD demo é reconstituível por seed.
   Necessário antes de dados reais de pacientes.
-- **Migrations** — hoje `prisma db push`; migrar para migrations versionadas
-  antes de produção com dados a preservar.
+- ~~**Migrations**~~ — **feito (2026-09-09)**: migrations versionadas em
+  `apps/backend/prisma/migrations`, aplicadas no arranque por
+  `scripts/db-migrate.js`, com o CI a falhar se derivarem do `schema.prisma`.
 - **APM/observabilidade** — logs stdout + métricas in-memory; Sentry/OTel
   antes de produção real.
 - **Scan de malware nos uploads** — `scanStatus` fica `pending`; necessário

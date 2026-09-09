@@ -279,8 +279,8 @@ Sem `TODO`/`FIXME`/`HACK` literais no código de produção. Marcadores existent
 | Área | Estado |
 |---|---|
 | **Frontend** | Vercel (root `apps/web`, `next build`); produção `pediatric-taupe.vercel.app`; deploy automático por push ao ramo; `NEXT_PUBLIC_API_BASE` aponta ao Render. |
-| **Backend** | Render blueprint (`render.yaml`): plano **free**, branch fixado, boot = `prisma db push` + seed idempotente + `node dist/main.js`; health check `/health`. Cold-start mitigado no cliente (retries) e keep-alive de 10 min quando a app está aberta. |
-| **Base de dados** | PostgreSQL gerido Render (plano free). **`prisma db push` — não há pasta de migrations.** Dados demo recriados/preservados por seed idempotente. |
+| **Backend** | Render blueprint (`render.yaml`): plano **free**, branch fixado, boot = `scripts/db-migrate.js` (migrations versionadas) + seed idempotente + `node dist/main.js`; health check `/health`. Cold-start mitigado no cliente (retries) e keep-alive de 10 min quando a app está aberta. |
+| **Base de dados** | PostgreSQL gerido Render (plano free). **Migrations versionadas** em `prisma/migrations`, aplicadas no arranque; uma base criada pelo antigo `db push` é feita *baseline* na primeira vez. Dados demo recriados/preservados por seed idempotente. |
 | **Env vars** | Geradas no deploy: JWT_ACCESS/REFRESH_SECRET, FIELD_ENCRYPTION_KEY; DATABASE_URL da BD gerida. Por preencher (`sync:false`): CORS_ORIGINS, STRIPE_*, ANTHROPIC_*, LIVEKIT_*. Fixas: NODE_ENV=production, ENABLE_DEV_LOGIN=true (demo). |
 | **Deployments** | Push ao ramo → Vercel (web) + Render (API). Sem CI de testes no caminho de deploy (testes correm localmente/no desenvolvimento). |
 | **Logs** | stdout apenas: log estruturado JSON por request (reqId, duração, status) + `/metrics` Prometheus com contadores **in-memory** (perdem-se em restart). Sem APM/Sentry/OTel. |

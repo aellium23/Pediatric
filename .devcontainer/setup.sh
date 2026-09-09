@@ -9,7 +9,7 @@ echo "▶ Waiting for Postgres…"
 until docker compose exec -T postgres pg_isready -U pedia >/dev/null 2>&1; do sleep 1; done
 
 echo "▶ Backend: install + schema + seed…"
-( cd apps/backend && cp -n .env.example .env || true && npm install && npx prisma db push && npm run seed )
+( cd apps/backend && cp -n .env.example .env || true && npm install && node scripts/db-migrate.js && npm run seed )
 
 echo "▶ Web: install…"
 ( cd apps/web && npm install )

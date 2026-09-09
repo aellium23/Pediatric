@@ -11,10 +11,14 @@ services:
     # --include=dev forces devDependencies even with NODE_ENV=production
     # (nest CLI, prisma CLI, ts-node) so the build and seed work on Render.
     buildCommand: npm install --include=dev && npx prisma generate && npm run build
-    # db push + seed run on boot (idempotent, non-fatal); then start the API.
+    # Versioned migrations on boot, then the idempotent seed, then the API.
+    # db-migrate.js baselines a database built by the old `db push` the first
+    # time it runs, so this switch is safe on the already-deployed instance.
+    # It exits non-zero on failure ON PURPOSE: with clinical documents in the
+    # vault, refusing to start beats serving against a schema we disagree with.
     # Start from dist/main.js, falling back to dist/src/main.js in case the
     # compiler preserved the src/ folder (robust to either tsc layout).
-    startCommand: npx prisma db push --skip-generate && (npm run seed || true) && (if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi)
+    startCommand: node scripts/db-migrate.js && (npm run seed || true) && (if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi)
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
