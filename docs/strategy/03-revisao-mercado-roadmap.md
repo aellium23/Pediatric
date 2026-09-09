@@ -216,7 +216,19 @@ volta a ser a comissão — ou seja, volta-se ao roadmap antigo por omissão.
 > caminho de URL assinado para S3, e é para lá que isto deve migrar antes de
 > escalar.
 >
-> **Nota de âmbito:** o `PRODUCT_DECISIONS.md` fixa um congelamento de
+> **Descoberta resolvida a 2026-09-09.** O cofre ficava dois toques abaixo —
+> separador Crianças, escolher a criança, deslizar para lá do crescimento — e
+> nada o mencionava. Isso não era só uma lacuna de UX: o contador
+> `document_add` ficaria a zero e a leitura seria "a tese do hábito não se
+> confirma", quando o que teria falhado era a descoberta. Medir uma coisa que
+> ninguém alcança produz a conclusão errada com toda a aparência de rigor.
+> Dois caminhos, ambos onde a intenção já existe: um cartão na consulta
+> **fechada** ("guardar análises ou relatórios desta consulta"), que é o
+> instante em que a família tem o documento na mão e abre a ficha da criança já
+> no cofre com o formulário aberto; e uma **pastilha no resumo da ficha**,
+> sempre visível — inclusive a zero, onde convida em vez de contar.
+>
+> > **Nota de âmbito:** o `PRODUCT_DECISIONS.md` fixa um congelamento de
 > funcionalidades com a instrumentação como única exceção. O cofre é uma
 > segunda exceção — pedida explicitamente, e é a peça de que depende a tese.
 > Fica registada aqui para o congelamento continuar a significar alguma coisa.

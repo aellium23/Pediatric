@@ -825,6 +825,8 @@ export default function MultiProfileApp() {
   // say so — the parent is about to send it to a pediatrician as their words).
   const [consultPrefillAi, setConsultPrefillAi] = useState(false);
   const [consultChild, setConsultChild] = useState<string | undefined>(undefined);
+  // Deep link into a child's record, optionally at a section (the vault).
+  const [focusChild, setFocusChild] = useState<{ id: string; section?: string } | null>(null);
   // Unread-notifications badge on the header bell; refreshed on each tab
   // change (cheap, role-scoped endpoint) so it reacts to reads and new events.
   const [unread, setUnread] = useState(0);
@@ -1041,6 +1043,8 @@ export default function MultiProfileApp() {
         {tab === 'children' ? (
           <ChildrenTab
             onMsg={setMsg}
+            focus={focusChild}
+            onFocusConsumed={() => setFocusChild(null)}
             onGo={(k) => {
               setMsg('');
               setTab(k);
@@ -1068,6 +1072,11 @@ export default function MultiProfileApp() {
             onMsg={setMsg}
             focusId={focusConsult}
             onFocusConsumed={() => setFocusConsult(null)}
+            onSaveReport={(childId) => {
+              setFocusChild({ id: childId, section: 'documents' });
+              setMsg('');
+              setTab('children');
+            }}
             onGoConsults={() => {
               setMsg('');
               setTab('consult');
@@ -1803,6 +1812,7 @@ function Thread({
   onBack,
   onMsg,
   onNewConsultation,
+  onSaveReport,
 }: {
   consultation: ConsultationDto;
   canClose: boolean;
@@ -1812,6 +1822,8 @@ function Thread({
   onMsg: (m: string) => void;
   /** Parent side only: start a new consultation with this pediatrician (CLOSED CTA). */
   onNewConsultation?: () => void;
+  /** Parent side only: jump to the child's vault to file the report. */
+  onSaveReport?: (childId: string) => void;
 }) {
   const { tr } = useT();
   const [messages, setMessages] = useState<MessageDto[]>([]);
@@ -2364,6 +2376,25 @@ function Thread({
             <button className="btn" style={{ marginTop: 10 }} onClick={onNewConsultation}>
               {tr('Nova consulta')} · {euro(consultation.priceCents)}
             </button>
+          ) : null}
+
+          {/* The moment the family actually has a report in hand. Without a
+              prompt here the vault stays two taps deep and nobody finds it —
+              and an unfound feature reads as a failed one in the metrics. */}
+          {onSaveReport && consultation.childId ? (
+            <div className="card" style={{ marginTop: 12, textAlign: 'left' }}>
+              <strong>{tr('Guardar no cofre')}</strong>
+              <p className="muted" style={{ margin: '4px 0 10px', fontSize: 13 }}>
+                {tr('Análises, relatórios ou receitas desta consulta ficam guardados na ficha da criança — e o pediatra vê-os na próxima vez.')}
+              </p>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => onSaveReport(consultation.childId as string)}
+              >
+                {tr('Guardar um documento')}
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -3013,7 +3044,18 @@ function HomeTab({
 }
 
 // ───────────────────────── Parent: Children ─────────────────────────
-function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: string) => void }) {
+function ChildrenTab({
+  onMsg,
+  onGo,
+  focus,
+  onFocusConsumed,
+}: {
+  onMsg: (m: string) => void;
+  onGo: (tab: string) => void;
+  /** Arriving from elsewhere with a child (and section) to open. */
+  focus?: { id: string; section?: string } | null;
+  onFocusConsumed?: () => void;
+}) {
   const { tr } = useT();
   const [children, setChildren] = useState<ChildDto[]>([]);
   const [name, setName] = useState('');
@@ -3022,6 +3064,7 @@ function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: 
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ChildDto | null>(null);
+  const [openSection, setOpenSection] = useState<string | undefined>(undefined);
 
   async function load() {
     try {
@@ -3034,6 +3077,19 @@ function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: 
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Deep link (e.g. "guardar o relatório desta consulta"): open that child once
+  // the list has loaded, then clear the intent so a later Back doesn't reopen it.
+  useEffect(() => {
+    if (!focus || !children.length) return;
+    const child = children.find((c) => c.id === focus.id);
+    if (child) {
+      setOpen(child);
+      setOpenSection(focus.section);
+    }
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, children]);
 
   async function add() {
     if (!name || !birthDate) return onMsg(tr('Indica nome e data de nascimento.'));
@@ -3054,7 +3110,18 @@ function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: 
     }
   }
 
-  if (open) return <ChildHealth child={open} onBack={() => setOpen(null)} onMsg={onMsg} />;
+  if (open)
+    return (
+      <ChildHealth
+        child={open}
+        section={openSection}
+        onBack={() => {
+          setOpen(null);
+          setOpenSection(undefined);
+        }}
+        onMsg={onMsg}
+      />
+    );
 
   return (
     <div className="section">
@@ -3143,6 +3210,9 @@ function ChildrenTab({ onMsg, onGo }: { onMsg: (m: string) => void; onGo: (tab: 
 /** Collapsed "+ Registar" form — the health profile reads first, writes on
  *  demand (no wall of six open forms for a parent). */
 
+/** Anchor so the record summary can jump straight to the vault. */
+const VAULT_ANCHOR = 'child-vault';
+
 const VAULT_KINDS: { code: DocumentKind; label: string; icon: string }[] = [
   { code: 'REPORT', label: 'Relatório / consulta', icon: '📄' },
   { code: 'LAB', label: 'Análises', icon: '🧪' },
@@ -3182,10 +3252,16 @@ function DocumentVault({
   childId,
   canEdit,
   onMsg,
+  autoFocus,
+  onCount,
 }: {
   childId: string;
   canEdit?: boolean;
   onMsg: (m: string) => void;
+  /** Arrived here on purpose (e.g. "save the report from this visit"). */
+  autoFocus?: boolean;
+  /** Reports how many documents there are, so the summary can advertise them. */
+  onCount?: (n: number) => void;
 }) {
   const { tr } = useT();
   const [docs, setDocs] = useState<ChildDocumentDto[] | null>(null);
@@ -3196,10 +3272,14 @@ function DocumentVault({
   const [issuedAt, setIssuedAt] = useState('');
   const [pending, setPending] = useState<{ name: string; content: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(() => {
     Api.documents(childId)
-      .then(setDocs)
+      .then((rows) => {
+        setDocs(rows);
+        onCount?.(rows.length);
+      })
       .catch(() => setDocs([]));
     if (canEdit) {
       // Parents only — a pediatrician has no allowance to spend.
@@ -3209,8 +3289,19 @@ function DocumentVault({
           /* older backend without the endpoint — just don't show the bar */
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, canEdit]);
   useEffect(load, [load]);
+
+  // Deep-linked: bring the vault into view instead of leaving the parent to
+  // scroll past growth and vitals looking for it.
+  useEffect(() => {
+    if (!autoFocus) return;
+    const still =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    sectionRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+  }, [autoFocus]);
 
   async function pickFile(file: File | undefined) {
     if (!file) return;
@@ -3277,7 +3368,7 @@ function DocumentVault({
   }
 
   return (
-    <section className="hsec">
+    <section className="hsec" id={VAULT_ANCHOR} ref={sectionRef}>
       <div className="hsec-head">
         <span className="hsec-ico" aria-hidden>🗂️</span>
         <h3>{tr('Documentos')}</h3>
@@ -3343,7 +3434,7 @@ function DocumentVault({
       ) : null}
 
       {canEdit ? (
-        <Reg label={tr('+ Guardar documento')}>
+        <Reg label={tr('+ Guardar documento')} open={autoFocus}>
           <label className="muted" style={{ display: 'block', marginBottom: 8 }}>
             {tr('Ficheiro (PDF ou foto, até ~3 MB)')}
             <input
@@ -3396,9 +3487,17 @@ function DocumentVault({
   );
 }
 
-function Reg({ label, children }: { label: string; children: React.ReactNode }) {
+function Reg({
+  label,
+  children,
+  open,
+}: {
+  label: string;
+  children: React.ReactNode;
+  open?: boolean;
+}) {
   return (
-    <details className="regform">
+    <details className="regform" open={open}>
       <summary>{label}</summary>
       <div className="card" style={{ marginTop: 8 }}>{children}</div>
     </details>
@@ -3410,10 +3509,13 @@ function ChildHealth({
   child,
   onBack,
   onMsg,
+  section,
 }: {
   child: ChildDto;
   onBack: () => void;
   onMsg: (m: string) => void;
+  /** Section to scroll to on open, when arriving from a deep link. */
+  section?: string;
 }) {
   const { tr } = useT();
   const [d, setD] = useState<HealthOverview | null>(null);
@@ -3422,6 +3524,7 @@ function ChildHealth({
   const [photo, setPhoto] = useState<string | null>(child.photoUrl ?? null);
   // SNS/utente number — comes from the child DETAIL fetch (lists never carry it).
   const [sns, setSns] = useState<string | null>(null);
+  const [docCount, setDocCount] = useState<number | null>(null);
   const [snsEdit, setSnsEdit] = useState(false);
   const [snsInput, setSnsInput] = useState('');
   // growth form
@@ -3652,6 +3755,31 @@ function ChildHealth({
                 {lh ? pill('📏', `${lh.heightCm} cm${lh.heightP != null ? ` · P${lh.heightP}` : ''}`) : null}
                 {allergyN ? pill('⚠️', `${allergyN} ${allergyN === 1 ? tr('alergia') : tr('alergias')}`, 'warn') : null}
                 {activeMeds ? pill('💊', `${activeMeds} ${activeMeds === 1 ? tr('medicamento') : tr('medicamentos')}`) : null}
+                {/* Always shown, including at zero: the vault sits below the
+                    growth charts, and a parent who never scrolls never finds
+                    it — which would read as "nobody wants it" in the metrics. */}
+                {docCount !== null ? (
+                  <button
+                    type="button"
+                    className="pill"
+                    onClick={() =>
+                      document.getElementById(VAULT_ANCHOR)?.scrollIntoView({ block: 'start' })
+                    }
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      cursor: 'pointer',
+                      border: 0,
+                      font: 'inherit',
+                    }}
+                  >
+                    <span aria-hidden>🗂️</span>
+                    {docCount === 0
+                      ? tr('Guardar documentos')
+                      : `${docCount} ${docCount === 1 ? tr('documento') : tr('documentos')}`}
+                  </button>
+                ) : null}
               </div>
             );
           })()}
@@ -3823,7 +3951,13 @@ function ChildHealth({
           </section>
 
           {/* Document vault */}
-          <DocumentVault childId={child.id} canEdit onMsg={onMsg} />
+          <DocumentVault
+            childId={child.id}
+            canEdit
+            onMsg={onMsg}
+            autoFocus={section === 'documents'}
+            onCount={setDocCount}
+          />
 
           {/* Vaccines */}
           <section className="hsec">
@@ -5299,12 +5433,15 @@ function MyConsultsTab({
   focusId,
   onFocusConsumed,
   onGoConsults,
+  onSaveReport,
 }: {
   onMsg: (m: string) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
   /** Navigate to the "Consultar" tab (choose another pediatrician after a cancellation). */
   onGoConsults?: () => void;
+  /** Open this child's record at the document vault. */
+  onSaveReport?: (childId: string) => void;
 }) {
   const { tr } = useT();
   const [rows, setRows] = useState<ConsultationDto[]>([]);
@@ -5435,6 +5572,7 @@ function MyConsultsTab({
         onBack={() => setOpen(null)}
         onMsg={onMsg}
         onNewConsultation={() => void startFollowUp(open)}
+        onSaveReport={onSaveReport}
       />
     );
   if (reviewing)
