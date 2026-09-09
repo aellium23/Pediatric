@@ -37,9 +37,12 @@ function build(overrides: Record<string, any> = {}) {
   };
   const events: any = { emit: jest.fn() };
   const ai: any = { structureClinicalNote: jest.fn().mockResolvedValue('soap') };
+  // No plan by default: coversNextMessage() false keeps existing expectations
+  // about paid consultations intact.
+  const subscriptions: any = { coversNextMessage: jest.fn().mockResolvedValue(false) };
 
-  const service = new ConsultationsService(prisma, crypto, consent, payments, events, ai);
-  return { service, prisma, payments, events };
+  const service = new ConsultationsService(prisma, crypto, consent, payments, subscriptions, events, ai);
+  return { service, prisma, payments, events, subscriptions };
 }
 
 describe('ConsultationsService', () => {

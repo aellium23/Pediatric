@@ -662,6 +662,8 @@ export const Api = {
   subscribe: (plan: string) =>
     request('/subscriptions', { method: 'POST', body: JSON.stringify({ plan }) }),
   cancelSubscription: () => request('/subscriptions/cancel', { method: 'POST' }),
+  /** What the family's plan includes this month, and what is left of it. */
+  subAllowance: () => request('/subscriptions/allowance') as Promise<AllowanceDto>,
 
   // Health records (rich child health profile)
   childHealth: (childId: string) =>
@@ -1199,4 +1201,12 @@ export interface VaultQuotaDto {
   maxBytes: number;
   usedDocs: number;
   maxDocs: number;
+}
+
+export interface AllowanceDto {
+  plan: string | null;
+  includedMessages: number;
+  usedMessages: number;
+  remainingMessages: number;
+  periodStart: string;
 }

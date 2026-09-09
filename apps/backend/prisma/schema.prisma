@@ -260,28 +260,32 @@ enum ConsultationStatus {
 }
 
 model Consultation {
-  id              String             @id @default(uuid())
-  familyId        String
-  childId         String
-  child           Child              @relation(fields: [childId], references: [id])
-  pediatricianId  String
-  pediatrician    Pediatrician       @relation(fields: [pediatricianId], references: [id])
-  type            ServiceType
-  status          ConsultationStatus @default(OPEN)
-  scopeSnapshot   String?
-  priceCents      Int
-  currency        String             @default("EUR")
-  slaDueAt        DateTime? // refund-guarantee ceiling (wall clock)
+  id                    String             @id @default(uuid())
+  familyId              String
+  childId               String
+  child                 Child              @relation(fields: [childId], references: [id])
+  pediatricianId        String
+  pediatrician          Pediatrician       @relation(fields: [pediatricianId], references: [id])
+  type                  ServiceType
+  status                ConsultationStatus @default(OPEN)
+  scopeSnapshot         String?
+  /// True when the family's subscription allowance paid for this consultation
+  /// instead of the family being charged. The pediatrician is still owed
+  /// priceCents — the platform absorbs it out of subscription revenue.
+  coveredBySubscription Boolean            @default(false)
+  priceCents            Int
+  currency              String             @default("EUR")
+  slaDueAt              DateTime? // refund-guarantee ceiling (wall clock)
   // Honest reply expectation computed from the pediatrician's message
   // windows at open time — shown to the family, never a refund trigger.
-  expectedReplyAt DateTime?
-  scheduledAt     DateTime?
-  triage          Json?
-  episodeId       String?
-  summary         String? // pediatrician's post-consultation note (AES-256-GCM)
-  openedAt        DateTime           @default(now())
-  answeredAt      DateTime?
-  closedAt        DateTime?
+  expectedReplyAt       DateTime?
+  scheduledAt           DateTime?
+  triage                Json?
+  episodeId             String?
+  summary               String? // pediatrician's post-consultation note (AES-256-GCM)
+  openedAt              DateTime           @default(now())
+  answeredAt            DateTime?
+  closedAt              DateTime?
 
   messages     Message[]
   files        FileAsset[]

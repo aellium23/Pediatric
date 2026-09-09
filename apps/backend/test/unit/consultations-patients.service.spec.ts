@@ -8,6 +8,7 @@ function make(prisma: Record<string, any>) {
     {} as any, // crypto
     {} as any, // consent
     {} as any, // payments
+    {} as any, // subscriptions
     {} as any, // events
     {} as any, // ai
   );

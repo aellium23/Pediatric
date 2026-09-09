@@ -51,6 +51,7 @@ import {
   type ChildDocumentDto,
   type DocumentKind,
   type VaultQuotaDto,
+  type AllowanceDto,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -5084,6 +5085,9 @@ function TriageDialog({
   const [busy, setBusy] = useState(false);
   // Honest expectation at the purchase moment: price + reply preview (server-
   // computed from the doctor's message windows, already capped at the SLA).
+  // What the family's plan covers — fetched at the purchase moment so the
+  // price the parent reads is the price they will be charged.
+  const [allowance, setAllowance] = useState<AllowanceDto | null>(null);
   const [svcInfo, setSvcInfo] = useState<{
     priceCents: number;
     slaHours: number;
@@ -5096,7 +5100,15 @@ function TriageDialog({
     Api.childHealth(childId)
       .then((d) => setEpisodes(d.episodes.filter((e) => e.status === 'OPEN')))
       .catch(() => {});
+    Api.subAllowance()
+      .then(setAllowance)
+      .catch(() => {
+        /* older backend without the endpoint — fall back to showing the price */
+      });
   }, [childId]);
+
+  // Only MESSAGE consultations are included; this dialog is the message flow.
+  const covered = !!allowance && allowance.remainingMessages > 0;
 
   useEffect(() => {
     let live = true;
@@ -5238,10 +5250,30 @@ function TriageDialog({
         </div>
       ) : null}
 
+      {/* The plan's inclusion, stated where the money question is actually
+          asked. An allowance the parent only discovers on the invoice is not
+          an allowance. */}
+      {covered ? (
+        <div className="card" style={{ borderColor: 'var(--accent)', marginTop: 10 }}>
+          <strong>{tr('Incluída no teu plano')}</strong>
+          <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+            {tr('Ficam')} {(allowance?.remainingMessages ?? 1) - 1}{' '}
+            {tr('de')} {allowance?.includedMessages} {tr('este mês.')}
+          </p>
+        </div>
+      ) : allowance && allowance.includedMessages > 0 ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          {tr('Já usaste as')} {allowance.includedMessages}{' '}
+          {tr('consultas incluídas este mês — esta é paga.')}
+        </p>
+      ) : null}
+
       <button className="btn" onClick={submit} disabled={busy} style={{ marginTop: 12 }}>
-        {svcInfo
-          ? `${tr('Enviar pergunta')} · ${euro(svcInfo.priceCents)}`
-          : tr('Enviar pergunta ao pediatra')}
+        {covered
+          ? tr('Enviar pergunta · incluída no plano')
+          : svcInfo
+            ? `${tr('Enviar pergunta')} · ${euro(svcInfo.priceCents)}`
+            : tr('Enviar pergunta ao pediatra')}
       </button>
       <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
         {tr('Pagas uma vez por consulta. Perguntas de seguimento até ao encerramento estão incluídas.')}{' '}

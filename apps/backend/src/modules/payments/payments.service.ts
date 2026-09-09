@@ -31,6 +31,31 @@ export class PaymentsService {
     });
     if (!member) throw new ForbiddenException('Sem autorização.');
 
+    // Covered by the family's subscription: nothing to charge them. The
+    // pediatrician is still owed the fee, so the payment row is recorded at the
+    // full amount with the platform as the payer — the split on close then
+    // works exactly as it does for a paid consultation.
+    //
+    // PRODUCTION GAP: settling this needs a platform-funded transfer to the
+    // pediatrician (there is no card charge to take it from). Below it settles
+    // locally, which is right for the demo and wrong for real money — see
+    // captureAndSplit.
+    if (consultation.coveredBySubscription) {
+      await this.prisma.payment.upsert({
+        where: { consultationId },
+        create: {
+          consultationId,
+          amountCents: consultation.priceCents,
+          currency: consultation.currency,
+          psp: 'subscription',
+          pspRef: `sub_${consultationId}`,
+          status: PaymentStatus.CREATED,
+        },
+        update: { status: PaymentStatus.CREATED },
+      });
+      return { clientSecret: null as string | null, coveredBySubscription: true };
+    }
+
     // Demo mode (no STRIPE_SECRET_KEY): record a placeholder payment so the
     // booking completes without a real charge, instead of failing with a 503.
     if (!this.stripe.enabled) {
@@ -91,9 +116,18 @@ export class PaymentsService {
         pediatricianAmount: payment.split.pediatricianAmount,
       };
     }
-    // Demo payment (recorded without a Stripe key): settle locally with the
-    // same commission math — never call Stripe with a demo_ reference.
-    if (payment.psp === 'demo' || payment.pspRef.startsWith('demo_')) {
+    // Settled locally, with the same commission math, in two cases: a demo
+    // payment (no Stripe key — never call Stripe with a demo_ reference), and a
+    // subscription-covered consultation, where there is no card charge to
+    // capture because the family already paid through their plan.
+    //
+    // For real money the subscription case still owes the pediatrician a
+    // platform-funded transfer; that belongs with the payments unfreeze.
+    if (
+      payment.psp === 'demo' ||
+      payment.psp === 'subscription' ||
+      payment.pspRef.startsWith('demo_')
+    ) {
       const result = this.stripe.computeSplit(payment.amountCents);
       await this.prisma.$transaction([
         this.prisma.payment.update({

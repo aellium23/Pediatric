@@ -11,6 +11,7 @@ import { EncryptionService } from '../../common/crypto/encryption.service';
 import { ConsentService } from '../../common/security/consent.service';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsService } from '../payments/payments.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.module';
 import { AiService } from '../ai/ai.module';
 import { StartConsultationDto, SendMessageDto } from './dto/consultations.dto';
 import { computeExpectedReplyAt } from '../scheduling/expected-reply';
@@ -30,6 +31,7 @@ export class ConsultationsService {
     private readonly crypto: EncryptionService,
     private readonly consent: ConsentService,
     private readonly payments: PaymentsService,
+    private readonly subscriptions: SubscriptionsService,
     private readonly events: EventEmitter2,
     private readonly ai: AiService,
   ) {}
@@ -97,8 +99,17 @@ export class ConsultationsService {
       if (!expectedReplyAt || expectedReplyAt > slaDueAt) expectedReplyAt = slaDueAt;
     }
 
+    // Does the family's plan already cover this? Only MESSAGE consultations
+    // are included, and only while the monthly allowance lasts. Decided here,
+    // at creation, so the price the parent was shown cannot drift from what is
+    // charged a moment later.
+    const covered =
+      service.type === ServiceType.MESSAGE &&
+      (await this.subscriptions.coversNextMessage(userId));
+
     const consultation = await this.prisma.consultation.create({
       data: {
+        coveredBySubscription: covered,
         familyId: child.familyId,
         childId: child.id,
         pediatricianId: service.pediatricianId,

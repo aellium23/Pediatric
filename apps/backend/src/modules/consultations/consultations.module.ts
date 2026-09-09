@@ -11,6 +11,7 @@ import { CurrentUser, Roles } from '../../common/security/decorators';
 import { AuthenticatedUser } from '../../common/security/jwt.strategy';
 import { PaymentsModule } from '../payments/payments.module';
 import { AiModule } from '../ai/ai.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @ApiTags('consultations')
 @ApiBearerAuth()
@@ -127,7 +128,7 @@ class ConsultationsController {
 }
 
 @Module({
-  imports: [PaymentsModule, AiModule, JwtModule.register({})],
+  imports: [PaymentsModule, AiModule, SubscriptionsModule, JwtModule.register({})],
   controllers: [ConsultationsController],
   providers: [ConsultationsService, ConsultationsGateway, SlaScheduler],
   exports: [ConsultationsService],

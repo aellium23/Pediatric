@@ -147,6 +147,49 @@ de planos é uma otimização de take-rate que só faz sentido depois de haver
 volume. Números a validar com os pediatras reais do piloto (é 20% aceitável?
 o pricing €18 mensagem / €40 vídeo tem procura?).
 
+### 6b. Carteira de créditos — **NÃO**, e porquê
+
+**DECIDIDO (2026-09-09).** Não haverá saldo pré-carregado em euros ou créditos.
+O que existe é **inclusão mensal no plano** (o Família inclui 2 consultas por
+mensagem) mais **pagamento num toque** para o que passa disso.
+
+**Razão.** A ideia da carteira junta três coisas com respostas opostas, e os
+benefícios que se procuram vêm todos das duas últimas:
+
+| | Veredicto |
+|---|---|
+| (a) Saldo pré-carregado | **Não** |
+| (b) Inclusão na subscrição | **Sim** — construído |
+| (c) Um toque para o excedente | **Sim** — com métodos guardados (Apple/Google Pay, MB WAY) |
+
+O saldo é a única das três que traz problemas, e traz quatro:
+
+1. **Valor armazenado.** Dinheiro entregue hoje para gastar depois encosta à
+   Diretiva da Moeda Eletrónica e à PSD2. Há a *limited network exclusion*
+   (art. 3.º(k)), mas obriga a notificar o Banco de Portugal ao ultrapassar
+   **1 M€ em 12 meses** (art. 37.º(2)), e fica frágil se o saldo for
+   reembolsável em dinheiro.
+2. **IVA.** Vender crédito é um adiantamento e cai no regime de *vouchers* de
+   finalidade única/múltipla. Como os atos médicos são isentos e a subscrição
+   não, uma carteira que compre ambos é de finalidade múltipla — o que obriga
+   a refazer o `docs/12-faturacao-portugal.md`, desenhado para faturar por ato.
+3. **Saldos por gastar** viram passivo, e a lei do consumidor não gosta de
+   crédito que caduque.
+4. **O split.** Hoje o dinheiro entra quando a consulta existe e é dividido na
+   hora. Com carteira, a plataforma segura fundos que ainda não ganhou.
+
+E há um argumento de produto que pesa tanto como estes: **uma carteira faz o
+pai contar créditos no momento em que devia estar a pensar no filho.**
+
+**Quando reavaliar:** se vendermos *packs* por razões de tesouraria, ou se
+houver **B2B2C** (empregador ou seguradora compra crédito para os
+colaboradores) — aí a carteira é o produto e o trabalho regulatório
+justifica-se.
+
+**Nota de âmbito:** esta é a terceira exceção ao congelamento (#9), depois da
+instrumentação e do cofre. Fica registada para o congelamento continuar a
+significar alguma coisa.
+
 ---
 
 ## 7. Idiomas e mercado do piloto
