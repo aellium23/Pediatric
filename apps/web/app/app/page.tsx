@@ -50,6 +50,7 @@ import {
   type AnalyticsSummaryDto,
   type ChildDocumentDto,
   type DocumentKind,
+  type VaultQuotaDto,
 } from '@/lib/client';
 import type { PediatricianCard, PediatricianDetail, MessageWindow } from '@/lib/types';
 import { useT, LanguageSwitcher, appLocale, trs } from '@/lib/i18n';
@@ -3188,6 +3189,7 @@ function DocumentVault({
 }) {
   const { tr } = useT();
   const [docs, setDocs] = useState<ChildDocumentDto[] | null>(null);
+  const [quota, setQuota] = useState<VaultQuotaDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<DocumentKind>('REPORT');
@@ -3199,7 +3201,15 @@ function DocumentVault({
     Api.documents(childId)
       .then(setDocs)
       .catch(() => setDocs([]));
-  }, [childId]);
+    if (canEdit) {
+      // Parents only — a pediatrician has no allowance to spend.
+      Api.documentQuota(childId)
+        .then(setQuota)
+        .catch(() => {
+          /* older backend without the endpoint — just don't show the bar */
+        });
+    }
+  }, [childId, canEdit]);
   useEffect(load, [load]);
 
   async function pickFile(file: File | undefined) {
@@ -3317,6 +3327,20 @@ function DocumentVault({
           );
         })
       )}
+
+      {canEdit && quota ? (
+        (() => {
+          const pct = Math.min(100, Math.round((quota.usedBytes / Math.max(1, quota.maxBytes)) * 100));
+          const tight = pct >= 80 || quota.usedDocs >= quota.maxDocs * 0.8;
+          return (
+            <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+              {humanSize(quota.usedBytes)} {tr('de')} {humanSize(quota.maxBytes)} ·{' '}
+              {quota.usedDocs}/{quota.maxDocs} {tr('documentos')}
+              {tight ? ` — ${tr('quase sem espaço; apaga documentos antigos.')}` : ''}
+            </p>
+          );
+        })()
+      ) : null}
 
       {canEdit ? (
         <Reg label={tr('+ Guardar documento')}>

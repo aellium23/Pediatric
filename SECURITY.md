@@ -63,5 +63,22 @@ em produção, e estão documentadas em `LAUNCH_READY.md`:
 - Respostas de erro uniformes que não devolvem mensagens internas nem eco do
   corpo do pedido.
 - CodeQL a correr no CI.
+- **Cofre de documentos**: só PDF e imagens, e o tipo é decidido pela assinatura
+  dos bytes e não pelo rótulo enviado pelo cliente — um payload disfarçado de
+  PDF é recusado. Quota por família para o cofre não poder esgotar a base de
+  dados.
+
+## Limitação conhecida — sem análise de malware
+
+Os documentos do cofre **não são analisados** contra malware. Um PDF carregado
+por uma família é aberto no browser de um pediatra. Está mitigado, não
+eliminado: o tipo é validado pela assinatura do ficheiro (não passa HTML nem
+executáveis), e a abertura é feita por blob URL no visualizador nativo do
+browser, que corre em sandbox. Um PDF malicioso continua a ser um vetor
+possível.
+
+Isto é aceitável num piloto fechado com famílias conhecidas. **Antes de
+inscrições abertas**, é preciso análise de conteúdo — o modelo `FileAsset` já
+tem o campo `scanStatus` e o prefixo de quarentena previstos para isso.
 
 *Última atualização: 2026-09-09.*

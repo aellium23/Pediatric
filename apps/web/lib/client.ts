@@ -671,6 +671,8 @@ export const Api = {
   // Document vault — the family's reports, results and letters.
   documents: (childId: string) =>
     request(`/documents/${childId}`) as Promise<ChildDocumentDto[]>,
+  documentQuota: (childId: string) =>
+    request(`/documents/${childId}/quota`) as Promise<VaultQuotaDto>,
   document: (childId: string, id: string) =>
     request(`/documents/${childId}/${id}`) as Promise<ChildDocumentDto & { content: string }>,
   addDocument: (
@@ -1190,4 +1192,11 @@ export interface ChildDocumentDto {
   sizeBytes: number;
   issuedAt: string | null;
   createdAt: string;
+}
+
+export interface VaultQuotaDto {
+  usedBytes: number;
+  maxBytes: number;
+  usedDocs: number;
+  maxDocs: number;
 }

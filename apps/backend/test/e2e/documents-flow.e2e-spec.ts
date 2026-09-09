@@ -109,6 +109,21 @@ describe('Document vault flow (e2e)', () => {
         .expect(400);
     });
 
+    // The declared mime is client-controlled; the bytes are what a
+    // pediatrician's browser will actually open.
+    it('rejects a file whose bytes disagree with its label (400)', async () => {
+      const png = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.alloc(8, 1),
+      ]);
+      const res = await http()
+        .post(`/api/documents/${childId}`)
+        .set(bearer(token))
+        .send({ title: 'Disfarçado', content: `data:application/pdf;base64,${png.toString('base64')}` })
+        .expect(400);
+      expect(JSON.stringify(res.body)).toMatch(/não corresponde/i);
+    });
+
     it('rejects an oversized file with a readable message (400)', async () => {
       const res = await http()
         .post(`/api/documents/${childId}`)

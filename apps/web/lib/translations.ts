@@ -1094,6 +1094,8 @@ export const TR: Record<'en' | 'es', Record<string, string>> = {
     "medicamentos": "medicamentos",
     "Sobre qual criança?": "¿Sobre qué niño?",
     "Ditar por voz": "Dictar por voz",
+    "documentos": "documentos",
+    "quase sem espaço; apaga documentos antigos.": "casi sin espacio; elimina documentos antiguos.",
     "Relatórios, análises e receitas num sítio só. O pediatra que te acompanha vê-os na consulta.": "Informes, análisis y recetas en un solo sitio. El pediatra que te acompaña los ve en la consulta.",
     "Ainda sem documentos guardados.": "Aún sin documentos guardados.",
     "+ Guardar documento": "+ Guardar documento",

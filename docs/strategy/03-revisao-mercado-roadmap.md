@@ -199,6 +199,16 @@ volta a ser a comissão — ou seja, volta-se ao roadmap antigo por omissão.
 > antes de qualquer coisa entrar no registo clínico, e não devia ser enfiada na
 > mesma entrega que o armazenamento.
 >
+> **Endurecido a 2026-09-09**, depois de eu próprio ter apontado as duas
+> lacunas que deixei: o tipo do ficheiro passou a ser decidido pela assinatura
+> dos bytes e não pelo rótulo do cliente (um HTML disfarçado de PDF é recusado,
+> e um PNG rotulado como PDF também), e há uma **quota por família** — 25 MB e
+> 100 documentos por omissão, contados por família para não serem contornáveis
+> a criar crianças, com o espaço restante à vista antes de o pai bater no
+> limite. Continua **sem análise de malware**: mitigado pela validação de
+> assinatura e pelo visualizador do browser em sandbox, mas registado como
+> limitação conhecida no `SECURITY.md`.
+>
 > **Armazenamento:** no piloto o ficheiro fica em linha na base de dados, como
 > data URL cifrada — o mesmo caminho que as fotos do chat já tomam. Isso limita
 > um documento a alguns MB e põe bytes na base. É adequado a um piloto e

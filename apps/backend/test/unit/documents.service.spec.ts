@@ -3,6 +3,9 @@ import { DocumentKind, Role } from '@prisma/client';
 import {
   DocumentsService,
   MAX_CONTENT_CHARS,
+  MAX_FAMILY_BYTES,
+  MAX_FAMILY_DOCS,
+  humanBytes,
   parseDataUrl,
 } from '../../src/modules/documents/documents.module';
 import { ChildAccessService } from '../../src/common/security/child-access.service';
@@ -26,6 +29,7 @@ function build(over: Record<string, any> = {}) {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: 0 }, _count: { _all: 0 } }),
     },
     ...over,
   };
@@ -37,18 +41,39 @@ function build(over: Record<string, any> = {}) {
 const parent: AuthenticatedUser = { userId: 'u-parent', role: Role.PARENT };
 const ped: AuthenticatedUser = { userId: 'u-ped', role: Role.PEDIATRICIAN };
 
-const pdf = (payload = 'JVBERi0xLjQK') => `data:application/pdf;base64,${payload}`;
+// Real file signatures — the point of the checks below is that the bytes have
+// to be what the label says.
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const dataUrl = (mime: string, buf: Buffer) => `data:${mime};base64,${buf.toString('base64')}`;
+const png = (extra = 0) => Buffer.concat([PNG_SIG, Buffer.alloc(extra, 1)]);
+const pdfBuf = (extra = 0) =>
+  Buffer.concat([Buffer.from('%PDF-1.4\n', 'latin1'), Buffer.alloc(extra, 1)]);
+const pdf = (extra = 0) => dataUrl('application/pdf', pdfBuf(extra));
+
+describe('humanBytes', () => {
+  // Rounding straight to MB printed "0 MB" for a sub-megabyte limit, which is
+  // exactly the range an operator uses while tuning the quota.
+  it('does not collapse small sizes to 0 MB', () => {
+    expect(humanBytes(50)).toBe('50 bytes');
+    expect(humanBytes(500 * 1024)).toBe('500 kB');
+    expect(humanBytes(25 * 1024 * 1024)).toBe('25 MB');
+  });
+});
 
 describe('parseDataUrl', () => {
   it('accepts a PDF and reports its decoded size', () => {
-    // 12 base64 chars, no padding → 9 bytes.
-    expect(parseDataUrl(pdf())).toEqual({ mime: 'application/pdf', sizeBytes: 9 });
+    expect(parseDataUrl(pdf())).toEqual({
+      mime: 'application/pdf',
+      sizeBytes: pdfBuf().length,
+    });
   });
 
+  // Covers all three base64 padding cases (0, 1 and 2 '=' characters).
   it('discounts base64 padding from the size', () => {
-    expect(parseDataUrl('data:image/png;base64,AAAA').sizeBytes).toBe(3);
-    expect(parseDataUrl('data:image/png;base64,AAA=').sizeBytes).toBe(2);
-    expect(parseDataUrl('data:image/png;base64,AA==').sizeBytes).toBe(1);
+    for (const extra of [0, 1, 2]) {
+      const buf = png(extra);
+      expect(parseDataUrl(dataUrl('image/png', buf)).sizeBytes).toBe(buf.length);
+    }
   });
 
   it('rejects a type that is not a document a parent would hold', () => {
@@ -61,6 +86,23 @@ describe('parseDataUrl', () => {
   it('rejects anything that is not a base64 data URL', () => {
     expect(() => parseDataUrl('https://example.com/report.pdf')).toThrow(BadRequestException);
     expect(() => parseDataUrl('data:application/pdf,notbase64')).toThrow(BadRequestException);
+  });
+
+  // The declared mime comes from the client and proves nothing. These files end
+  // up open in a pediatrician's browser, so the bytes decide.
+  it('rejects a payload wearing a PDF label', () => {
+    const html = Buffer.from('<script>alert(1)</script>', 'latin1');
+    expect(() => parseDataUrl(dataUrl('application/pdf', html))).toThrow(
+      /não foi reconhecido|não reconhecido/i,
+    );
+  });
+
+  it('rejects a real PNG that claims to be a PDF', () => {
+    expect(() => parseDataUrl(dataUrl('application/pdf', png(8)))).toThrow(/não corresponde/i);
+  });
+
+  it('reports the type the bytes prove, not the one declared', () => {
+    expect(parseDataUrl(dataUrl('image/png', png(8))).mime).toBe('image/png');
   });
 });
 
@@ -140,6 +182,52 @@ describe('DocumentsService', () => {
         childId: 'ch1',
         userId: 'u-parent',
       });
+    });
+  });
+
+  describe('family quota', () => {
+    const full = (over: { bytes?: number; docs?: number }) =>
+      build({
+        childDocument: {
+          create: jest.fn().mockResolvedValue({ id: 'doc1', createdAt: new Date() }),
+          aggregate: jest.fn().mockResolvedValue({
+            _sum: { sizeBytes: over.bytes ?? 0 },
+            _count: { _all: over.docs ?? 0 },
+          }),
+        },
+      });
+
+    // Counted per family, not per child: otherwise adding a child would buy
+    // another allowance.
+    it('measures usage across the whole family', async () => {
+      const { service, prisma } = build();
+      await service.add(parent, 'ch1', { title: 'Relatório', content: pdf() });
+      expect(prisma.childDocument.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { child: { familyId: 'fam1' } } }),
+      );
+    });
+
+    it('refuses when the byte allowance is spent, and says how to free space', async () => {
+      const { service, prisma } = full({ bytes: MAX_FAMILY_BYTES });
+      await expect(
+        service.add(parent, 'ch1', { title: 'Mais um', content: pdf() }),
+      ).rejects.toThrow(/não há espaço/i);
+      expect(prisma.childDocument.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the document count is spent', async () => {
+      const { service, prisma } = full({ docs: MAX_FAMILY_DOCS });
+      await expect(
+        service.add(parent, 'ch1', { title: 'Mais um', content: pdf() }),
+      ).rejects.toThrow(new RegExp(`limite de ${MAX_FAMILY_DOCS} documentos`, 'i'));
+      expect(prisma.childDocument.create).not.toHaveBeenCalled();
+    });
+
+    it('still accepts the document that exactly fills the allowance', async () => {
+      const size = pdfBuf().length;
+      const { service, prisma } = full({ bytes: MAX_FAMILY_BYTES - size, docs: MAX_FAMILY_DOCS - 1 });
+      await service.add(parent, 'ch1', { title: 'O último', content: pdf() });
+      expect(prisma.childDocument.create).toHaveBeenCalled();
     });
   });
 

@@ -37,6 +37,61 @@ const ALLOWED_MIME = [
  */
 export const MAX_CONTENT_CHARS = 4_000_000;
 
+/**
+ * Per-family storage ceiling. The vault keeps files inline in Postgres, so an
+ * unbounded vault is an availability bug: at 20 uploads/min a single family
+ * could fill a free-tier database in an afternoon. Counted per FAMILY and not
+ * per child, so adding children does not multiply the allowance.
+ *
+ * Measured on the decoded file size, which is what a parent sees; on disk it
+ * costs roughly 1.4x more once base64 and encryption are added.
+ */
+export const MAX_FAMILY_BYTES = Number(process.env.VAULT_FAMILY_BYTES ?? 25 * 1024 * 1024);
+export const MAX_FAMILY_DOCS = Number(process.env.VAULT_FAMILY_DOCS ?? 100);
+
+/**
+ * File signatures ("magic bytes"). The data URL's own mime label is chosen by
+ * the client, so on its own it proves nothing: a payload can claim to be a PDF.
+ * Since a document uploaded by a family is later opened in a PEDIATRICIAN's
+ * browser, the bytes have to actually be what they claim.
+ */
+const SIGNATURES: { mime: string; test: (b: Buffer) => boolean }[] = [
+  { mime: 'application/pdf', test: (b) => b.subarray(0, 5).toString('latin1') === '%PDF-' },
+  { mime: 'image/jpeg', test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  {
+    mime: 'image/png',
+    test: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  },
+  {
+    mime: 'image/webp',
+    test: (b) =>
+      b.subarray(0, 4).toString('latin1') === 'RIFF' &&
+      b.subarray(8, 12).toString('latin1') === 'WEBP',
+  },
+  {
+    // ISO-BMFF container; HEIC brands live at bytes 8..12.
+    mime: 'image/heic',
+    test: (b) =>
+      b.subarray(4, 8).toString('latin1') === 'ftyp' &&
+      ['heic', 'heix', 'hevc', 'heim', 'heis', 'mif1', 'msf1'].includes(
+        b.subarray(8, 12).toString('latin1'),
+      ),
+  },
+];
+
+/** The type the bytes really are, or undefined if we do not recognise them. */
+export function sniffMime(base64Head: string): string | undefined {
+  let head: Buffer;
+  try {
+    // 64 base64 chars is a multiple of 4 and decodes to 48 bytes — more than
+    // any signature above needs.
+    head = Buffer.from(base64Head.slice(0, 64), 'base64');
+  } catch {
+    return undefined;
+  }
+  return SIGNATURES.find((s) => s.test(head))?.mime;
+}
+
 export class AddDocumentDto {
   @ApiProperty({ description: 'What the parent will recognise it by.' })
   @IsString()
@@ -69,18 +124,40 @@ export interface DocumentSummary {
   createdAt: string;
 }
 
-/** `data:<mime>;base64,<payload>` → the parts we are willing to store. */
+/**
+ * `data:<mime>;base64,<payload>` → the parts we are willing to store. The mime
+ * that comes back is the one the BYTES prove, not the one the client declared.
+ */
 export function parseDataUrl(content: string): { mime: string; sizeBytes: number } {
   const match = /^data:([a-z0-9.+/-]+);base64,(.+)$/i.exec(content);
   if (!match) throw new BadRequestException('Ficheiro inválido.');
-  const mime = match[1].toLowerCase();
-  if (!(ALLOWED_MIME as readonly string[]).includes(mime)) {
+  const declared = match[1].toLowerCase();
+  if (!(ALLOWED_MIME as readonly string[]).includes(declared)) {
     throw new BadRequestException('Formato não suportado. Usa PDF ou uma imagem.');
   }
-  // base64 → bytes, minus the padding.
+
   const b64 = match[2];
+  const actual = sniffMime(b64);
+  if (!actual) {
+    throw new BadRequestException('Ficheiro não reconhecido. Usa um PDF ou uma imagem.');
+  }
+  if (actual !== declared) {
+    // A file whose label disagrees with its content is either broken or hostile;
+    // either way it is not going into a pediatrician's browser.
+    throw new BadRequestException('O ficheiro não corresponde ao formato indicado.');
+  }
+
+  // base64 → bytes, minus the padding.
   const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
-  return { mime, sizeBytes: Math.floor((b64.length * 3) / 4) - padding };
+  return { mime: actual, sizeBytes: Math.floor((b64.length * 3) / 4) - padding };
+}
+
+/** Human-readable size. Rounding straight to MB would print "0 MB" for any
+ *  limit below a megabyte, which is what an operator sees while tuning one. */
+export function humanBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} kB`;
+  return `${bytes} bytes`;
 }
 
 @Injectable()
@@ -131,8 +208,23 @@ export class DocumentsService {
     };
   }
 
+  /** Access check that also hands back the child (and so the family). */
+  assertParent(user: AuthenticatedUser, childId: string) {
+    return this.access.assertAccess(user, childId);
+  }
+
+  /** How much of the family's allowance is already spent. */
+  async usage(familyId: string): Promise<{ bytes: number; docs: number }> {
+    const agg = await this.prisma.childDocument.aggregate({
+      where: { child: { familyId } },
+      _sum: { sizeBytes: true },
+      _count: { _all: true },
+    });
+    return { bytes: agg._sum.sizeBytes ?? 0, docs: agg._count._all };
+  }
+
   async add(user: AuthenticatedUser, childId: string, dto: AddDocumentDto) {
-    await this.access.assertAccess(user, childId);
+    const child = await this.access.assertAccess(user, childId);
     if (dto.content.length > MAX_CONTENT_CHARS) {
       throw new BadRequestException(
         'Ficheiro demasiado grande. O limite é cerca de 3 MB por documento.',
@@ -141,6 +233,20 @@ export class DocumentsService {
     const { mime, sizeBytes } = parseDataUrl(dto.content);
     const title = dto.title.trim();
     if (!title) throw new BadRequestException('Dá um nome ao documento.');
+
+    // Checked after parsing (so we know the real size) and before writing.
+    const used = await this.usage(child.familyId);
+    if (used.docs + 1 > MAX_FAMILY_DOCS) {
+      throw new BadRequestException(
+        `Atingiste o limite de ${MAX_FAMILY_DOCS} documentos. Apaga algum para guardar outro.`,
+      );
+    }
+    if (used.bytes + sizeBytes > MAX_FAMILY_BYTES) {
+      throw new BadRequestException(
+        `Não há espaço: o cofre da família está limitado a ${humanBytes(MAX_FAMILY_BYTES)}. ` +
+          'Apaga documentos antigos para libertar espaço.',
+      );
+    }
 
     const doc = await this.prisma.childDocument.create({
       data: {
@@ -176,6 +282,7 @@ export class DocumentsService {
   }
 }
 
+/** The family's remaining allowance — so the UI can warn before a refusal. */
 @ApiTags('documents')
 @ApiBearerAuth()
 @Controller('documents')
@@ -186,6 +293,20 @@ class DocumentsController {
   @Roles(Role.PARENT, Role.PEDIATRICIAN)
   list(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
     return this.service.list(user, childId);
+  }
+
+  /** Remaining allowance, so the app can warn before an upload is refused. */
+  @Get(':childId/quota')
+  @Roles(Role.PARENT)
+  async quota(@CurrentUser() user: AuthenticatedUser, @Param('childId') childId: string) {
+    const child = await this.service.assertParent(user, childId);
+    const used = await this.service.usage(child.familyId);
+    return {
+      usedBytes: used.bytes,
+      maxBytes: MAX_FAMILY_BYTES,
+      usedDocs: used.docs,
+      maxDocs: MAX_FAMILY_DOCS,
+    };
   }
 
   @Get(':childId/:id')
